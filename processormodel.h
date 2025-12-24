@@ -192,6 +192,7 @@ signals:
     void sendMessageToConsole(const QString &message) const;
     void sendCharToConsole(char ch) const;
     void modelReset();
+    void stopRunChanged();
     void accumulatorChanged();
     void xregisterChanged();
     void yregisterChanged();
@@ -226,7 +227,8 @@ private:
     void assemblePass1();
     bool assembleNextStatement(bool &hasOpcode, Opcodes &opcode, OpcodeOperand &operand, bool &eof);
     bool getNextLine();
-    bool getNextToken();
+    bool getNextToken(bool wantOperator = false);
+    int getTokensExpressionValueAsInt(bool *ok);
     bool tokenIsLabel() const;
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
@@ -258,6 +260,9 @@ private:
 
     int indexToAddress(const QModelIndex &index) const { return index.isValid() ? index.row() * columnCount() + index.column() : -1; }
     QModelIndex addressToIndex(int address) const { return address >= 0 ? index(address / columnCount(), address % columnCount()) : QModelIndex(); }
+
+public slots:
+    void clearLastMemoryChanged();
 
 private slots:
     void memoryChanged(uint16_t address);

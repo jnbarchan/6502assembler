@@ -3,12 +3,11 @@
 
 https://en.wikipedia.org/wiki/MOS_Technology_6502
 
-
 http://www.6502.org/users/obelisk/6502/instructions.html
 
+http://6502.org/users/obelisk/dev65/as65.html
 
 https://retroscience.net/writing-6502-assembler.html
-
 
 https://www.masswerk.at/6502/6502_instruction_set.html
 

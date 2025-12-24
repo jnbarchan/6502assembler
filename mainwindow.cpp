@@ -6,6 +6,8 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
+#define SAMPLES_RELATIVE_PATH "../../samples"
+
 ProcessorModel *g_processorModel;
 
 MainWindow::MainWindow(QWidget *parent)
@@ -35,6 +37,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(g_processorModel, &ProcessorModel::modelReset, this, &MainWindow::modelReset);
     modelReset();
 
+    connect(g_processorModel, &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement);
+
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
     connect(g_processorModel, &ProcessorModel::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
@@ -52,8 +56,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
 
+    ui->actionRun->setIcon(ui->btnRun->icon());
     ui->btnRun->setDefaultAction(ui->actionRun);
+    ui->actionStep->setIcon(ui->btnStep->icon());
     ui->btnStep->setDefaultAction(ui->actionStep);
+    ui->actionReset->setIcon(ui->btnReset->icon());
     ui->btnReset->setDefaultAction(ui->actionReset);
 
     if (QFile::exists(scratchFileName()))
@@ -76,6 +83,7 @@ bool MainWindow::haveDoneReset() const
 void MainWindow::setHaveDoneReset(bool newHaveDoneReset)
 {
     _haveDoneReset = newHaveDoneReset;
+    actionEnablement();
 }
 
 
@@ -108,12 +116,23 @@ void MainWindow::saveToFile(QString fileName)
 }
 
 
+/*slot*/ void MainWindow::actionEnablement()
+{
+    bool enable;
+    if (!haveDoneReset())
+        enable = true;
+    else
+        enable = !g_processorModel->stopRun();
+    ui->btnStep->defaultAction()->setEnabled(enable);
+}
+
+
 /*slot*/ void MainWindow::sendMessageToConsole(const QString &message)
 {
     ui->teConsole->appendPlainText(message);
 }
 
-void MainWindow::sendCharToConsole(char ch)
+/*slot*/ void MainWindow::sendCharToConsole(char ch)
 {
     ui->teConsole->insertPlainText(QString(ch));
 }
@@ -146,7 +165,8 @@ void MainWindow::sendCharToConsole(char ch)
 
 /*slot*/ void MainWindow::openFile()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, "Open File", QString(), "*.asm");
+    QString defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? SAMPLES_RELATIVE_PATH : QString();
+    QString fileName = QFileDialog::getOpenFileName(this, "Open File", defaultDir, "*.asm");
     if (fileName.isEmpty())
         return;
     openFromFile(fileName);
@@ -154,7 +174,8 @@ void MainWindow::sendCharToConsole(char ch)
 
 /*slot*/ void MainWindow::saveFile()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, "Save File", QString(), "*.asm");
+    QString defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? SAMPLES_RELATIVE_PATH : QString();
+    QString fileName = QFileDialog::getSaveFileName(this, "Save File", defaultDir, "*.asm");
     if (fileName.isEmpty())
         return;
     QFileInfo fileInfo(fileName);

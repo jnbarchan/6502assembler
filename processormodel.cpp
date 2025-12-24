@@ -247,6 +247,7 @@ void ProcessorModel::resetModel()
     _xregister = 10;
     _yregister = 15;
     emit modelReset();
+    _memoryModel->clearLastMemoryChanged();
 }
 
 
@@ -268,6 +269,7 @@ bool ProcessorModel::stopRun() const
 void ProcessorModel::setStopRun(bool newStopRun)
 {
     _stopRun = newStopRun;
+    emit stopRunChanged();
 }
 
 
@@ -424,7 +426,7 @@ bool ProcessorModel::assembleNextStatement(bool &hasOpcode, Opcodes &opcode, Opc
             {
                 getNextToken();
                 bool ok;
-                int value = tokenToInt(&ok);
+                int value = getTokensExpressionValueAsInt(&ok);
                 if (ok)
                     assignLabelValue(label, value);
                 return true;
@@ -464,120 +466,118 @@ bool ProcessorModel::assembleNextStatement(bool &hasOpcode, Opcodes &opcode, Opc
 
     QString opcodeName(Assembler::OpcodesValueToString(opcode));
     operand.arg = -999;
-    if (!getNextToken())
+    getNextToken();
+    if (_currentToken.isEmpty())
     {
         operand.mode = AddressingMode::Implicit;
     }
-    else
+    else if (_currentToken == '#')
     {
-        if (_currentToken == '#')
+        operand.mode = AddressingMode::Immediate;
+        getNextToken();
+        bool ok;
+        int value = getTokensExpressionValueAsInt(&ok);
+        if (!ok)
         {
-            operand.mode = AddressingMode::Immediate;
-            getNextToken();
-            bool ok;
-            int value = tokenValueAsInt(&ok);
-            if (!ok)
-            {
-                debugMessage(QString("Bad value: %1").arg(_currentToken));
-                return false;
-            }
-            operand.arg = value;
+            debugMessage(QString("Bad value: %1").arg(_currentToken));
+            return false;
         }
-        else if (_currentToken.toUpper() == "A")
+        operand.arg = value;
+    }
+    else if (_currentToken.toUpper() == "A")
+    {
+        operand.mode = AddressingMode::Accumulator;
+        getNextToken();
+    }
+    else if (_currentToken == "(")
+    {
+        getNextToken();
+        bool ok;
+        int value = getTokensExpressionValueAsInt(&ok);
+        if (!ok)
         {
-            operand.mode = AddressingMode::Accumulator;
+            debugMessage(QString("Bad value: %1").arg(_currentToken));
+            return false;
         }
-        else if (_currentToken == "(")
-        {
-            getNextToken();
-            bool ok;
-            int value = tokenValueAsInt(&ok);
-            if (!ok)
-            {
-                debugMessage(QString("Bad value: %1").arg(_currentToken));
-                return false;
-            }
-            operand.arg = value;
+        operand.arg = value;
 
-            bool recognised = false;
-            getNextToken();
-            if (_currentToken == ',')
+        bool recognised = false;
+        if (_currentToken == ',')
+        {
+            if (getNextToken() && _currentToken.toUpper() == "X")
+                if (getNextToken() && _currentToken == ")")
+                {
+                    operand.mode = AddressingMode::IndexedIndirectX;
+                    recognised = true;
+                }
+        }
+        else if (_currentToken == ")")
+        {
+            operand.mode = AddressingMode::Indirect;
+            recognised = true;
+            if (getNextToken())
             {
-                if (getNextToken() && _currentToken.toUpper() == "X")
-                    if (getNextToken() && _currentToken == ")")
+                recognised = false;
+                if (_currentToken == ",")
+                    if (getNextToken() && _currentToken.toUpper() == "Y")
                     {
-                        operand.mode = AddressingMode::IndexedIndirectX;
+                        operand.mode = AddressingMode::IndirectIndexedY;
                         recognised = true;
                     }
             }
-            else if (_currentToken == ")")
-            {
-                operand.mode = AddressingMode::Indirect;
-                recognised = true;
-                if (getNextToken())
-                {
-                    recognised = false;
-                    if (_currentToken == ",")
-                        if (getNextToken() && _currentToken.toUpper() == "Y")
-                        {
-                            operand.mode = AddressingMode::IndirectIndexedY;
-                            recognised = true;
-                        }
-                }
-            }
-            if (!recognised)
-            {
-                debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
-                return false;
-            }
         }
-        else if (tokenIsInt() || tokenIsLabel())
-        {
-            operand.mode = AddressingMode::Absolute;
-            switch (opcode)
-            {
-            case Opcodes::BCC: case Opcodes::BCS: case Opcodes::BEQ: case Opcodes::BMI:
-            case Opcodes::BNE: case Opcodes::BPL: case Opcodes::BVC: case Opcodes::BVS:
-                operand.mode = AddressingMode::Relative;
-                break;
-            default: break;
-            }
-
-            bool ok;
-            int value = tokenValueAsInt(&ok);
-            if (!ok)
-            {
-                debugMessage(QString("Bad value: %1").arg(_currentToken));
-                return false;
-            }
-            operand.arg = value;
-
-            if (getNextToken())
-            {
-                bool recognised = false;
-                if (_currentToken == ",")
-                {
-                    recognised = true;
-                    getNextToken();
-                    if (_currentToken.toUpper() == "X")
-                        operand.mode = AddressingMode::AbsoluteX;
-                    else if (_currentToken.toUpper() == "Y")
-                        operand.mode = AddressingMode::AbsoluteY;
-                    else
-                        recognised = false;
-                }
-                if (!recognised)
-                {
-                    debugMessage(QString("Unrecognized operand absolute addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
-                    return false;
-                }
-            }
-        }
-        else
+        if (!recognised)
         {
             debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
             return false;
         }
+    }
+    else if (tokenIsInt() || tokenIsLabel())
+    {
+        operand.mode = AddressingMode::Absolute;
+        switch (opcode)
+        {
+        case Opcodes::BCC: case Opcodes::BCS: case Opcodes::BEQ: case Opcodes::BMI:
+        case Opcodes::BNE: case Opcodes::BPL: case Opcodes::BVC: case Opcodes::BVS:
+            operand.mode = AddressingMode::Relative;
+            break;
+        default: break;
+        }
+
+        bool ok;
+        int value = getTokensExpressionValueAsInt(&ok);
+        if (!ok)
+        {
+            debugMessage(QString("Bad value: %1").arg(_currentToken));
+            return false;
+        }
+        operand.arg = value;
+
+        if (!_currentToken.isEmpty())
+        {
+            bool recognised = false;
+            if (_currentToken == ",")
+            {
+                recognised = true;
+                getNextToken();
+                if (_currentToken.toUpper() == "X")
+                    operand.mode = AddressingMode::AbsoluteX;
+                else if (_currentToken.toUpper() == "Y")
+                    operand.mode = AddressingMode::AbsoluteY;
+                else
+                    recognised = false;
+            }
+            if (!recognised)
+            {
+                debugMessage(QString("Unrecognized operand absolute addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+                return false;
+            }
+        }
+    }
+    else
+    {
+        debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+        return false;
     }
 
     bool zpArg = (operand.arg &0xff00) == 0;
@@ -650,7 +650,7 @@ bool ProcessorModel::getNextLine()
     return true;
 }
 
-bool ProcessorModel::getNextToken()
+bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
 {
     _currentToken.clear();
     QChar firstChar, nextChar;
@@ -666,7 +666,7 @@ bool ProcessorModel::getNextToken()
 
     _currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
-        if (!(firstChar == '%' || firstChar == '$' || firstChar == '-' || firstChar == '\'' || firstChar == '_'))
+        if (!(firstChar == '%' || firstChar == '$' || (firstChar == '-' && !wantOperator) || firstChar == '\''|| firstChar == '_'))
             return true;
     _currentLineStream >> nextChar;
     if (firstChar == '\'')
@@ -693,6 +693,40 @@ bool ProcessorModel::getNextToken()
     if (!nextChar.isNull())
         _currentLineStream.seek(_currentLineStream.pos() - 1);
     return true;
+}
+
+int ProcessorModel::getTokensExpressionValueAsInt(bool *ok)
+{
+    bool _ok;
+    if (ok == nullptr)
+        ok = &_ok;
+    *ok = false;
+    if (_currentToken.isEmpty())
+        return -1;
+    int value = tokenValueAsInt(ok);
+    if (!*ok)
+        return -1;
+    while (getNextToken(true))
+    {
+        *ok = false;
+        QString _operator(_currentToken);
+        if (!(_operator == "+" || _operator == "-"))
+            return -1;
+        getNextToken();
+        int value2 = tokenValueAsInt(ok);
+        if (!*ok)
+            return -1;
+        if (_operator == "+")
+            value += value2;
+        else if (_operator == "-")
+            value -= value2;
+        else
+        {
+            *ok = false;
+            return -1;
+        }
+    }
+    return value;
 }
 
 bool ProcessorModel::tokenIsLabel() const
@@ -1140,7 +1174,7 @@ void ProcessorModel::jumpTo(uint16_t lineNumber)
         jsr_outch();
         lineNumber = (pullFromStack() << 8) | pullFromStack();
     }
-    if (lineNumber < 0 || lineNumber >= _codeLines.length())
+    if (lineNumber < 0 || lineNumber > _codeLines.length())
     {
         debugMessage(QString("Jump to line number out of range: %1").arg(lineNumber));
         setStopRun(true);
@@ -1209,15 +1243,21 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     return QAbstractTableModel::headerData(section, orientation, role);
 }
 
-/*slot*/ void MemoryModel::memoryChanged(uint16_t address)
+/*slot*/ void MemoryModel::clearLastMemoryChanged()
 {
-    QModelIndex ix;
     if (lastMemoryChangedAddress >= 0)
     {
-        ix = addressToIndex(lastMemoryChangedAddress);
+        QModelIndex ix = addressToIndex(lastMemoryChangedAddress);
         emit dataChanged(ix, ix, { Qt::ForegroundRole });
+        lastMemoryChangedAddress = -1;
     }
+}
+
+/*slot*/ void MemoryModel::memoryChanged(uint16_t address)
+{
+    clearLastMemoryChanged();
     lastMemoryChangedAddress = address;
-    ix = addressToIndex(address);
+    QModelIndex ix = addressToIndex(address);
     emit dataChanged(ix, ix, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });
 }
+

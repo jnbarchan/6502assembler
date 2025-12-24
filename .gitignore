@@ -58,5 +58,5 @@ debug/
 profile/
 release/
 gprof/
-
+samples/scratch*.asm
 

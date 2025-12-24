@@ -51,6 +51,7 @@
            </property>
            <property name="font">
             <font>
+             <family>Monospace</family>
              <pointsize>14</pointsize>
             </font>
            </property>
@@ -163,6 +164,7 @@
            </property>
            <property name="font">
             <font>
+             <family>Monospace</family>
              <pointsize>14</pointsize>
             </font>
            </property>
@@ -216,6 +218,7 @@
            </property>
            <property name="font">
             <font>
+             <family>Monospace</family>
              <pointsize>14</pointsize>
             </font>
            </property>
@@ -383,6 +386,7 @@
            </property>
            <property name="font">
             <font>
+             <family>Monospace</family>
              <pointsize>14</pointsize>
             </font>
            </property>
@@ -452,6 +456,13 @@
         <property name="text">
          <string>Run</string>
         </property>
+        <property name="icon">
+         <iconset theme="media-playback-start">
+          <normaloff>.</normaloff>.</iconset>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
        </widget>
       </item>
       <item>
@@ -471,6 +482,13 @@
         <property name="text">
          <string>Step</string>
         </property>
+        <property name="icon">
+         <iconset theme="media-skip-forward">
+          <normaloff>.</normaloff>.</iconset>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
        </widget>
       </item>
       <item>
@@ -489,6 +507,13 @@
         </property>
         <property name="text">
          <string>Reset</string>
+        </property>
+        <property name="icon">
+         <iconset theme="media-playlist-repeat">
+          <normaloff>.</normaloff>.</iconset>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
         </property>
        </widget>
       </item>

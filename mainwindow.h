@@ -23,6 +23,7 @@ public:
     void setHaveDoneReset(bool newHaveDoneReset);
 
 private slots:
+    void actionEnablement();
     void sendMessageToConsole(const QString &message);
     void sendCharToConsole(char ch);
     void debugMessage(const QString &message);
