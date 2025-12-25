@@ -708,10 +708,9 @@ int ProcessorModel::getTokensExpressionValueAsInt(bool *ok)
         return -1;
     while (getNextToken(true))
     {
-        *ok = false;
         QString _operator(_currentToken);
         if (!(_operator == "+" || _operator == "-"))
-            return -1;
+            return value;
         getNextToken();
         int value2 = tokenValueAsInt(ok);
         if (!*ok)

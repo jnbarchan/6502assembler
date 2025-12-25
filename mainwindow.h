@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QAbstractButton>
+#include <QSpinBox>
 #include <QStyledItemDelegate>
 #include <QMainWindow>
 
@@ -37,12 +38,14 @@ private slots:
     void codeTextChanged();
     void currentCodeLineNumberChanged(int lineNumber);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
+    void registerChanged(QSpinBox *spn, int value);
 
 private:
     Ui::MainWindow *ui;
     QByteArray codeBytes;
     QTextStream *codeStream;
     bool _haveDoneReset;
+    QSpinBox *spnLastChangedColor;
 
     QString scratchFileName() const;
     void openFromFile(QString fileName);

@@ -22,6 +22,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->spnStatusFlags->setDisplayIntegerBase(2);
     ui->spnStackRegister->setFixedDigits(2);
     ui->spnStackRegister->setDisplayIntegerBase(16);
+    spnLastChangedColor = nullptr;
 
     codeStream = nullptr;
     _haveDoneReset = false;
@@ -29,11 +30,11 @@ MainWindow::MainWindow(QWidget *parent)
     g_processorModel = new ProcessorModel(this);
     connect(g_processorModel, &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
     connect(g_processorModel, &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole);
-    connect(g_processorModel, &ProcessorModel::statusFlagsChanged, this, [this]() { ui->spnStatusFlags->setValue(g_processorModel->statusFlags()); });
-    connect(g_processorModel, &ProcessorModel::stackRegisterChanged, this, [this]() { ui->spnStackRegister->setValue(g_processorModel->stackRegister()); });
-    connect(g_processorModel, &ProcessorModel::accumulatorChanged, this, [this]() { ui->spnAccumulator->setValue(g_processorModel->accumulator()); });
-    connect(g_processorModel, &ProcessorModel::xregisterChanged, this, [this]() { ui->spnXRegister->setValue(g_processorModel->xregister()); });
-    connect(g_processorModel, &ProcessorModel::yregisterChanged, this, [this]() { ui->spnYRegister->setValue(g_processorModel->yregister()); });
+    connect(g_processorModel, &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, g_processorModel->statusFlags()); });
+    connect(g_processorModel, &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, g_processorModel->stackRegister()); });
+    connect(g_processorModel, &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, g_processorModel->accumulator()); });
+    connect(g_processorModel, &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, g_processorModel->xregister()); });
+    connect(g_processorModel, &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, g_processorModel->yregister()); });
     connect(g_processorModel, &ProcessorModel::modelReset, this, &MainWindow::modelReset);
     modelReset();
 
@@ -101,6 +102,8 @@ void MainWindow::openFromFile(QString fileName)
         return;
     }
     ui->codeEditor->setPlainText(file.readAll());
+    if (fileName != scratchFileName())
+        saveToFile(scratchFileName());
     reset();
 }
 
@@ -204,6 +207,7 @@ void MainWindow::saveToFile(QString fileName)
     g_processorModel->setCode(codeStream);
     g_processorModel->restart();
     currentCodeLineNumberChanged(-1);
+    registerChanged(nullptr, 0);
     ui->teConsole->clear();
     setHaveDoneReset(true);
 }
@@ -233,6 +237,7 @@ void MainWindow::saveToFile(QString fileName)
         saveToFile(scratchFileName());
         reset();
     }
+    registerChanged(nullptr, 0);
     g_processorModel->step();
 }
 
@@ -279,6 +284,28 @@ void MainWindow::saveToFile(QString fileName)
     if (roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole))
     if (topLeft == bottomRight)
         ui->tvMemory->scrollTo(topLeft, QAbstractItemView::EnsureVisible);
+}
+
+void MainWindow::registerChanged(QSpinBox *spn, int value)
+{
+    bool changeColor = (spn == ui->spnAccumulator || spn == ui->spnXRegister || spn == ui->spnYRegister);
+    if (spnLastChangedColor != nullptr && (changeColor || spn == nullptr))
+    {
+        spnLastChangedColor->setPalette(QPalette());
+        spnLastChangedColor = nullptr;
+    }
+    if (spn != nullptr)
+    {
+        spn->setValue(value);
+
+        if (changeColor)
+        {
+            QPalette palette = spn->palette();
+            palette.setColor(QPalette::Text, Qt::red);
+            spn->setPalette(palette);
+            spnLastChangedColor = spn;
+        }
+    }
 }
 
 
