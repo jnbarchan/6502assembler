@@ -21,6 +21,6 @@ void NumberBaseSpinBox::setFixedDigits(int newFixedDigits)
 
 /*virtual*/ QString NumberBaseSpinBox::textFromValue(int val) const /*override*/
 {
-    QString text = QStringLiteral("%1").arg(val, _fixedDigits, displayIntegerBase(), QChar('0'));
+    QString text = QStringLiteral("%1").arg(val, _fixedDigits, displayIntegerBase(), QChar('0')).toUpper();
     return text;
 }

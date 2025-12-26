@@ -23,6 +23,9 @@ public:
     bool haveDoneReset() const;
     void setHaveDoneReset(bool newHaveDoneReset);
 
+    QString currentFileNameToSave() const;
+    void setCurrentFileNameToSave(const QString &newCurrentFileNameToSave);
+
 private slots:
     void actionEnablement();
     void sendMessageToConsole(const QString &message);
@@ -31,6 +34,7 @@ private slots:
     void rbgNumBaseClicked(QAbstractButton *rb);
     void openFile();
     void saveFile();
+    void saveFileAs();
     void modelReset();
     void reset();
     void run();
@@ -46,6 +50,7 @@ private:
     QTextStream *codeStream;
     bool _haveDoneReset;
     QSpinBox *spnLastChangedColor;
+    QString _currentFileNameToSave;
 
     QString scratchFileName() const;
     void openFromFile(QString fileName);

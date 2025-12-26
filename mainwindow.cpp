@@ -26,6 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     codeStream = nullptr;
     _haveDoneReset = false;
+    setCurrentFileNameToSave("");
 
     g_processorModel = new ProcessorModel(this);
     connect(g_processorModel, &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
@@ -52,6 +53,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::openFile);
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
+    connect(ui->actionSaveAs, &QAction::triggered, this, &MainWindow::saveFileAs);
     connect(ui->actionRun, &QAction::triggered, this, &MainWindow::run);
     connect(ui->actionStep, &QAction::triggered, this, &MainWindow::step);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
@@ -87,6 +89,21 @@ void MainWindow::setHaveDoneReset(bool newHaveDoneReset)
     actionEnablement();
 }
 
+QString MainWindow::currentFileNameToSave() const
+{
+    return _currentFileNameToSave;
+}
+
+void MainWindow::setCurrentFileNameToSave(const QString &newCurrentFileNameToSave)
+{
+    _currentFileNameToSave = newCurrentFileNameToSave;
+    ui->actionSave->setEnabled(!_currentFileNameToSave.isEmpty());
+    QString title = "6502 Assembler";
+    if (!_currentFileNameToSave.isEmpty())
+        title += QString(" (%1)").arg(QFileInfo(_currentFileNameToSave).fileName());
+    setWindowTitle(title);
+}
+
 
 QString MainWindow::scratchFileName() const
 {
@@ -103,7 +120,10 @@ void MainWindow::openFromFile(QString fileName)
     }
     ui->codeEditor->setPlainText(file.readAll());
     if (fileName != scratchFileName())
+    {
         saveToFile(scratchFileName());
+        setCurrentFileNameToSave(fileName);
+    }
     reset();
 }
 
@@ -116,6 +136,8 @@ void MainWindow::saveToFile(QString fileName)
         debugMessage(QString("%1: %2").arg(fileName).arg(file.errorString()));
         return;
     }
+    if (fileName != scratchFileName())
+        setCurrentFileNameToSave(fileName);
 }
 
 
@@ -177,8 +199,16 @@ void MainWindow::saveToFile(QString fileName)
 
 /*slot*/ void MainWindow::saveFile()
 {
+    if (_currentFileNameToSave.isEmpty())
+        saveFileAs();
+    else
+        saveToFile(_currentFileNameToSave);
+}
+
+/*slot*/ void MainWindow::saveFileAs()
+{
     QString defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? SAMPLES_RELATIVE_PATH : QString();
-    QString fileName = QFileDialog::getSaveFileName(this, "Save File", defaultDir, "*.asm");
+    QString fileName = QFileDialog::getSaveFileName(this, "Save File As", defaultDir, "*.asm");
     if (fileName.isEmpty())
         return;
     QFileInfo fileInfo(fileName);
@@ -221,11 +251,14 @@ void MainWindow::saveToFile(QString fileName)
     }
     saveToFile(scratchFileName());
     reset();
-    ui->btnRun->setText("Stop");
+    QAction *action(ui->btnRun->defaultAction());
+    action->setText("Stop");
+    action->setIcon(QIcon::fromTheme("media-playback-stop"));
 
     g_processorModel->run();
 
-    ui->btnRun->setText("Run");
+    action->setText("Run");
+    action->setIcon(QIcon::fromTheme("media-playback-start"));
 }
 
 /*slot*/ void MainWindow::step()
@@ -265,18 +298,14 @@ void MainWindow::saveToFile(QString fileName)
     }
     QTextBlock block(ui->codeEditor->document()->findBlockByLineNumber(lineNumber));
     QTextCursor cursor(block);
-    // const QTextCursor savedCursor(ui->codeEditor->textCursor());
     QTextEdit::ExtraSelection selection;
     cursor.movePosition(QTextCursor::StartOfLine);
     selection.cursor = cursor;
     selection.format.setBackground(QColor(255, 220, 180)); // light orange
     selection.format.setProperty(QTextFormat::FullWidthSelection, true);
     ui->codeEditor->setExtraSelections({ selection });
-
     ui->codeEditor->setTextCursor(cursor);
     ui->codeEditor->centerCursor();
-    // ui->codeEditor->ensureCursorVisible();
-    // ui->codeEditor->setTextCursor(savedCursor);
 }
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)
@@ -318,6 +347,6 @@ MemoryViewItemDelegate::MemoryViewItemDelegate(QObject *parent) : QStyledItemDel
     bool ok;
     int val = value.toInt(&ok);
     if (ok)
-        return QStringLiteral("%1").arg(val, 2, 16, QChar('0'));
+        return QStringLiteral("%1").arg(val, 2, 16, QChar('0')).toUpper();
     return QStyledItemDelegate::displayText(value, locale);
 }

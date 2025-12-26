@@ -1235,9 +1235,9 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     else if (role == Qt::DisplayRole)
     {
         if (orientation == Qt::Orientation::Horizontal)
-            return QStringLiteral("%1").arg(section, 2, 16, QChar('0'));
+            return QStringLiteral("%1").arg(section, 2, 16, QChar('0')).toUpper();
         else if (orientation == Qt::Orientation::Vertical)
-            return QStringLiteral("%1").arg(section * columnCount(), 4, 16, QChar('0'));
+            return QStringLiteral("%1").arg(section * columnCount(), 4, 16, QChar('0')).toUpper();
     }
     return QAbstractTableModel::headerData(section, orientation, role);
 }
