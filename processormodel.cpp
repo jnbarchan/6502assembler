@@ -1216,14 +1216,17 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     int offset = index.row() * columnCount(index) + index.column();
     if (offset < 0 || offset >= processorModel->memorySize())
         return QVariant();
-    if (role == Qt::TextAlignmentRole)
-        return Qt::AlignCenter;
-    else if (role == Qt::DisplayRole || role == Qt::EditRole)
-        return processorModel->memoryByteAt(offset);
-    else if (role == Qt::ForegroundRole)
+    switch (role)
     {
+    case Qt::TextAlignmentRole:
+        return QVariant(Qt::AlignRight | Qt::AlignVCenter);
+    case Qt::DisplayRole:
+    case Qt::EditRole:
+        return processorModel->memoryByteAt(offset);
+    case Qt::ForegroundRole:
         if (lastMemoryChangedAddress >= 0 && indexToAddress(index) == lastMemoryChangedAddress)
             return QBrush(Qt::red);
+        break;
     }
     return QVariant();
 }

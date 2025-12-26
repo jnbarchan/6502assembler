@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QAbstractButton>
+#include <QModelIndex>
 #include <QSpinBox>
 #include <QStyledItemDelegate>
 #include <QMainWindow>
@@ -11,6 +12,8 @@ namespace Ui {
 class MainWindow;
 }
 QT_END_NAMESPACE
+
+class MemoryViewItemDelegate;
 
 class MainWindow : public QMainWindow
 {
@@ -51,6 +54,8 @@ private:
     bool _haveDoneReset;
     QSpinBox *spnLastChangedColor;
     QString _currentFileNameToSave;
+    MemoryViewItemDelegate *tvMemoryViewItemDelegate;
+    QModelIndex _lastMemoryModelDataChangedIndex;
 
     QString scratchFileName() const;
     void openFromFile(QString fileName);
@@ -63,7 +68,16 @@ class MemoryViewItemDelegate : public QStyledItemDelegate
 public:
     MemoryViewItemDelegate(QObject *parent = nullptr);
 
+    int fixedDigits() const;
+    void setFixedDigits(int newFixedDigits);
+
+    int integerBase() const;
+    void setIntegerBase(int newIntegerBase);
+
     virtual QString displayText(const QVariant &value, const QLocale &locale) const override;
+
+private:
+    int _fixedDigits, _integerBase;
 };
 
 #endif // MAINWINDOW_H

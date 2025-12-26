@@ -1,7 +1,7 @@
 #ifndef PROCESSORMODEL_H
 #define PROCESSORMODEL_H
 
-#include "qabstractitemmodel.h"
+#include <QAbstractItemModel>
 #include <QMetaEnum>
 #include <QObject>
 #include <QTextStream>

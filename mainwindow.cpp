@@ -16,14 +16,6 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    connect(ui->rbgNumBase, &QButtonGroup::buttonClicked, this, &MainWindow::rbgNumBaseClicked);
-    ui->rbNumBaseHex->click();
-    ui->spnStatusFlags->setFixedDigits(8);
-    ui->spnStatusFlags->setDisplayIntegerBase(2);
-    ui->spnStackRegister->setFixedDigits(2);
-    ui->spnStackRegister->setDisplayIntegerBase(16);
-    spnLastChangedColor = nullptr;
-
     codeStream = nullptr;
     _haveDoneReset = false;
     setCurrentFileNameToSave("");
@@ -48,8 +40,18 @@ MainWindow::MainWindow(QWidget *parent)
     ui->tvMemory->setModel(g_processorModel->memoryModel());
     ui->tvMemory->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     ui->tvMemory->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    ui->tvMemory->setItemDelegate(new MemoryViewItemDelegate(ui->tvMemory));
+    tvMemoryViewItemDelegate = new MemoryViewItemDelegate(ui->tvMemory);
+    ui->tvMemory->setItemDelegate(tvMemoryViewItemDelegate);
+    _lastMemoryModelDataChangedIndex = QModelIndex();
     connect(g_processorModel->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged);
+
+    connect(ui->rbgNumBase, &QButtonGroup::buttonClicked, this, &MainWindow::rbgNumBaseClicked);
+    ui->rbNumBaseHex->click();
+    ui->spnStatusFlags->setFixedDigits(8);
+    ui->spnStatusFlags->setDisplayIntegerBase(2);
+    ui->spnStackRegister->setFixedDigits(2);
+    ui->spnStackRegister->setDisplayIntegerBase(16);
+    spnLastChangedColor = nullptr;
 
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::openFile);
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
@@ -170,22 +172,40 @@ void MainWindow::saveToFile(QString fileName)
 
 /*slot*/ void MainWindow::rbgNumBaseClicked(QAbstractButton *rb)
 {
+    int fixedDigits, integerBase;
+    if (rb == ui->rbNumBaseBin)
+    {
+        fixedDigits = 8;
+        integerBase = 2;
+    }
+    else if (rb == ui->rbNumBaseDec)
+    {
+        fixedDigits = -1;
+        integerBase = 10;
+    }
+    else if (rb == ui->rbNumBaseHex)
+    {
+        fixedDigits = 2;
+        integerBase = 16;
+    }
+    else
+        return;
     for (NumberBaseSpinBox *spn : { ui->spnAccumulator, ui->spnXRegister, ui->spnYRegister })
-        if (rb == ui->rbNumBaseBin)
-        {
-            spn->setFixedDigits(8);
-            spn->setDisplayIntegerBase(2);
-        }
-        else if (rb == ui->rbNumBaseDec)
-        {
-            spn->setFixedDigits(-1);
-            spn->setDisplayIntegerBase(10);
-        }
-        else if (rb == ui->rbNumBaseHex)
-        {
-            spn->setFixedDigits(2);
-            spn->setDisplayIntegerBase(16);
-        }
+    {
+        spn->setFixedDigits(fixedDigits);
+        spn->setDisplayIntegerBase(integerBase);
+    }
+    tvMemoryViewItemDelegate->setFixedDigits(fixedDigits);
+    tvMemoryViewItemDelegate->setIntegerBase(integerBase);
+    int digitSize = ui->tvMemory->font().pointSize() * 9 / 10;
+    int digits = fixedDigits > 0 ? fixedDigits : 3;
+    ui->tvMemory->horizontalHeader()->setDefaultSectionSize((digits + 1.4) * digitSize);
+    QAbstractItemModel *model(ui->tvMemory->model());
+    for (int row = 0; row < model->rowCount(); row++)
+        for (int col = 0; col < model->columnCount(); col++)
+            ui->tvMemory->update(model->index(row, col));
+    if (_lastMemoryModelDataChangedIndex.isValid())
+        ui->tvMemory->scrollTo(_lastMemoryModelDataChangedIndex, QAbstractItemView::EnsureVisible);
 }
 
 /*slot*/ void MainWindow::openFile()
@@ -239,6 +259,7 @@ void MainWindow::saveToFile(QString fileName)
     currentCodeLineNumberChanged(-1);
     registerChanged(nullptr, 0);
     ui->teConsole->clear();
+    _lastMemoryModelDataChangedIndex = QModelIndex();
     setHaveDoneReset(true);
 }
 
@@ -310,9 +331,12 @@ void MainWindow::saveToFile(QString fileName)
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)
 {
-    if (roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole))
-    if (topLeft == bottomRight)
-        ui->tvMemory->scrollTo(topLeft, QAbstractItemView::EnsureVisible);
+    if (roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole) || roles.contains(Qt::ForegroundRole))
+        if (topLeft == bottomRight)
+        {
+            _lastMemoryModelDataChangedIndex = topLeft;
+            ui->tvMemory->scrollTo(topLeft, QAbstractItemView::EnsureVisible);
+        }
 }
 
 void MainWindow::registerChanged(QSpinBox *spn, int value)
@@ -340,6 +364,28 @@ void MainWindow::registerChanged(QSpinBox *spn, int value)
 
 MemoryViewItemDelegate::MemoryViewItemDelegate(QObject *parent) : QStyledItemDelegate(parent)
 {
+    _fixedDigits = 2;
+    _integerBase = 16;
+}
+
+int MemoryViewItemDelegate::fixedDigits() const
+{
+    return _fixedDigits;
+}
+
+void MemoryViewItemDelegate::setFixedDigits(int newFixedDigits)
+{
+    _fixedDigits = newFixedDigits;
+}
+
+int MemoryViewItemDelegate::integerBase() const
+{
+    return _integerBase;
+}
+
+void MemoryViewItemDelegate::setIntegerBase(int newIntegerBase)
+{
+    _integerBase = newIntegerBase;
 }
 
 /*virtual*/ QString MemoryViewItemDelegate::displayText(const QVariant &value, const QLocale &locale) const /*override*/
@@ -347,6 +393,7 @@ MemoryViewItemDelegate::MemoryViewItemDelegate(QObject *parent) : QStyledItemDel
     bool ok;
     int val = value.toInt(&ok);
     if (ok)
-        return QStringLiteral("%1").arg(val, 2, 16, QChar('0')).toUpper();
+        return QStringLiteral("%1").arg(val, _fixedDigits, _integerBase, QChar('0')).toUpper();
     return QStyledItemDelegate::displayText(value, locale);
 }
+
