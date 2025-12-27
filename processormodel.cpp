@@ -310,11 +310,12 @@ void ProcessorModel::debugMessage(const QString &message)
     setStopRun(true);
 }
 
-/*slot*/ void ProcessorModel::run(bool stepOver /*= false*/)
+/*slot*/ void ProcessorModel::run(bool stepOver, bool stepOut)
 {
     if (_isRunning)
         return;
-    if (!stepOver || !doneAssemblePass1)
+    bool step = stepOver || stepOut;
+    if (!step || !doneAssemblePass1)
     {
         restart();
         assemblePass1();
@@ -337,12 +338,19 @@ void ProcessorModel::debugMessage(const QString &message)
         bool hasOpcode;
         if (!prepareRunNextStatement(opcode, operand, hasOpcode))
             break;
-        if (stepOver && stopAtLineNumber < 0)
+        if (step && stopAtLineNumber < 0)
         {
             keepGoing = false;
-            if (hasOpcode && opcode == Opcodes::JSR)
+            if (stepOver && hasOpcode && opcode == Opcodes::JSR)
             {
                 stopAtLineNumber = _currentCodeLineNumber + 1;
+                keepGoing = true;
+            }
+            else if (stepOut)
+            {
+                uint16_t rtsAddress = memoryByteAt(_stackBottom + uint8_t(_stackRegister + 1)) << 8;
+                rtsAddress |= memoryByteAt(_stackBottom + uint8_t(_stackRegister + 2));
+                stopAtLineNumber = rtsAddress;
                 keepGoing = true;
             }
         }
@@ -352,7 +360,7 @@ void ProcessorModel::debugMessage(const QString &message)
         else
             runNextStatement(opcode, operand);
 
-        if (stepOver)
+        if (step)
             if (_currentCodeLineNumber == stopAtLineNumber)
                 keepGoing = false;
 

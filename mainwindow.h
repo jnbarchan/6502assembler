@@ -43,6 +43,7 @@ private slots:
     void run();
     void stepInto();
     void stepOver();
+    void stepOut();
     void codeTextChanged();
     void currentCodeLineNumberChanged(int lineNumber);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());

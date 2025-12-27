@@ -186,7 +186,7 @@ public:
 public slots:
     void restart(bool assemblePass2 = false);
     void stop();
-    void run(bool stepOver = false);
+    void run(bool stepOver, bool stepOut);
     void step();
 
 signals:

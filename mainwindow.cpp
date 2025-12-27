@@ -59,6 +59,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionRun, &QAction::triggered, this, &MainWindow::run);
     connect(ui->actionStepInto, &QAction::triggered, this, &MainWindow::stepInto);
     connect(ui->actionStepOver, &QAction::triggered, this, &MainWindow::stepOver);
+    connect(ui->actionStepOut, &QAction::triggered, this, &MainWindow::stepOut);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
 
@@ -68,6 +69,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->btnStepInto->setDefaultAction(ui->actionStepInto);
     ui->actionStepOver->setIcon(ui->btnStepOver->icon());
     ui->btnStepOver->setDefaultAction(ui->actionStepOver);
+    ui->actionStepOut->setIcon(ui->btnStepOut->icon());
+    ui->btnStepOut->setDefaultAction(ui->actionStepOut);
     ui->actionReset->setIcon(ui->btnReset->icon());
     ui->btnReset->setDefaultAction(ui->actionReset);
 
@@ -169,6 +172,7 @@ void MainWindow::setRunStopButton(bool run)
         enable = !g_processorModel->stopRun();
     ui->btnStepInto->defaultAction()->setEnabled(enable);
     ui->btnStepOver->defaultAction()->setEnabled(enable);
+    ui->btnStepOut->defaultAction()->setEnabled(enable);
 }
 
 
@@ -291,7 +295,7 @@ void MainWindow::setRunStopButton(bool run)
     reset();
 
     setRunStopButton(false);
-    g_processorModel->run();
+    g_processorModel->run(false, false);
     setRunStopButton(true);
 }
 
@@ -320,7 +324,23 @@ void MainWindow::setRunStopButton(bool run)
     registerChanged(nullptr, 0);
 
     setRunStopButton(false);
-    g_processorModel->run(true);
+    g_processorModel->run(true, false);
+    setRunStopButton(true);
+}
+
+void MainWindow::stepOut()
+{
+    if (g_processorModel->isRunning())
+        return;
+    if (!haveDoneReset())
+    {
+        saveToFile(scratchFileName());
+        reset();
+    }
+    registerChanged(nullptr, 0);
+
+    setRunStopButton(false);
+    g_processorModel->run(false, true);
     setRunStopButton(true);
 }
 

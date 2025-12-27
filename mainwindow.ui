@@ -491,7 +491,28 @@
          <string>Step Over</string>
         </property>
         <property name="icon">
-         <iconset theme="go-jump"/>
+         <iconset theme="go-jump">
+          <normaloff>.</normaloff>.</iconset>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="btnStepOut">
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Step Out</string>
+        </property>
+        <property name="icon">
+         <iconset theme="go-top">
+          <normaloff>.</normaloff>.</iconset>
         </property>
         <property name="toolButtonStyle">
          <enum>Qt::ToolButtonTextBesideIcon</enum>
@@ -542,6 +563,7 @@
     <addaction name="actionRun"/>
     <addaction name="actionStepInto"/>
     <addaction name="actionStepOver"/>
+    <addaction name="actionStepOut"/>
     <addaction name="actionReset"/>
     <addaction name="separator"/>
     <addaction name="actionExit"/>
@@ -587,6 +609,11 @@
   <action name="actionStepOver">
    <property name="text">
     <string>Step Over</string>
+   </property>
+  </action>
+  <action name="actionStepOut">
+   <property name="text">
+    <string>Step Out</string>
    </property>
   </action>
  </widget>
