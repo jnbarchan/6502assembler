@@ -57,14 +57,17 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
     connect(ui->actionSaveAs, &QAction::triggered, this, &MainWindow::saveFileAs);
     connect(ui->actionRun, &QAction::triggered, this, &MainWindow::run);
-    connect(ui->actionStep, &QAction::triggered, this, &MainWindow::step);
+    connect(ui->actionStepInto, &QAction::triggered, this, &MainWindow::stepInto);
+    connect(ui->actionStepOver, &QAction::triggered, this, &MainWindow::stepOver);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
 
     ui->actionRun->setIcon(ui->btnRun->icon());
     ui->btnRun->setDefaultAction(ui->actionRun);
-    ui->actionStep->setIcon(ui->btnStep->icon());
-    ui->btnStep->setDefaultAction(ui->actionStep);
+    ui->actionStepInto->setIcon(ui->btnStepInto->icon());
+    ui->btnStepInto->setDefaultAction(ui->actionStepInto);
+    ui->actionStepOver->setIcon(ui->btnStepOver->icon());
+    ui->btnStepOver->setDefaultAction(ui->actionStepOver);
     ui->actionReset->setIcon(ui->btnReset->icon());
     ui->btnReset->setDefaultAction(ui->actionReset);
 
@@ -142,6 +145,20 @@ void MainWindow::saveToFile(QString fileName)
         setCurrentFileNameToSave(fileName);
 }
 
+void MainWindow::scrollToLastMemoryModelDataChangedIndex() const
+{
+    if (_lastMemoryModelDataChangedIndex.isValid())
+        if (!g_processorModel->isStackAddress(g_processorModel->memoryModel()->indexToAddress(_lastMemoryModelDataChangedIndex)))
+            ui->tvMemory->scrollTo(_lastMemoryModelDataChangedIndex, QAbstractItemView::EnsureVisible);
+}
+
+void MainWindow::setRunStopButton(bool run)
+{
+    QAction *action(ui->btnRun->defaultAction());
+    action->setText(run ? "Run" : "Stop");
+    action->setIcon(QIcon::fromTheme(run ? "media-playback-start" : "media-playback-stop"));
+}
+
 
 /*slot*/ void MainWindow::actionEnablement()
 {
@@ -150,7 +167,8 @@ void MainWindow::saveToFile(QString fileName)
         enable = true;
     else
         enable = !g_processorModel->stopRun();
-    ui->btnStep->defaultAction()->setEnabled(enable);
+    ui->btnStepInto->defaultAction()->setEnabled(enable);
+    ui->btnStepOver->defaultAction()->setEnabled(enable);
 }
 
 
@@ -204,8 +222,7 @@ void MainWindow::saveToFile(QString fileName)
     for (int row = 0; row < model->rowCount(); row++)
         for (int col = 0; col < model->columnCount(); col++)
             ui->tvMemory->update(model->index(row, col));
-    if (_lastMemoryModelDataChangedIndex.isValid())
-        ui->tvMemory->scrollTo(_lastMemoryModelDataChangedIndex, QAbstractItemView::EnsureVisible);
+    scrollToLastMemoryModelDataChangedIndex();
 }
 
 /*slot*/ void MainWindow::openFile()
@@ -272,17 +289,13 @@ void MainWindow::saveToFile(QString fileName)
     }
     saveToFile(scratchFileName());
     reset();
-    QAction *action(ui->btnRun->defaultAction());
-    action->setText("Stop");
-    action->setIcon(QIcon::fromTheme("media-playback-stop"));
 
+    setRunStopButton(false);
     g_processorModel->run();
-
-    action->setText("Run");
-    action->setIcon(QIcon::fromTheme("media-playback-start"));
+    setRunStopButton(true);
 }
 
-/*slot*/ void MainWindow::step()
+/*slot*/ void MainWindow::stepInto()
 {
     if (g_processorModel->isRunning())
         return;
@@ -293,6 +306,22 @@ void MainWindow::saveToFile(QString fileName)
     }
     registerChanged(nullptr, 0);
     g_processorModel->step();
+}
+
+/*slot*/ void MainWindow::stepOver()
+{
+    if (g_processorModel->isRunning())
+        return;
+    if (!haveDoneReset())
+    {
+        saveToFile(scratchFileName());
+        reset();
+    }
+    registerChanged(nullptr, 0);
+
+    setRunStopButton(false);
+    g_processorModel->run(true);
+    setRunStopButton(true);
 }
 
 /*slot*/ void MainWindow::codeTextChanged()
@@ -335,7 +364,7 @@ void MainWindow::saveToFile(QString fileName)
         if (topLeft == bottomRight)
         {
             _lastMemoryModelDataChangedIndex = topLeft;
-            ui->tvMemory->scrollTo(topLeft, QAbstractItemView::EnsureVisible);
+            scrollToLastMemoryModelDataChangedIndex();
         }
 }
 

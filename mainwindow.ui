@@ -441,12 +441,6 @@
      <layout class="QHBoxLayout" name="bottomLayout">
       <item>
        <widget class="QToolButton" name="btnRun">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
         <property name="minimumSize">
          <size>
           <width>60</width>
@@ -466,13 +460,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QToolButton" name="btnStep">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
+       <widget class="QToolButton" name="btnStepInto">
         <property name="minimumSize">
          <size>
           <width>60</width>
@@ -480,10 +468,10 @@
          </size>
         </property>
         <property name="text">
-         <string>Step</string>
+         <string>Step Into</string>
         </property>
         <property name="icon">
-         <iconset theme="media-skip-forward">
+         <iconset theme="go-bottom">
           <normaloff>.</normaloff>.</iconset>
         </property>
         <property name="toolButtonStyle">
@@ -492,13 +480,26 @@
        </widget>
       </item>
       <item>
-       <widget class="QToolButton" name="btnReset">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
+       <widget class="QToolButton" name="btnStepOver">
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>30</height>
+         </size>
         </property>
+        <property name="text">
+         <string>Step Over</string>
+        </property>
+        <property name="icon">
+         <iconset theme="go-jump"/>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="btnReset">
         <property name="minimumSize">
          <size>
           <width>60</width>
@@ -539,7 +540,8 @@
     <addaction name="actionSaveAs"/>
     <addaction name="separator"/>
     <addaction name="actionRun"/>
-    <addaction name="actionStep"/>
+    <addaction name="actionStepInto"/>
+    <addaction name="actionStepOver"/>
     <addaction name="actionReset"/>
     <addaction name="separator"/>
     <addaction name="actionExit"/>
@@ -567,9 +569,9 @@
     <string>Save</string>
    </property>
   </action>
-  <action name="actionStep">
+  <action name="actionStepInto">
    <property name="text">
-    <string>Step</string>
+    <string>Step Into</string>
    </property>
   </action>
   <action name="actionReset">
@@ -580,6 +582,11 @@
   <action name="actionSaveAs">
    <property name="text">
     <string>Save As...</string>
+   </property>
+  </action>
+  <action name="actionStepOver">
+   <property name="text">
+    <string>Step Over</string>
    </property>
   </action>
  </widget>

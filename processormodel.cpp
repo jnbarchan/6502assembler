@@ -156,6 +156,11 @@ void ProcessorModel::pushToStack(uint8_t value)
     setStackRegister(_stackRegister - 1);
 }
 
+bool ProcessorModel::isStackAddress(uint16_t address)
+{
+    return address >= _stackBottom && address < _stackBottom + 0x0100;
+}
+
 uint8_t ProcessorModel::statusFlags() const
 {
     return _statusFlags;
@@ -305,22 +310,52 @@ void ProcessorModel::debugMessage(const QString &message)
     setStopRun(true);
 }
 
-/*slot*/ void ProcessorModel::run()
+/*slot*/ void ProcessorModel::run(bool stepOver /*= false*/)
 {
     if (_isRunning)
         return;
-    restart();
-    assemblePass1();
-    if (!doneAssemblePass1)
-        return;
-    restart(true);
-
-    setIsRunning(true);
-    const int processEventsEverySoOften = 1000;
-    int count = 0;
-    while (!stopRun())
+    if (!stepOver || !doneAssemblePass1)
     {
-        runNextStatement();
+        restart();
+        assemblePass1();
+        if (!doneAssemblePass1)
+            return;
+        restart(true);
+    }
+    if (stopRun())
+        return;
+
+    int stopAtLineNumber = -1;
+    bool keepGoing = true;
+    int count = 0;
+    const int processEventsEverySoOften = 1000;
+    setIsRunning(true);
+    while (!stopRun() && keepGoing)
+    {
+        Opcodes opcode;
+        OpcodeOperand operand;
+        bool hasOpcode;
+        if (!prepareRunNextStatement(opcode, operand, hasOpcode))
+            break;
+        if (stepOver && stopAtLineNumber < 0)
+        {
+            keepGoing = false;
+            if (hasOpcode && opcode == Opcodes::JSR)
+            {
+                stopAtLineNumber = _currentCodeLineNumber + 1;
+                keepGoing = true;
+            }
+        }
+
+        if (!hasOpcode)
+            setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+        else
+            runNextStatement(opcode, operand);
+
+        if (stepOver)
+            if (_currentCodeLineNumber == stopAtLineNumber)
+                keepGoing = false;
+
         count++;
         if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
             QCoreApplication::processEvents();//TEMPORARY
@@ -335,14 +370,23 @@ void ProcessorModel::debugMessage(const QString &message)
     if (stopRun())
         return;
 
-    runNextStatement();
+    Opcodes opcode;
+    OpcodeOperand operand;
+    bool hasOpcode;
+    if (!prepareRunNextStatement(opcode, operand, hasOpcode))
+        return;
+    if (!hasOpcode)
+        setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+    else
+        runNextStatement(opcode, operand);
 }
 
 
-void ProcessorModel::runNextStatement()
+bool ProcessorModel::prepareRunNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode)
 {
+    hasOpcode = false;
     if (stopRun())
-        return;
+        return false;
 
     //
     // ASSEMBLING PHASE
@@ -351,23 +395,22 @@ void ProcessorModel::runNextStatement()
     {
         assemblePass1();
         if (!doneAssemblePass1)
-            return;
+            return false;
         restart(true);
     }
-    bool hasOpcode;
-    Opcodes opcode;
-    OpcodeOperand operand;
-    bool eof;
-    if (!assembleNextStatement(hasOpcode, opcode, operand, eof))
+    bool blankLine, eof;
+    if (!assembleNextStatement(opcode, operand, hasOpcode, blankLine, eof))
     {
         setStopRun(true);
-        return;
+        return false;
     }
-    if (!hasOpcode)
-    {
-        setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+    return true;
+}
+
+void ProcessorModel::runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand)
+{
+    if (stopRun())
         return;
-    }
 
     //
     // EXECUTION PHASE
@@ -379,37 +422,32 @@ void ProcessorModel::runNextStatement()
 void ProcessorModel::assemblePass1()
 {
     doneAssemblePass1 = false;
-    bool hasOpcode;
     Opcodes opcode;
     OpcodeOperand operand;
-    bool eof;
-    while (assembleNextStatement(hasOpcode, opcode, operand, eof))
+    bool hasOpcode, blankLine, eof;
+    while (assembleNextStatement(opcode, operand, hasOpcode, blankLine, eof))
         setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
     if (!eof)
         return;
     doneAssemblePass1 = true;
 }
 
-bool ProcessorModel::assembleNextStatement(bool &hasOpcode, Opcodes &opcode, OpcodeOperand &operand, bool &eof)
+bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof)
 {
     //
     // ASSEMBLING PHASE
     //
 
-    hasOpcode = eof = false;
+    hasOpcode = blankLine = eof = false;
     _currentToken.clear();
-    bool blankLine;
-    do
+    if (!getNextLine())
     {
-        if (!getNextLine())
-        {
-            eof = true;
-            return false;
-        }
-        blankLine = !getNextToken();
-        if (blankLine)
-            setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
-    } while (blankLine);
+        eof = true;
+        return false;
+    }
+    blankLine = !getNextToken();
+    if (blankLine)
+        return true;
 
     QString mnemonic(_currentToken);
     opcode = Assembler::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
@@ -662,7 +700,11 @@ bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
     if (firstChar.isNull())
         return false;
     if (firstChar == ';')
+    {
+        QString comment;
+        _currentLineStream >> comment;
         return false;
+    }
 
     _currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
@@ -1047,9 +1089,9 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         break;
 
     case Opcodes::ASL:
-        tempValue8 = (operand.mode == AddressingMode::Accumulator) ? _accumulator : argValue;
+        origTempValue8 = tempValue8 = (operand.mode == AddressingMode::Accumulator) ? _accumulator : argValue;
         tempValue8 <<= 1;
-        setStatusFlag(StatusFlags::Carry, tempValue8 & 0x80);
+        setStatusFlag(StatusFlags::Carry, origTempValue8 & 0x80);
         if (operand.mode == AddressingMode::Accumulator)
             setAccumulator(tempValue8);
         else

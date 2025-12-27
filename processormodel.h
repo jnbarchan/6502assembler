@@ -156,6 +156,7 @@ public:
     void setStackRegister(uint8_t newStackRegister);
     uint8_t pullFromStack();
     void pushToStack(uint8_t value);
+    bool isStackAddress(uint16_t address);
 
     uint8_t statusFlags() const;
     void setStatusFlags(uint8_t newStatusFlags);
@@ -185,7 +186,7 @@ public:
 public slots:
     void restart(bool assemblePass2 = false);
     void stop();
-    void run();
+    void run(bool stepOver = false);
     void step();
 
 signals:
@@ -223,9 +224,10 @@ private:
 
     void resetModel();
     void debugMessage(const QString &message);
-    void runNextStatement();
+    bool prepareRunNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode);
+    void runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
     void assemblePass1();
-    bool assembleNextStatement(bool &hasOpcode, Opcodes &opcode, OpcodeOperand &operand, bool &eof);
+    bool assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof);
     bool getNextLine();
     bool getNextToken(bool wantOperator = false);
     int getTokensExpressionValueAsInt(bool *ok);
@@ -254,12 +256,12 @@ public:
     virtual QVariant data(const QModelIndex &index, int role) const override;
     virtual QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 
+    int indexToAddress(const QModelIndex &index) const { return index.isValid() ? index.row() * columnCount() + index.column() : -1; }
+    QModelIndex addressToIndex(int address) const { return address >= 0 ? index(address / columnCount(), address % columnCount()) : QModelIndex(); }
+
 private:
     ProcessorModel *processorModel;
     int lastMemoryChangedAddress;
-
-    int indexToAddress(const QModelIndex &index) const { return index.isValid() ? index.row() * columnCount() + index.column() : -1; }
-    QModelIndex addressToIndex(int address) const { return address >= 0 ? index(address / columnCount(), address % columnCount()) : QModelIndex(); }
 
 public slots:
     void clearLastMemoryChanged();

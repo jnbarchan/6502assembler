@@ -41,7 +41,8 @@ private slots:
     void modelReset();
     void reset();
     void run();
-    void step();
+    void stepInto();
+    void stepOver();
     void codeTextChanged();
     void currentCodeLineNumberChanged(int lineNumber);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
@@ -60,6 +61,8 @@ private:
     QString scratchFileName() const;
     void openFromFile(QString fileName);
     void saveToFile(QString fileName);
+    void scrollToLastMemoryModelDataChangedIndex() const;
+    void setRunStopButton(bool run);
 };
 
 
