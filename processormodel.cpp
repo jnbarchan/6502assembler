@@ -511,7 +511,6 @@ bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &opera
     }
 
     QString opcodeName(Assembler::OpcodesValueToString(opcode));
-    operand.arg = -999;
     getNextToken();
     if (_currentToken.isEmpty())
     {
@@ -528,6 +527,8 @@ bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &opera
             debugMessage(QString("Bad value: %1").arg(_currentToken));
             return false;
         }
+        if (value < -128 || value > 256)
+            debugMessage(QString("Value out of range for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
         operand.arg = value;
     }
     else if (_currentToken.toUpper() == "A")
@@ -578,7 +579,7 @@ bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &opera
             return false;
         }
     }
-    else if (tokenIsInt() || tokenIsLabel())
+    else if (tokenIsInt() || tokenIsLabel() || _currentToken == "*")
     {
         operand.mode = AddressingMode::Absolute;
         switch (opcode)
@@ -626,7 +627,7 @@ bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &opera
         return false;
     }
 
-    bool zpArg = (operand.arg &0xff00) == 0;
+    bool zpArg = (operand.arg & 0xff00) == 0;
     int relative;
     switch (operand.mode)
     {
@@ -716,7 +717,7 @@ bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
 
     _currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
-        if (!(firstChar == '%' || firstChar == '$' || (firstChar == '-' && !wantOperator) || firstChar == '\''|| firstChar == '_'))
+        if (!(firstChar == '%' || firstChar == '$' || ((firstChar == '-' || firstChar == '*') && !wantOperator) || firstChar == '\''|| firstChar == '_'))
             return true;
     _currentLineStream >> nextChar;
     if (firstChar == '\'')
@@ -849,6 +850,11 @@ int ProcessorModel::tokenValueAsInt(bool *ok) const
         }
         sendMessageToConsole(QString("Label not defined: %1").arg(_currentToken));
     }
+    else if (_currentToken == "*")
+    {
+        *ok = true;
+        return _currentCodeLineNumber;
+    }
     *ok = false;
     return -1;
 }
@@ -856,7 +862,7 @@ int ProcessorModel::tokenValueAsInt(bool *ok) const
 void ProcessorModel::assignLabelValue(const QString &label, int value)
 {
     if (_codeLabels.value(label, value) != value)
-        debugMessage(QString("Label redefinition: %1").arg(label));
+        debugMessage(QString("Warning: Label redefinition: %1").arg(label));
     setCodeLabel(label, value);
 }
 
