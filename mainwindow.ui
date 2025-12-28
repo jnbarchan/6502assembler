@@ -22,6 +22,7 @@
         <property name="font">
          <font>
           <family>Monospace</family>
+          <pointsize>10</pointsize>
          </font>
         </property>
        </widget>
@@ -428,6 +429,7 @@
         <property name="font">
          <font>
           <family>Monospace</family>
+          <pointsize>10</pointsize>
          </font>
         </property>
         <property name="undoRedoEnabled">

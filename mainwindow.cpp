@@ -1,4 +1,5 @@
 #include <QFileDialog>
+#include <QMessageBox>
 #include <QTextBlock>
 
 #include "processormodel.h"
@@ -36,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
     connect(g_processorModel, &ProcessorModel::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
+    connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
 
     ui->tvMemory->setModel(g_processorModel->memoryModel());
     ui->tvMemory->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
@@ -85,6 +87,15 @@ MainWindow::~MainWindow()
     delete codeStream;
 }
 
+void MainWindow::closeEvent(QCloseEvent *event) /*override*/
+{
+    saveToFile(scratchFileName());
+    if (!checkSaveFile())
+        event->ignore();
+    else
+        QMainWindow::closeEvent(event);
+}
+
 
 bool MainWindow::haveDoneReset() const
 {
@@ -106,9 +117,15 @@ void MainWindow::setCurrentFileNameToSave(const QString &newCurrentFileNameToSav
 {
     _currentFileNameToSave = newCurrentFileNameToSave;
     ui->actionSave->setEnabled(!_currentFileNameToSave.isEmpty());
+    updateWindowTitle();
+}
+
+void MainWindow::updateWindowTitle()
+{
     QString title = "6502 Assembler";
-    if (!_currentFileNameToSave.isEmpty())
-        title += QString(" (%1)").arg(QFileInfo(_currentFileNameToSave).fileName());
+    bool modified = ui->codeEditor->document()->isModified();
+    if (!_currentFileNameToSave.isEmpty() || modified)
+        title += QString(" (%1%2)").arg(QFileInfo(_currentFileNameToSave).fileName()).arg(modified ? "*" : "");
     setWindowTitle(title);
 }
 
@@ -147,6 +164,34 @@ void MainWindow::saveToFile(QString fileName)
     if (fileName != scratchFileName())
         setCurrentFileNameToSave(fileName);
 }
+
+bool MainWindow::checkSaveFile()
+{
+    if (!ui->codeEditor->document()->isModified())
+        return true;
+    if (_currentFileNameToSave.isEmpty() || _currentFileNameToSave == scratchFileName())
+        return true;
+    const QMessageBox::StandardButton ret =
+        QMessageBox::question(
+            this,
+            "Unsaved Changes",
+            "The document has been modified.\nDo you want to save your changes?",
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save
+            );
+    switch (ret)
+    {
+    case QMessageBox::Save:
+        saveToFile(_currentFileNameToSave);
+        return true;
+    case QMessageBox::Discard:
+        return true;
+    case QMessageBox::Cancel:
+    default:
+        return false;
+    }
+}
+
 
 void MainWindow::scrollToLastMemoryModelDataChangedIndex() const
 {
@@ -231,6 +276,8 @@ void MainWindow::setRunStopButton(bool run)
 
 /*slot*/ void MainWindow::openFile()
 {
+    if (!checkSaveFile())
+        return;
     QString defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? SAMPLES_RELATIVE_PATH : QString();
     QString fileName = QFileDialog::getOpenFileName(this, "Open File", defaultDir, "*.asm");
     if (fileName.isEmpty())
@@ -328,7 +375,7 @@ void MainWindow::setRunStopButton(bool run)
     setRunStopButton(true);
 }
 
-void MainWindow::stepOut()
+/*slot*/ void MainWindow::stepOut()
 {
     if (g_processorModel->isRunning())
         return;
@@ -388,7 +435,7 @@ void MainWindow::stepOut()
         }
 }
 
-void MainWindow::registerChanged(QSpinBox *spn, int value)
+/*slot*/ void MainWindow::registerChanged(QSpinBox *spn, int value)
 {
     bool changeColor = (spn == ui->spnAccumulator || spn == ui->spnXRegister || spn == ui->spnYRegister);
     if (spnLastChangedColor != nullptr && (changeColor || spn == nullptr))

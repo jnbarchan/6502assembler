@@ -23,6 +23,10 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
+private:
     bool haveDoneReset() const;
     void setHaveDoneReset(bool newHaveDoneReset);
 
@@ -59,9 +63,11 @@ private:
     MemoryViewItemDelegate *tvMemoryViewItemDelegate;
     QModelIndex _lastMemoryModelDataChangedIndex;
 
+    void updateWindowTitle();
     QString scratchFileName() const;
     void openFromFile(QString fileName);
     void saveToFile(QString fileName);
+    bool checkSaveFile();
     void scrollToLastMemoryModelDataChangedIndex() const;
     void setRunStopButton(bool run);
 };
