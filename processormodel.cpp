@@ -528,7 +528,7 @@ bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &opera
             return false;
         }
         if (value < -128 || value > 256)
-            debugMessage(QString("Value out of range for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+            debugMessage(QString("Warning: Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
         operand.arg = value;
     }
     else if (_currentToken.toUpper() == "A")
@@ -717,7 +717,10 @@ bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
 
     _currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
-        if (!(firstChar == '%' || firstChar == '$' || ((firstChar == '-' || firstChar == '*') && !wantOperator) || firstChar == '\''|| firstChar == '_'))
+        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\''|| firstChar == '_'
+              || (!wantOperator && (firstChar == '-' || firstChar == '*'))
+              || (wantOperator && (firstChar == '<' || firstChar == '>'))
+              ))
             return true;
     _currentLineStream >> nextChar;
     if (firstChar == '\'')
@@ -731,6 +734,14 @@ bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
                 _currentToken.append(nextChar);
                 _currentLineStream >> nextChar;
             }
+        }
+    }
+    else if (firstChar == '<' || firstChar == '>')
+    {
+        if (nextChar == firstChar)
+        {
+            _currentToken.append(nextChar);
+            _currentLineStream >> nextChar;
         }
     }
     else
@@ -748,6 +759,8 @@ bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
 
 int ProcessorModel::getTokensExpressionValueAsInt(bool *ok)
 {
+    const QList<QString> operators{ "+", "-", "&", "|", "<<", ">>", "*", "/" };
+
     bool _ok;
     if (ok == nullptr)
         ok = &_ok;
@@ -760,16 +773,38 @@ int ProcessorModel::getTokensExpressionValueAsInt(bool *ok)
     while (getNextToken(true))
     {
         QString _operator(_currentToken);
-        if (!(_operator == "+" || _operator == "-"))
+        if (!operators.contains(_operator))
             return value;
+
         getNextToken();
         int value2 = tokenValueAsInt(ok);
         if (!*ok)
             return -1;
+
         if (_operator == "+")
             value += value2;
         else if (_operator == "-")
             value -= value2;
+        else if (_operator == "&")
+            value &= value2;
+        else if (_operator == "|")
+            value |= value2;
+        else if (_operator == "<<")
+            value <<= value2;
+        else if (_operator == ">>")
+            value >>= value2;
+        else if (_operator == "*")
+            value *= value2;
+        else if (_operator == "/")
+        {
+            if (value2 == 0)
+            {
+                debugMessage(QString("Warning: Division by zero"));
+                *ok = false;
+                return -1;
+            }
+            value /= value2;
+        }
         else
         {
             *ok = false;
