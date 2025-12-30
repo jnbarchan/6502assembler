@@ -2,14 +2,15 @@
 #include <QMessageBox>
 #include <QTextBlock>
 
-#include "processormodel.h"
+#include "emulator.h"
 
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 
 #define SAMPLES_RELATIVE_PATH "../../samples"
 
-ProcessorModel *g_processorModel;
+Emulator *g_emulator;
+ProcessorModel *processorModel();
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -21,31 +22,35 @@ MainWindow::MainWindow(QWidget *parent)
     _haveDoneReset = false;
     setCurrentFileNameToSave("");
 
-    g_processorModel = new ProcessorModel(this);
-    connect(g_processorModel, &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
-    connect(g_processorModel, &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole);
-    connect(g_processorModel, &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, g_processorModel->statusFlags()); });
-    connect(g_processorModel, &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, g_processorModel->stackRegister()); });
-    connect(g_processorModel, &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, g_processorModel->accumulator()); });
-    connect(g_processorModel, &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, g_processorModel->xregister()); });
-    connect(g_processorModel, &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, g_processorModel->yregister()); });
-    connect(g_processorModel, &ProcessorModel::modelReset, this, &MainWindow::modelReset);
+    g_emulator = new Emulator(this);
+
+    connect(assembler(), &Assembler::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
+    connect(assembler(), &Assembler::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
+
+    connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
+    connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole);
+    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); });
+    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); });
+    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); });
+    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); });
+    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, processorModel()->yregister()); });
+    connect(processorModel(), &ProcessorModel::modelReset, this, &MainWindow::modelReset);
     modelReset();
 
-    connect(g_processorModel, &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement);
+    connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement);
 
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
-    connect(g_processorModel, &ProcessorModel::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
+    connect(processorModel(), &ProcessorModel::currentInstructionNumberChanged, this, &MainWindow::currentInstructionNumberChanged);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
 
-    ui->tvMemory->setModel(g_processorModel->memoryModel());
+    ui->tvMemory->setModel(processorModel()->memoryModel());
     ui->tvMemory->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     ui->tvMemory->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     tvMemoryViewItemDelegate = new MemoryViewItemDelegate(ui->tvMemory);
     ui->tvMemory->setItemDelegate(tvMemoryViewItemDelegate);
     _lastMemoryModelDataChangedIndex = QModelIndex();
-    connect(g_processorModel->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged);
+    connect(processorModel()->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged);
 
     connect(ui->rbgNumBase, &QButtonGroup::buttonClicked, this, &MainWindow::rbgNumBaseClicked);
     ui->rbNumBaseHex->click();
@@ -196,7 +201,7 @@ bool MainWindow::checkSaveFile()
 void MainWindow::scrollToLastMemoryModelDataChangedIndex() const
 {
     if (_lastMemoryModelDataChangedIndex.isValid())
-        if (!g_processorModel->isStackAddress(g_processorModel->memoryModel()->indexToAddress(_lastMemoryModelDataChangedIndex)))
+        if (!processorModel()->isStackAddress(processorModel()->memoryModel()->indexToAddress(_lastMemoryModelDataChangedIndex)))
             ui->tvMemory->scrollTo(_lastMemoryModelDataChangedIndex, QAbstractItemView::EnsureVisible);
 }
 
@@ -207,14 +212,54 @@ void MainWindow::setRunStopButton(bool run)
     action->setIcon(QIcon::fromTheme(run ? "media-playback-start" : "media-playback-stop"));
 }
 
+void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
+{
+    bool run = runMode == ProcessorModel::Run;
+    bool stepOneStatementOnly = runMode == ProcessorModel::StepInto;
+    if (processorModel()->isRunning())
+    {
+        if (run)
+            processorModel()->stop();
+        return;
+    }
+    if (run || !haveDoneReset() || assembler()->needsAssembling())
+    {
+        saveToFile(scratchFileName());
+        reset();
+        codeBytes.clear();
+        codeBytes.append(ui->codeEditor->toPlainText().toUtf8());
+        delete codeStream;
+        codeStream = new QTextStream(codeBytes);
+        assembler()->setCode(codeStream);
+        assembler()->assemble();
+        if (assembler()->needsAssembling())
+            return;
+        processorModel()->setInstructions(&assembler()->instructions());
+    }
+    else
+        registerChanged(nullptr, 0);
+
+    if (!stepOneStatementOnly)
+        setRunStopButton(false);
+    switch (runMode)
+    {
+    case ProcessorModel::Run: processorModel()->run(); break;
+    case ProcessorModel::StepInto: processorModel()->stepInto(); break;
+    case ProcessorModel::StepOver: processorModel()->stepOver(); break;
+    case ProcessorModel::StepOut: processorModel()->stepOut(); break;
+    }
+    if (!stepOneStatementOnly)
+        setRunStopButton(true);
+}
+
 
 /*slot*/ void MainWindow::actionEnablement()
 {
     bool enable;
-    if (!haveDoneReset())
+    if (!haveDoneReset() || assembler()->needsAssembling())
         enable = true;
     else
-        enable = !g_processorModel->stopRun();
+        enable = !processorModel()->stopRun();
     ui->btnStepInto->defaultAction()->setEnabled(enable);
     ui->btnStepOver->defaultAction()->setEnabled(enable);
     ui->btnStepOut->defaultAction()->setEnabled(enable);
@@ -307,88 +352,48 @@ void MainWindow::setRunStopButton(bool run)
 
 /*slot*/ void MainWindow::modelReset()
 {
-    ui->spnStackRegister->setValue(g_processorModel->stackRegister());
-    ui->spnAccumulator->setValue(g_processorModel->accumulator());
-    ui->spnXRegister->setValue(g_processorModel->xregister());
-    ui->spnYRegister->setValue(g_processorModel->yregister());
-    ui->spnStatusFlags->setValue(g_processorModel->statusFlags());
+    ui->spnStackRegister->setValue(processorModel()->stackRegister());
+    ui->spnAccumulator->setValue(processorModel()->accumulator());
+    ui->spnXRegister->setValue(processorModel()->xregister());
+    ui->spnYRegister->setValue(processorModel()->yregister());
+    ui->spnStatusFlags->setValue(processorModel()->statusFlags());
 }
 
 /*slot*/ void MainWindow::reset()
 {
-    if (g_processorModel->isRunning())
+    if (processorModel()->isRunning())
         return;
+    processorModel()->endRun();
+    assembler()->setNeedsAssembling();
     codeBytes.clear();
-    codeBytes.append(ui->codeEditor->toPlainText().toUtf8());
     delete codeStream;
-    codeStream = new QTextStream(codeBytes);
-    g_processorModel->setCode(codeStream);
-    g_processorModel->restart();
+    codeStream = nullptr;
     currentCodeLineNumberChanged(-1);
-    registerChanged(nullptr, 0);
     ui->teConsole->clear();
     _lastMemoryModelDataChangedIndex = QModelIndex();
+    registerChanged(nullptr, 0);
+
     setHaveDoneReset(true);
 }
 
 /*slot*/ void MainWindow::run()
 {
-    if (g_processorModel->isRunning())
-    {
-        g_processorModel->stop();
-        return;
-    }
-    saveToFile(scratchFileName());
-    reset();
-
-    setRunStopButton(false);
-    g_processorModel->run(false, false);
-    setRunStopButton(true);
+    assembleAndRun(ProcessorModel::Run);
 }
 
 /*slot*/ void MainWindow::stepInto()
 {
-    if (g_processorModel->isRunning())
-        return;
-    if (!haveDoneReset())
-    {
-        saveToFile(scratchFileName());
-        reset();
-    }
-    registerChanged(nullptr, 0);
-    g_processorModel->step();
+    assembleAndRun(ProcessorModel::StepInto);
 }
 
 /*slot*/ void MainWindow::stepOver()
 {
-    if (g_processorModel->isRunning())
-        return;
-    if (!haveDoneReset())
-    {
-        saveToFile(scratchFileName());
-        reset();
-    }
-    registerChanged(nullptr, 0);
-
-    setRunStopButton(false);
-    g_processorModel->run(true, false);
-    setRunStopButton(true);
+    assembleAndRun(ProcessorModel::StepOver);
 }
 
 /*slot*/ void MainWindow::stepOut()
 {
-    if (g_processorModel->isRunning())
-        return;
-    if (!haveDoneReset())
-    {
-        saveToFile(scratchFileName());
-        reset();
-    }
-    registerChanged(nullptr, 0);
-
-    setRunStopButton(false);
-    g_processorModel->run(false, true);
-    setRunStopButton(true);
+    assembleAndRun(ProcessorModel::StepOut);
 }
 
 /*slot*/ void MainWindow::codeTextChanged()
@@ -413,7 +418,10 @@ void MainWindow::setRunStopButton(bool run)
             ui->codeEditor->setExtraSelections({});
         return;
     }
-    QTextBlock block(ui->codeEditor->document()->findBlockByLineNumber(lineNumber));
+    const QTextDocument *document(ui->codeEditor->document());
+    if (lineNumber >= document->blockCount())
+        lineNumber = document->blockCount() - 1;
+    QTextBlock block(document->findBlockByLineNumber(lineNumber));
     QTextCursor cursor(block);
     QTextEdit::ExtraSelection selection;
     cursor.movePosition(QTextCursor::StartOfLine);
@@ -423,6 +431,12 @@ void MainWindow::setRunStopButton(bool run)
     ui->codeEditor->setExtraSelections({ selection });
     ui->codeEditor->setTextCursor(cursor);
     ui->codeEditor->centerCursor();
+}
+
+/*slot*/ void MainWindow::currentInstructionNumberChanged(int instructionNumber)
+{
+    int lineNumber = emulator()->mapInstructionNumberToLineNumber(instructionNumber);
+    currentCodeLineNumberChanged(lineNumber);
 }
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)

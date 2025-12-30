@@ -4,83 +4,6 @@
 
 #include "processormodel.h"
 
-//
-// Assembler Class
-//
-
-Assembler::OpcodesInfo Assembler::opcodesInfo[]
-{
-    { LDA, ImmZPXAbsXYIndXY },
-    { LDX, ImmZPYAbsY },
-    { LDY, ImmZPYAbsX },
-    { STA, ZPXAbsXYIndXY },
-    { STX, ZPYAbs },
-    { STY, ZPXAbs },
-    { TAX, Implicit },
-    { TAY, Implicit },
-    { TXA, Implicit },
-    { TYA, Implicit },
-    { TSX, Implicit },
-    { TXS, Implicit },
-    { PHA, Implicit },
-    { PHP, Implicit },
-    { PLA, Implicit },
-    { PLP, Implicit },
-    { AND, ImmZPXAbsXYIndXY },
-    { EOR, ImmZPXAbsXYIndXY },
-    { ORA, ImmZPXAbsXYIndXY },
-    { BIT, ZPAbs },
-    { ADC, ImmZPXAbsXYIndXY },
-    { SBC, ImmZPXAbsXYIndXY },
-    { CMP, ImmZPXAbsXYIndXY },
-    { CPX, ImmZPAbs },
-    { CPY, ImmZPAbs },
-    { INC, ZPXAbsX },
-    { INX, Implicit },
-    { INY, Implicit },
-    { DEC, ZPXAbsX },
-    { DEX, Implicit },
-    { DEY, Implicit },
-    { ASL, AccZPXAbsX },
-    { LSR, AccZPXAbsX },
-    { ROL, AccZPXAbsX },
-    { ROR, AccZPXAbsX },
-    { JMP, AbsInd },
-    { JSR, Absolute },
-    { RTS, Implicit },
-    { BCC, Relative },
-    { BCS, Relative },
-    { BEQ, Relative },
-    { BMI, Relative },
-    { BNE, Relative },
-    { BPL, Relative },
-    { BVC, Relative },
-    { BVS, Relative },
-    { CLC, Implicit },
-    { CLD, Implicit },
-    { CLI, Implicit },
-    { CLV, Implicit },
-    { SEC, Implicit },
-    { SED, Implicit },
-    { SEI, Implicit },
-    { BRK, Implicit },
-    { NOP, Implicit },
-    { RTI, Implicit }
-};
-
-/*static*/ const Assembler::OpcodesInfo &Assembler::getOpcodeInfo(const Opcodes opcode)
-{
-    Q_ASSERT(opcode >= 0 && opcode < sizeof(opcodesInfo) / sizeof(opcodesInfo[0]));
-    const OpcodesInfo &opcodeInfo(opcodesInfo[opcode]);
-    return opcodesInfo[opcode];
-}
-
-/*static*/ bool Assembler::opcodeSupportsAddressingMode(const Opcodes opcode, AddressingMode mode)
-{
-    const OpcodesInfo &opcodeInfo(getOpcodeInfo(opcode));
-    return opcodeInfo.modes & mode;
-}
-
 
 //
 // ProcessorModel Class
@@ -91,11 +14,11 @@ Assembler::OpcodesInfo Assembler::opcodesInfo[]
 ProcessorModel::ProcessorModel(QObject *parent)
     : QObject{parent}
 {
-    _codeStream = nullptr;
     _memory.resize(64 * 1024);
     _memoryModel = new MemoryModel(this);
     resetModel();
-    doneAssemblePass1 = false;
+    _instructions = nullptr;
+    _startNewRun = true;
     _stopRun = true;
     _isRunning = false;
 }
@@ -223,25 +146,26 @@ unsigned int ProcessorModel::memorySize() const
     return _memory.size();
 }
 
-int ProcessorModel::currentCodeLineNumber() const
+const QList<Instruction> *ProcessorModel::instructions() const
 {
-    return _currentCodeLineNumber;
+    return _instructions;
 }
 
-void ProcessorModel::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
+void ProcessorModel::setInstructions(const QList<Instruction> *newInstructions)
 {
-    _currentCodeLineNumber = newCurrentCodeLineNumber;
-    emit currentCodeLineNumberChanged(_currentCodeLineNumber);
+    _instructions = newInstructions;
+    setStartNewRun(true);
 }
 
-void ProcessorModel::setCodeLabel(const QString &key, int value)
+int ProcessorModel::currentInstructionNumber() const
 {
-    _codeLabels[key] = value;
+    return _currentInstructionNumber;
 }
 
-void ProcessorModel::setCode(QTextStream *codeStream)
+void ProcessorModel::setCurrentInstructionNumber(int newCurrentInstructionNumber)
 {
-    _codeStream = codeStream;
+    _currentInstructionNumber = newCurrentInstructionNumber;
+    emit currentInstructionNumberChanged(_currentInstructionNumber);
 }
 
 void ProcessorModel::resetModel()
@@ -273,8 +197,23 @@ bool ProcessorModel::stopRun() const
 
 void ProcessorModel::setStopRun(bool newStopRun)
 {
-    _stopRun = newStopRun;
-    emit stopRunChanged();
+    if (newStopRun != _stopRun)
+    {
+        _stopRun = newStopRun;
+        emit stopRunChanged();
+    }
+    if (_stopRun)
+        setStartNewRun(true);
+}
+
+bool ProcessorModel::startNewRun() const
+{
+    return _startNewRun;
+}
+
+void ProcessorModel::setStartNewRun(bool newStartNewRun)
+{
+    _startNewRun = newStartNewRun;
 }
 
 
@@ -285,24 +224,22 @@ void ProcessorModel::debugMessage(const QString &message)
 }
 
 
-/*slot*/ void ProcessorModel::restart(bool assemblePass2 /*= false*/)
+/*slot*/ void ProcessorModel::restart()
 {
     if (_isRunning)
         return;
-    Q_ASSERT(_codeStream);
-    setCurrentCodeLineNumber(0);
-    _currentToken.clear();
 
-    if (!assemblePass2)
-    {
-        _codeLines.clear();
-        _codeStream->seek(0);
-        _codeLabels.clear();
-        _codeLabels["__outch"] = __JSR_outch;
-        doneAssemblePass1 = false;
-    }
     resetModel();
     setStopRun(false);
+    setStartNewRun(true);
+}
+
+/*slot*/ void ProcessorModel::endRun()
+{
+    if (_isRunning)
+        return;
+
+    restart();
 }
 
 /*slot*/ void ProcessorModel::stop()
@@ -310,58 +247,72 @@ void ProcessorModel::debugMessage(const QString &message)
     setStopRun(true);
 }
 
-/*slot*/ void ProcessorModel::run(bool stepOver, bool stepOut)
+/*slot*/ void ProcessorModel::run()
+{
+    run(Run);
+}
+
+/*slot*/ void ProcessorModel::stepInto()
+{
+    run(StepInto);
+}
+
+/*slot*/ void ProcessorModel::stepOver()
+{
+    run(StepOver);
+}
+
+/*slot*/ void ProcessorModel::stepOut()
+{
+    run(StepOut);
+}
+
+
+void ProcessorModel::run(RunMode runMode)
 {
     if (_isRunning)
         return;
-    bool step = stepOver || stepOut;
-    if (!step || !doneAssemblePass1)
+    bool step = runMode != Run;
+    if (!step || startNewRun() || stopRun())
     {
         restart();
-        assemblePass1();
-        if (!doneAssemblePass1)
-            return;
-        restart(true);
+        setCurrentInstructionNumber(0);
+        setStartNewRun(false);
     }
     if (stopRun())
         return;
 
-    int stopAtLineNumber = -1;
+    int stopAtInstructionNumber = -1;
     bool keepGoing = true;
     int count = 0;
     const int processEventsEverySoOften = 1000;
     setIsRunning(true);
-    while (!stopRun() && keepGoing)
+    while (!stopRun() && keepGoing && _currentInstructionNumber < _instructions->size())
     {
-        Opcodes opcode;
-        OpcodeOperand operand;
-        bool hasOpcode;
-        if (!prepareRunNextStatement(opcode, operand, hasOpcode))
-            break;
-        if (step && stopAtLineNumber < 0)
+        const Instruction &instruction(_instructions->at(_currentInstructionNumber));
+        const Opcodes &opcode(instruction.opcode);
+        const OpcodeOperand &operand(instruction.operand);
+        keepGoing = !step || stopAtInstructionNumber >= 0;
+        if (step && stopAtInstructionNumber < 0)
         {
-            keepGoing = false;
-            if (stepOver && hasOpcode && opcode == Opcodes::JSR)
+            if (runMode == StepOver && opcode == Opcodes::JSR)
             {
-                stopAtLineNumber = _currentCodeLineNumber + 1;
+                stopAtInstructionNumber = _currentInstructionNumber + 1;
                 keepGoing = true;
             }
-            else if (stepOut)
+            else if (runMode == StepOut)
             {
                 uint16_t rtsAddress = memoryByteAt(_stackBottom + uint8_t(_stackRegister + 1)) << 8;
                 rtsAddress |= memoryByteAt(_stackBottom + uint8_t(_stackRegister + 2));
-                stopAtLineNumber = rtsAddress;
+                stopAtInstructionNumber = rtsAddress;
                 keepGoing = true;
             }
         }
 
-        if (!hasOpcode)
-            setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
-        else
-            runNextStatement(opcode, operand);
+        runNextStatement(opcode, operand);
 
         if (step)
-            if (_currentCodeLineNumber == stopAtLineNumber)
+            if (_currentInstructionNumber == stopAtInstructionNumber)
                 keepGoing = false;
 
         count++;
@@ -369,50 +320,6 @@ void ProcessorModel::debugMessage(const QString &message)
             QCoreApplication::processEvents();//TEMPORARY
     }
     setIsRunning(false);
-}
-
-/*slot*/ void ProcessorModel::step()
-{
-    if (_isRunning)
-        return;
-    if (stopRun())
-        return;
-
-    Opcodes opcode;
-    OpcodeOperand operand;
-    bool hasOpcode;
-    if (!prepareRunNextStatement(opcode, operand, hasOpcode))
-        return;
-    if (!hasOpcode)
-        setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
-    else
-        runNextStatement(opcode, operand);
-}
-
-
-bool ProcessorModel::prepareRunNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode)
-{
-    hasOpcode = false;
-    if (stopRun())
-        return false;
-
-    //
-    // ASSEMBLING PHASE
-    //
-    if (!doneAssemblePass1)
-    {
-        assemblePass1();
-        if (!doneAssemblePass1)
-            return false;
-        restart(true);
-    }
-    bool blankLine, eof;
-    if (!assembleNextStatement(opcode, operand, hasOpcode, blankLine, eof))
-    {
-        setStopRun(true);
-        return false;
-    }
-    return true;
 }
 
 void ProcessorModel::runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand)
@@ -424,481 +331,6 @@ void ProcessorModel::runNextStatement(const Opcodes &opcode, const OpcodeOperand
     // EXECUTION PHASE
     //
     executeNextStatement(opcode, operand);
-}
-
-
-void ProcessorModel::assemblePass1()
-{
-    doneAssemblePass1 = false;
-    Opcodes opcode;
-    OpcodeOperand operand;
-    bool hasOpcode, blankLine, eof;
-    while (assembleNextStatement(opcode, operand, hasOpcode, blankLine, eof))
-        setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
-    if (!eof)
-        return;
-    doneAssemblePass1 = true;
-}
-
-bool ProcessorModel::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof)
-{
-    //
-    // ASSEMBLING PHASE
-    //
-
-    hasOpcode = blankLine = eof = false;
-    _currentToken.clear();
-    if (!getNextLine())
-    {
-        eof = true;
-        return false;
-    }
-    blankLine = !getNextToken();
-    if (blankLine)
-        return true;
-
-    QString mnemonic(_currentToken);
-    opcode = Assembler::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
-    hasOpcode = Assembler::OpcodesValueIsValid(opcode);
-    if (!hasOpcode)
-    {
-        if (tokenIsLabel())
-        {
-            QString label(_currentToken);
-
-            bool more = getNextToken();
-
-            if (_currentToken == '=')
-            {
-                getNextToken();
-                bool ok;
-                int value = getTokensExpressionValueAsInt(&ok);
-                if (ok)
-                    assignLabelValue(label, value);
-                return true;
-            }
-            else
-            {
-                bool isCodeLabel = true;
-                if (_codeLabelRequiresColon)
-                {
-                    if (_currentToken == ':')
-                        more = getNextToken();
-                    else
-                    {
-                        isCodeLabel = false;
-                        more = true;
-                        _currentToken = label;
-                    }
-                }
-                if (isCodeLabel)
-                    assignLabelValue(label, _currentCodeLineNumber);
-            }
-
-            if (!more)
-                return true;
-
-            mnemonic = _currentToken;
-            opcode = Assembler::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
-            hasOpcode = Assembler::OpcodesValueIsValid(opcode);
-        }
-    }
-
-    if (!hasOpcode)
-    {
-        debugMessage(QString("Unrecognized opcode mnemonic: %1").arg(mnemonic));
-        return false;
-    }
-
-    QString opcodeName(Assembler::OpcodesValueToString(opcode));
-    getNextToken();
-    if (_currentToken.isEmpty())
-    {
-        operand.mode = AddressingMode::Implicit;
-    }
-    else if (_currentToken == '#')
-    {
-        operand.mode = AddressingMode::Immediate;
-        getNextToken();
-        bool ok;
-        int value = getTokensExpressionValueAsInt(&ok);
-        if (!ok)
-        {
-            debugMessage(QString("Bad value: %1").arg(_currentToken));
-            return false;
-        }
-        if (value < -128 || value > 256)
-            debugMessage(QString("Warning: Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
-        operand.arg = value;
-    }
-    else if (_currentToken.toUpper() == "A")
-    {
-        operand.mode = AddressingMode::Accumulator;
-        getNextToken();
-    }
-    else if (_currentToken == "(")
-    {
-        getNextToken();
-        bool ok;
-        int value = getTokensExpressionValueAsInt(&ok);
-        if (!ok)
-        {
-            debugMessage(QString("Bad value: %1").arg(_currentToken));
-            return false;
-        }
-        operand.arg = value;
-
-        bool recognised = false;
-        if (_currentToken == ',')
-        {
-            if (getNextToken() && _currentToken.toUpper() == "X")
-                if (getNextToken() && _currentToken == ")")
-                {
-                    operand.mode = AddressingMode::IndexedIndirectX;
-                    recognised = true;
-                }
-        }
-        else if (_currentToken == ")")
-        {
-            operand.mode = AddressingMode::Indirect;
-            recognised = true;
-            if (getNextToken())
-            {
-                recognised = false;
-                if (_currentToken == ",")
-                    if (getNextToken() && _currentToken.toUpper() == "Y")
-                    {
-                        operand.mode = AddressingMode::IndirectIndexedY;
-                        recognised = true;
-                    }
-            }
-        }
-        if (!recognised)
-        {
-            debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
-            return false;
-        }
-    }
-    else if (tokenIsInt() || tokenIsLabel() || _currentToken == "*")
-    {
-        operand.mode = AddressingMode::Absolute;
-        switch (opcode)
-        {
-        case Opcodes::BCC: case Opcodes::BCS: case Opcodes::BEQ: case Opcodes::BMI:
-        case Opcodes::BNE: case Opcodes::BPL: case Opcodes::BVC: case Opcodes::BVS:
-            operand.mode = AddressingMode::Relative;
-            break;
-        default: break;
-        }
-
-        bool ok;
-        int value = getTokensExpressionValueAsInt(&ok);
-        if (!ok)
-        {
-            debugMessage(QString("Bad value: %1").arg(_currentToken));
-            return false;
-        }
-        operand.arg = value;
-
-        if (!_currentToken.isEmpty())
-        {
-            bool recognised = false;
-            if (_currentToken == ",")
-            {
-                recognised = true;
-                getNextToken();
-                if (_currentToken.toUpper() == "X")
-                    operand.mode = AddressingMode::AbsoluteX;
-                else if (_currentToken.toUpper() == "Y")
-                    operand.mode = AddressingMode::AbsoluteY;
-                else
-                    recognised = false;
-            }
-            if (!recognised)
-            {
-                debugMessage(QString("Unrecognized operand absolute addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
-                return false;
-            }
-        }
-    }
-    else
-    {
-        debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
-        return false;
-    }
-
-    bool zpArg = (operand.arg & 0xff00) == 0;
-    int relative;
-    switch (operand.mode)
-    {
-    case AddressingMode::Absolute:
-        if (zpArg && Assembler::opcodeSupportsAddressingMode(opcode, AddressingMode::ZeroPage))
-            operand.mode = AddressingMode::ZeroPage;
-        break;
-    case AddressingMode::AbsoluteX:
-        if (zpArg && Assembler::opcodeSupportsAddressingMode(opcode, AddressingMode::ZeroPageX))
-            operand.mode = AddressingMode::ZeroPageX;
-        break;
-    case AddressingMode::AbsoluteY:
-        if (zpArg && Assembler::opcodeSupportsAddressingMode(opcode, AddressingMode::ZeroPageY))
-            operand.mode = AddressingMode::ZeroPageY;
-        break;
-    case AddressingMode::IndexedIndirectX:
-    case AddressingMode::IndirectIndexedY:
-        if (!zpArg)
-        {
-            debugMessage(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembler::AddressingModeValueToString(operand.mode)).arg(opcodeName));
-            return false;
-        }
-        break;
-    case AddressingMode::Relative:
-        relative = operand.arg - _currentCodeLineNumber;
-        if (relative < -128 || relative > 127)
-            if (doneAssemblePass1)
-            {
-                debugMessage(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
-                return false;
-            }
-        operand.arg = relative;
-        break;
-    default: break;
-    }
-
-    if (getNextToken())
-    {
-        debugMessage(QString("Unexpected token at end of statement: %1 %2").arg(_currentToken).arg(opcodeName));
-        return false;
-    }
-
-    if (!Assembler::opcodeSupportsAddressingMode(opcode, operand.mode))
-    {
-        debugMessage(QString("Opcode does not support operand addressing mode: %1 %2")
-                         .arg(Assembler::OpcodesValueToString(opcode))
-                         .arg(Assembler::AddressingModeValueToString(operand.mode)));
-        return false;
-    }
-
-    return true;
-}
-
-bool ProcessorModel::getNextLine()
-{
-    _currentLine.clear();
-    while (_currentCodeLineNumber >= _codeLines.length())
-    {
-        if (!_codeStream->readLineInto(&_currentLine))
-            return false;
-        _codeLines.append(_currentLine);
-    }
-    if (_currentCodeLineNumber >= _codeLines.length())
-        return false;
-    _currentLine = _codeLines.at(_currentCodeLineNumber);
-    _currentLineStream.setString(&_currentLine, QIODeviceBase::ReadOnly);
-    return true;
-}
-
-bool ProcessorModel::getNextToken(bool wantOperator /*= false*/)
-{
-    _currentToken.clear();
-    QChar firstChar, nextChar;
-
-    _currentLineStream >> firstChar;
-    while (firstChar.isSpace())
-        _currentLineStream >> firstChar;
-
-    if (firstChar.isNull())
-        return false;
-    if (firstChar == ';')
-    {
-        QString comment;
-        _currentLineStream >> comment;
-        return false;
-    }
-
-    _currentToken.append(firstChar);
-    if (firstChar.isPunct() || firstChar.isSymbol())
-        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\''|| firstChar == '_'
-              || (!wantOperator && (firstChar == '-' || firstChar == '*'))
-              || (wantOperator && (firstChar == '<' || firstChar == '>'))
-              ))
-            return true;
-    _currentLineStream >> nextChar;
-    if (firstChar == '\'')
-    {
-        if (!nextChar.isNull())
-        {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
-            if (nextChar == '\'')
-            {
-                _currentToken.append(nextChar);
-                _currentLineStream >> nextChar;
-            }
-        }
-    }
-    else if (firstChar == '<' || firstChar == '>')
-    {
-        if (nextChar == firstChar)
-        {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
-        }
-    }
-    else
-    {
-        while (!(nextChar.isNull() || nextChar.isSpace() || (nextChar.isPunct() && nextChar != '_') || nextChar.isSymbol()))
-        {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
-        }
-    }
-    if (!nextChar.isNull())
-        _currentLineStream.seek(_currentLineStream.pos() - 1);
-    return true;
-}
-
-int ProcessorModel::getTokensExpressionValueAsInt(bool *ok)
-{
-    const QList<QString> operators{ "+", "-", "&", "|", "<<", ">>", "*", "/" };
-
-    bool _ok;
-    if (ok == nullptr)
-        ok = &_ok;
-    *ok = false;
-    if (_currentToken.isEmpty())
-        return -1;
-    int value = tokenValueAsInt(ok);
-    if (!*ok)
-        return -1;
-    while (getNextToken(true))
-    {
-        QString _operator(_currentToken);
-        if (!operators.contains(_operator))
-            return value;
-
-        getNextToken();
-        int value2 = tokenValueAsInt(ok);
-        if (!*ok)
-            return -1;
-
-        if (_operator == "+")
-            value += value2;
-        else if (_operator == "-")
-            value -= value2;
-        else if (_operator == "&")
-            value &= value2;
-        else if (_operator == "|")
-            value |= value2;
-        else if (_operator == "<<")
-            value <<= value2;
-        else if (_operator == ">>")
-            value >>= value2;
-        else if (_operator == "*")
-            value *= value2;
-        else if (_operator == "/")
-        {
-            if (value2 == 0)
-            {
-                debugMessage(QString("Warning: Division by zero"));
-                *ok = false;
-                return -1;
-            }
-            value /= value2;
-        }
-        else
-        {
-            *ok = false;
-            return -1;
-        }
-    }
-    return value;
-}
-
-bool ProcessorModel::tokenIsLabel() const
-{
-    if (_currentToken.length() == 0)
-        return false;
-    QChar ch = _currentToken.at(0);
-    if (ch != '_' && !ch.isLetter())
-        return false;
-    for (int i = 1; i < _currentToken.length(); i++)
-    {
-        ch = _currentToken.at(i);
-        if (ch != '_' && !ch.isLetter() && !ch.isDigit())
-            return false;
-    }
-    return true;
-}
-
-bool ProcessorModel::tokenIsInt() const
-{
-    QChar firstChar = _currentToken.length() > 0 ? _currentToken.at(0) : QChar();
-    return firstChar == '%' || firstChar == '$' || firstChar.isDigit() || firstChar == '-' || firstChar == '\'';
-}
-
-int ProcessorModel::tokenToInt(bool *ok) const
-{
-    bool _ok;
-    if (ok == nullptr)
-        ok = &_ok;
-    QChar firstChar = _currentToken.length() > 0 ? _currentToken.at(0) : QChar();
-    if (firstChar == '%')
-        return _currentToken.mid(1).toInt(ok, 2);
-    else if (firstChar == '$')
-        return _currentToken.mid(1).toInt(ok, 16);
-    else if (firstChar.isDigit() || firstChar == '-')
-        return _currentToken.toInt(ok, 10);
-    else if (firstChar == '\'')
-    {
-        QChar nextChar = _currentToken.length() > 1 ? _currentToken.at(1) : QChar();
-        QChar nextChar2 = _currentToken.length() > 2 ? _currentToken.at(2) : QChar();
-        if (nextChar2 == '\'')
-        {
-            *ok = true;
-            return nextChar.toLatin1();
-        }
-    }
-    *ok = false;
-    return -1;
-}
-
-int ProcessorModel::tokenValueAsInt(bool *ok) const
-{
-    bool _ok;
-    if (ok == nullptr)
-        ok = &_ok;
-    int value;
-    value = tokenToInt(ok);
-    if (*ok)
-        return value;
-    if (tokenIsLabel())
-    {
-        if (_codeLabels.contains(_currentToken))
-        {
-            *ok = true;
-            return _codeLabels.value(_currentToken);
-        }
-        else if (!doneAssemblePass1)
-        {
-            *ok = true;
-            return 0;
-        }
-        sendMessageToConsole(QString("Label not defined: %1").arg(_currentToken));
-    }
-    else if (_currentToken == "*")
-    {
-        *ok = true;
-        return _currentCodeLineNumber;
-    }
-    *ok = false;
-    return -1;
-}
-
-void ProcessorModel::assignLabelValue(const QString &label, int value)
-{
-    if (_codeLabels.value(label, value) != value)
-        debugMessage(QString("Warning: Label redefinition: %1").arg(label));
-    setCodeLabel(label, value);
 }
 
 
@@ -921,7 +353,7 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         _argValue = operand.arg;
         break;
     case AddressingMode::Relative:
-        _argAddress = _currentCodeLineNumber + int8_t(operand.arg);
+        _argAddress = _currentInstructionNumber + int8_t(operand.arg);
         break;
     case AddressingMode::Absolute:
     case AddressingMode::AbsoluteX:
@@ -962,21 +394,21 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         }
         break;
     default:
-        debugMessage(QString("EXECUTION: Unimplemented operand addressing mode: %1").arg(Assembler::AddressingModeValueToString(operand.mode)));
+        debugMessage(QString("EXECUTION: Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
         setStopRun(true);
         return;
     }
 
-    if (!Assembler::opcodeSupportsAddressingMode(opcode, operand.mode))
+    if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
     {
         debugMessage(QString("EXECUTION: Opcode does not support operand addressing mode: %1 %2")
-                         .arg(Assembler::OpcodesValueToString(opcode))
-                         .arg(Assembler::AddressingModeValueToString(operand.mode)));
+                         .arg(Assembly::OpcodesValueToString(opcode))
+                         .arg(Assembly::AddressingModeValueToString(operand.mode)));
         setStopRun(true);
         return;
     }
 
-    setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+    setCurrentInstructionNumber(_currentInstructionNumber + 1);
 
     clearStatusFlag(StatusFlags::Break);
 
@@ -1184,7 +616,7 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         jumpTo(argAddress);
         break;
     case Opcodes::JSR:
-        tempValue16 = _currentCodeLineNumber;
+        tempValue16 = _currentInstructionNumber;
         pushToStack(uint8_t(tempValue16));
         pushToStack(uint8_t(tempValue16 >> 8));
         jumpTo(argAddress);
@@ -1245,7 +677,7 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         break;
 
     default:
-        debugMessage(QString("EXECUTION: Unimplemented opcode: %1").arg(Assembler::OpcodesValueToString(opcode)));
+        debugMessage(QString("EXECUTION: Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
         setStopRun(true);
         return;
     }
@@ -1257,20 +689,20 @@ void ProcessorModel::setNZStatusFlags(uint8_t value)
     setStatusFlag(StatusFlags::Zero, value == 0);
 }
 
-void ProcessorModel::jumpTo(uint16_t lineNumber)
+void ProcessorModel::jumpTo(uint16_t instructionNumber)
 {
-    if (lineNumber == __JSR_outch)
+    if (instructionNumber == __JSR_outch)
     {
         jsr_outch();
-        lineNumber = (pullFromStack() << 8) | pullFromStack();
+        instructionNumber = (pullFromStack() << 8) | pullFromStack();
     }
-    if (lineNumber < 0 || lineNumber > _codeLines.length())
+    if (instructionNumber < 0 || instructionNumber > _instructions->size())
     {
-        debugMessage(QString("Jump to line number out of range: %1").arg(lineNumber));
+        debugMessage(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
         setStopRun(true);
         return;
     }
-    setCurrentCodeLineNumber(lineNumber);
+    setCurrentInstructionNumber(instructionNumber);
 }
 
 void ProcessorModel::jsr_outch()

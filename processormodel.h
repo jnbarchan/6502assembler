@@ -4,122 +4,16 @@
 #include <QAbstractItemModel>
 #include <QMetaEnum>
 #include <QObject>
-#include <QTextStream>
 
-class Assembler : public QObject
-{
-    Q_OBJECT
-public:
-    enum Opcodes
-    {
-        LDA, LDX, LDY, STA, STX, STY,
-        TAX, TAY, TXA, TYA,
-        TSX, TXS, PHA, PHP, PLA, PLP,
-        AND, EOR, ORA, BIT,
-        ADC, SBC, CMP, CPX, CPY,
-        INC, INX, INY, DEC, DEX, DEY,
-        ASL, LSR, ROL, ROR,
-        JMP, JSR, RTS,
-        BCC, BCS, BEQ, BMI, BNE, BPL, BVC, BVS,
-        CLC, CLD, CLI, CLV, SEC, SED, SEI,
-        BRK, NOP, RTI
-    };
-    Q_ENUM(Opcodes)
+#include "assembly.h"
 
-    static Opcodes OpcodesKeyToValue(const char *key)
-    {
-        return static_cast<Opcodes>(QMetaEnum::fromType<Opcodes>().keyToValue(key));
-    }
-    static bool OpcodesValueIsValid(Opcodes value)
-    {
-        return value >= 0 && value < QMetaEnum::fromType<Opcodes>().keyCount();
-    }
-    static const char *OpcodesValueToKey(Opcodes value)
-    {
-        return QMetaEnum::fromType<Opcodes>().valueToKey(value);
-    }
-    static QString OpcodesValueToString(Opcodes value)
-    {
-        const char *key = OpcodesValueToKey(value);
-        return key ? QString(key) : QString::number(value);
-    }
-
-    enum AddressingMode
-    {
-        Implicit = 0x0001,           // CLC | RTS
-        Accumulator = 0x0002,        // LSR A | ROR A
-        Immediate = 0x0004,          // LDA #10 | LDX #<LABEL | LDY #>LABEL
-        ZeroPage = 0x0008,           // LDA $00 | ASL ANSWER
-        ZeroPageX = 0x0010,          // STY $10,X | AND TEMP,X
-        ZeroPageY = 0x0020,          // LDX $10,Y | STX TEMP,Y
-        Relative = 0x0040,           // BEQ LABEL | BNE *+4
-        Absolute = 0x0080,           // JMP $1234 | JSR WIBBLE
-        AbsoluteX = 0x0100,          // STA $3000,X | ROR CRC,X
-        AbsoluteY = 0x0200,          // AND $4000,Y | STA MEM,Y
-        Indirect = 0x0400,           // JMP ($FFFC) | JMP (TARGET)
-        IndexedIndirectX = 0x0800,   // LDA ($40,X) | STA (MEM,X)
-        IndirectIndexedY = 0x1000,   // LDA ($40),Y | STA (DST),Y
-    };
-    Q_FLAG(AddressingMode)
-    // Q_DECLARE_FLAGS(AddressingModes, AddressingMode)
-    // Q_FLAG(AddressingModes)
-
-    static AddressingMode AddressingModeKeyToValue(const char *key)
-    {
-        return static_cast<AddressingMode>(QMetaEnum::fromType<AddressingMode>().keyToValue(key));
-    }
-    static bool AddressingModeValueIsValid(AddressingMode value)
-    {
-        return value >= 0 && value < QMetaEnum::fromType<AddressingMode>().keyCount();
-    }
-    static const char *AddressingModeValueToKey(AddressingMode value)
-    {
-        return QMetaEnum::fromType<AddressingMode>().valueToKey(value);
-    }
-    static QString AddressingModeValueToString(AddressingMode value)
-    {
-        const char *key = AddressingModeValueToKey(value);
-        return key ? QString(key) : QString::number(value);
-    }
-
-    struct OpcodesInfo
-    {
-        Opcodes opcode;
-        unsigned modes;
-    };
-
-    static const OpcodesInfo &getOpcodeInfo(const Opcodes opcode);
-    static bool opcodeSupportsAddressingMode(const Opcodes opcode, AddressingMode mode);
-
-    struct OpcodeOperand
-    {
-        AddressingMode mode;
-        int arg;
-    };
-
-private:
-    static constexpr unsigned AbsInd = (Absolute|Indirect);
-    static constexpr unsigned AccZPXAbsX = (Accumulator|ZeroPage|ZeroPageX|Absolute|AbsoluteX);
-    static constexpr unsigned ImmZPXAbsXYIndXY = (Immediate|ZeroPage|ZeroPageX|Absolute|AbsoluteX|AbsoluteY|IndexedIndirectX|IndirectIndexedY);
-    static constexpr unsigned ImmZPYAbsY = (Immediate|ZeroPage|ZeroPageY|Absolute|AbsoluteY);
-    static constexpr unsigned ImmZPYAbsX = (Immediate|ZeroPage|ZeroPageX|Absolute|AbsoluteX);
-    static constexpr unsigned ImmZPAbs = (Immediate|ZeroPage|Absolute);
-    static constexpr unsigned ZPXAbsXYIndXY = (ZeroPage|ZeroPageX|Absolute|AbsoluteX|AbsoluteY|IndexedIndirectX|IndirectIndexedY);
-    static constexpr unsigned ZPYAbs = (ZeroPage|ZeroPageY|Absolute);
-    static constexpr unsigned ZPXAbs = (ZeroPage|ZeroPageX|Absolute);
-    static constexpr unsigned ZPXAbsX = (ZeroPage|ZeroPageX|Absolute|AbsoluteX);
-    static constexpr unsigned ZPAbs = (ZeroPage|Absolute);
-    static OpcodesInfo opcodesInfo[];
-};
-
-using Opcodes = Assembler::Opcodes;
-using AddressingMode = Assembler::AddressingMode;
-using OpcodeOperand = Assembler::OpcodeOperand;
+using Opcodes = Assembly::Opcodes;
+using AddressingMode = Assembly::AddressingMode;
+using OpcodeOperand = Assembly::OpcodeOperand;
+using Instruction = Assembly::Instruction;
 
 
 class MemoryModel;
-class ProcessorModel;
-extern ProcessorModel *g_processorModel;
 
 class ProcessorModel : public QObject
 {
@@ -138,6 +32,7 @@ public:
     };
     static_assert(Carry == 0x01, "StatusFlags::Carry must have a value of 0x01");
     Q_FLAG(StatusFlags)
+    enum RunMode { Run, StepInto, StepOver, StepOut };
 
     explicit ProcessorModel(QObject *parent = nullptr);
 
@@ -171,23 +66,28 @@ public:
     uint16_t memoryZPWordAt(uint8_t address) const;
     unsigned int memorySize() const;
 
-    int currentCodeLineNumber() const;
-    void setCurrentCodeLineNumber(int newCurrentCodeLineNumber);
+    const QList<Instruction> *instructions() const;
+    void setInstructions(const QList<Instruction> *newInstructions);
 
-    void setCodeLabel(const QString &key, int value);
-
-    void setCode(QTextStream *codeStream);
+    int currentInstructionNumber() const;
+    void setCurrentInstructionNumber(int newCurrentInstructionNumber);
 
     bool isRunning() const;
     void setIsRunning(bool newIsRunning);
     bool stopRun() const;
     void setStopRun(bool newStopRun);
 
+    bool startNewRun() const;
+    void setStartNewRun(bool newStartNewRun);
+
 public slots:
-    void restart(bool assemblePass2 = false);
+    void restart();
+    void endRun();
     void stop();
-    void run(bool stepOver, bool stepOut);
-    void step();
+    void run();
+    void stepInto();
+    void stepOver();
+    void stepOut();
 
 signals:
     void sendMessageToConsole(const QString &message) const;
@@ -200,7 +100,7 @@ signals:
     void stackRegisterChanged();
     void statusFlagsChanged();
     void memoryChanged(uint16_t address);
-    void currentCodeLineNumberChanged(int lineNumber);
+    void currentInstructionNumberChanged(int instructionNumber);
 
 private:
     QByteArray _memory;
@@ -210,35 +110,18 @@ private:
     uint8_t _accumulator, _xregister, _yregister;
     uint8_t _statusFlags;
 
-    QTextStream *_codeStream;
-    QStringList _codeLines;
-    int _currentCodeLineNumber;
-    QMap<QString, int> _codeLabels;
-    bool _codeLabelRequiresColon = true;
+    const QList<Instruction> *_instructions;
+    int _currentInstructionNumber;
 
-    QString _currentLine, _currentToken;
-    QTextStream _currentLineStream;
-
-    bool doneAssemblePass1;
-    bool _stopRun, _isRunning;
+    bool _startNewRun, _stopRun, _isRunning;
 
     void resetModel();
     void debugMessage(const QString &message);
-    bool prepareRunNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode);
+    void run(RunMode runMode);
     void runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
-    void assemblePass1();
-    bool assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof);
-    bool getNextLine();
-    bool getNextToken(bool wantOperator = false);
-    int getTokensExpressionValueAsInt(bool *ok);
-    bool tokenIsLabel() const;
-    bool tokenIsInt() const;
-    int tokenToInt(bool *ok) const;
-    int tokenValueAsInt(bool *ok) const;
-    void assignLabelValue(const QString &label, int value);
     void executeNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
     void setNZStatusFlags(uint8_t value);
-    void jumpTo(uint16_t lineNumber);
+    void jumpTo(uint16_t instructionNumber);
     void jsr_outch();
 };
 

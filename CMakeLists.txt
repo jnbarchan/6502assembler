@@ -28,6 +28,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         codeeditor.h codeeditor.cpp
         processormodel.h processormodel.cpp
         numberbasespinbox.h numberbasespinbox.cpp
+        assembly.h assembly.cpp
+        assembler.h assembler.cpp
+        emulator.h emulator.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET 6502assembler APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

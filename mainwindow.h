@@ -7,6 +7,8 @@
 #include <QStyledItemDelegate>
 #include <QMainWindow>
 
+#include "emulator.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -27,6 +29,10 @@ protected:
     void closeEvent(QCloseEvent *event) override;
 
 private:
+    Emulator *emulator() const { return g_emulator; }
+    ProcessorModel *processorModel() const { return emulator()->processorModel(); }
+    Assembler *assembler() const { return emulator()->assembler(); }
+
     bool haveDoneReset() const;
     void setHaveDoneReset(bool newHaveDoneReset);
 
@@ -50,6 +56,7 @@ private slots:
     void stepOut();
     void codeTextChanged();
     void currentCodeLineNumberChanged(int lineNumber);
+    void currentInstructionNumberChanged(int instructionNumber);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
     void registerChanged(QSpinBox *spn, int value);
 
@@ -70,6 +77,7 @@ private:
     bool checkSaveFile();
     void scrollToLastMemoryModelDataChangedIndex() const;
     void setRunStopButton(bool run);
+    void assembleAndRun(ProcessorModel::RunMode runMode);
 };
 
 
