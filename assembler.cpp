@@ -165,20 +165,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     hasOpcode = Assembly::OpcodesValueIsValid(opcode);
     if (!hasOpcode)
     {
-        if (tokenIsDirective())
-        {
-            if (_currentToken == ".byte")
-            {
-                debugMessage(QString("Cannot yet implement directive: %1").arg(_currentToken));
-                return false;
-            }
-             else
-            {
-                debugMessage(QString("Unimplemented directive: %1").arg(_currentToken));
-                return false;
-            }
-        }
-        else if (tokenIsLabel())
+        if (tokenIsLabel())
         {
             QString label(_currentToken);
 
@@ -217,6 +204,31 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             mnemonic = _currentToken;
             opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
             hasOpcode = Assembly::OpcodesValueIsValid(opcode);
+        }
+
+        if (tokenIsDirective())
+        {
+            QString directive(_currentToken);
+
+            if (directive == ".byte")
+            {
+                getNextToken();
+                bool ok;
+                int value = getTokensExpressionValueAsInt(&ok);
+                if (!ok)
+                {
+                    debugMessage(QString("Bad value: %1").arg(_currentToken));
+                    return false;
+                }
+                Q_UNUSED(value)
+                debugMessage(QString("Cannot yet implement directive: %1").arg(directive));
+                return false;
+            }
+            else
+            {
+                debugMessage(QString("Unimplemented directive: %1").arg(directive));
+                return false;
+            }
         }
     }
 
