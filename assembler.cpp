@@ -13,7 +13,8 @@ Assembler::Assembler(QObject *parent)
     : QObject{parent}
 {
     _codeStream = nullptr;
-    _assembleState = NotStarted;
+    _currentCodeLineNumber = -1;
+    _assembleState = AssembleState::NotStarted;
 }
 
 bool Assembler::needsAssembling() const
@@ -23,7 +24,7 @@ bool Assembler::needsAssembling() const
 
 void Assembler::setNeedsAssembling()
 {
-    setAssembleState(NotStarted);
+    setAssembleState(AssembleState::NotStarted);
 }
 
 int Assembler::currentCodeLineNumber() const
@@ -71,7 +72,7 @@ void Assembler::setCode(QTextStream *codeStream)
 }
 
 
-void Assembler::debugMessage(const QString &message)
+void Assembler::debugMessage(const QString &message) const
 {
     qDebug() << message;
     emit sendMessageToConsole(message);
@@ -84,6 +85,7 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
     setCurrentCodeLineNumber(0);
     setCurrentCodeInstructionNumber(0);
     _currentToken.clear();
+    _currentCodeLabelScope = "";
 
     if (!assemblePass2)
     {
@@ -91,7 +93,7 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
         _codeStream->seek(0);
         _codeLabels.clear();
         _codeLabels["__outch"] = __JSR_outch;
-        setAssembleState(NotStarted);
+        setAssembleState(AssembleState::NotStarted);
     }
 }
 
@@ -163,7 +165,20 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     hasOpcode = Assembly::OpcodesValueIsValid(opcode);
     if (!hasOpcode)
     {
-        if (tokenIsLabel())
+        if (tokenIsDirective())
+        {
+            if (_currentToken == ".byte")
+            {
+                debugMessage(QString("Cannot yet implement directive: %1").arg(_currentToken));
+                return false;
+            }
+             else
+            {
+                debugMessage(QString("Unimplemented directive: %1").arg(_currentToken));
+                return false;
+            }
+        }
+        else if (tokenIsLabel())
         {
             QString label(_currentToken);
 
@@ -175,7 +190,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 bool ok;
                 int value = getTokensExpressionValueAsInt(&ok);
                 if (ok)
-                    assignLabelValue(label, value);
+                    assignLabelValue(scopedLabelName(label), value);
                 return true;
             }
             else
@@ -193,7 +208,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                     }
                 }
                 if (isCodeLabel)
-                    assignLabelValue(label, _currentCodeInstructionNumber);
+                    assignLabelValue(scopedLabelName(label), _currentCodeInstructionNumber);
             }
 
             if (!more)
@@ -413,13 +428,13 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     if (firstChar == ';')
     {
         QString comment;
-        _currentLineStream >> comment;
+        comment = _currentLineStream.readLine();
         return false;
     }
 
     _currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
-        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\''|| firstChar == '_'
+        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '_' || firstChar == '.'
               || (!wantOperator && (firstChar == '-' || firstChar == '*'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
@@ -516,17 +531,27 @@ int Assembler::getTokensExpressionValueAsInt(bool *ok)
     return value;
 }
 
+bool Assembler::tokenIsDirective() const
+{
+    if (!_currentToken.startsWith('.'))
+        return false;
+    return _directives.contains(_currentToken);
+}
+
 bool Assembler::tokenIsLabel() const
 {
     if (_currentToken.size() == 0)
         return false;
     QChar ch = _currentToken.at(0);
-    if (ch != '_' && !ch.isLetter())
+    if (!(ch == '.' || ch == '_' || ch.isLetter()))
         return false;
+    if (ch == '.')
+        if (tokenIsDirective())
+            return false;
     for (int i = 1; i < _currentToken.size(); i++)
     {
         ch = _currentToken.at(i);
-        if (ch != '_' && !ch.isLetter() && !ch.isDigit())
+        if (!(ch == '_' || ch.isLetter() || ch.isDigit()))
             return false;
     }
     return true;
@@ -575,15 +600,16 @@ int Assembler::tokenValueAsInt(bool *ok) const
         return value;
     if (tokenIsLabel())
     {
-        if (_codeLabels.contains(_currentToken))
+        QString label = scopedLabelName(_currentToken);
+        if (_codeLabels.contains(label))
         {
             *ok = true;
-            return _codeLabels.value(_currentToken);
+            return _codeLabels.value(label);
         }
         else if (_assembleState == Pass1)
         {
             *ok = true;
-            return 0;
+            return 0xffff;
         }
         sendMessageToConsole(QString("Label not defined: %1").arg(_currentToken));
     }
@@ -596,10 +622,23 @@ int Assembler::tokenValueAsInt(bool *ok) const
     return -1;
 }
 
-void Assembler::assignLabelValue(const QString &label, int value)
+QString Assembler::scopedLabelName(const QString &label) const
 {
-    if (_codeLabels.value(label, value) != value)
-        debugMessage(QString("Warning: Label redefinition: %1").arg(label));
-    setCodeLabel(label, value);
+    if (!label.startsWith('.'))
+        return label;
+    if (_currentCodeLabelScope.isEmpty())
+        debugMessage(QString("Warning: Local label not in any other label scope: %1").arg(label));
+    return _currentCodeLabelScope + label;
+}
+
+void Assembler::assignLabelValue(const QString &scopedLabel, int value)
+{
+    if (scopedLabel.isEmpty())
+        debugMessage(QString("Warning: Defining label with no name"));
+    if (_codeLabels.value(scopedLabel, value) != value)
+        debugMessage(QString("Warning: Label redefinition: %1").arg(scopedLabel));
+    setCodeLabel(scopedLabel, value);
+    if (!scopedLabel.contains('.'))
+        _currentCodeLabelScope = scopedLabel;
 }
 

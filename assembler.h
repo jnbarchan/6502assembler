@@ -45,6 +45,8 @@ private:
     enum AssembleState { NotStarted, Pass1, Pass2, Assembled };
     AssembleState _assembleState;
 
+    const QStringList _directives{ ".byte", };
+
     QTextStream *_codeStream;
     QStringList _codeLines;
 
@@ -57,22 +59,25 @@ private:
     QList<int> _instructionsCodeLineNumbers;
 
     QMap<QString, int> _codeLabels;
+    QString _currentCodeLabelScope;
 
     bool _codeLabelRequiresColon = true;
 
     AssembleState assembleState() const;
     void setAssembleState(AssembleState newAssembleState);
-    void debugMessage(const QString &message);
+    void debugMessage(const QString &message) const;
     bool assemblePass();
     bool assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof);
     bool getNextLine();
     bool getNextToken(bool wantOperator = false);
     int getTokensExpressionValueAsInt(bool *ok);
+    bool tokenIsDirective() const;
     bool tokenIsLabel() const;
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
     int tokenValueAsInt(bool *ok) const;
-    void assignLabelValue(const QString &label, int value);
+    QString scopedLabelName(const QString &label) const;
+    void assignLabelValue(const QString &scopedLabel, int value);
 };
 
 #endif // ASSEMBLER_H

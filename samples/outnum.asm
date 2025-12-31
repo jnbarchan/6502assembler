@@ -29,14 +29,14 @@ _outnum:
     dex
     stx x_save
 
-    jsr _outnum_next_digit
+    jsr .next_digit
 
     ldx x_save
     inx
     jsr _outstr_X
     rts  ; _outnum
 
-_outnum_next_digit:
+.next_digit:
     jsr _div16
 
     lda remainder
@@ -49,15 +49,15 @@ _outnum_next_digit:
 
     lda quotient
     ora quotient+1
-    beq _outnum_done_digits
+    beq .done_digits
 
     lda quotient
     sta dividend
     lda quotient+1
     sta dividend+1
-    jmp _outnum_next_digit
-_outnum_done_digits:
-    rts  ; _outnum_next_digit
+    jmp .next_digit
+.done_digits:
+    rts  ; .next_digit
 
 _outdigit:
     clc
@@ -68,13 +68,13 @@ _outdigit:
 _outstr:
     ldx #0
 _outstr_X:
-_outstr_loop:
+.loop:
     lda pad,X
-    beq _outstr_done
+    beq .done
     jsr __outch
     inx
-    jmp _outstr_loop
-_outstr_done:
+    jmp .loop
+.done:
     rts  ; _outstr
 
 
@@ -86,7 +86,7 @@ _div16:
     sta remainder+1
     ldx #16
 
-_div16_loop:
+.loop:
     asl dividend
     rol dividend+1
     rol remainder
@@ -99,7 +99,7 @@ _div16_loop:
     lda remainder+1
     sbc divisor+1
     sta remainder+1
-    bcs _div16_next
+    bcs .next
 
     clc
     lda remainder
@@ -110,9 +110,9 @@ _div16_loop:
     sta remainder+1
     clc
 
-_div16_next:
+.next:
     rol quotient
     rol quotient+1
     dex
-    bne _div16_loop
+    bne .loop
     rts  ; _div16

@@ -24,7 +24,7 @@ _div16:
     sta remainder+1
     ldx #16
 
-_div16_loop:
+.loop:
     asl dividend
     rol dividend+1
     rol remainder
@@ -37,7 +37,7 @@ _div16_loop:
     lda remainder+1
     sbc divisor+1
     sta remainder+1
-    bcs _div16_next
+    bcs .next
 
     clc
     lda remainder
@@ -48,9 +48,9 @@ _div16_loop:
     sta remainder+1
     clc
 
-_div16_next:
+.next:
     rol quotient
     rol quotient+1
     dex
-    bne _div16_loop
+    bne .loop
     rts  ; _div16

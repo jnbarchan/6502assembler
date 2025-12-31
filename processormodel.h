@@ -33,6 +33,7 @@ public:
     static_assert(Carry == 0x01, "StatusFlags::Carry must have a value of 0x01");
     Q_FLAG(StatusFlags)
     enum RunMode { Run, StepInto, StepOver, StepOut };
+    Q_ENUM(RunMode)
 
     explicit ProcessorModel(QObject *parent = nullptr);
 
@@ -103,6 +104,7 @@ signals:
     void currentInstructionNumberChanged(int instructionNumber);
 
 private:
+    char _memoryData[64 * 1024];
     QByteArray _memory;
     MemoryModel *_memoryModel;
     const uint16_t _stackBottom = 0x0100;
@@ -116,7 +118,7 @@ private:
     bool _startNewRun, _stopRun, _isRunning;
 
     void resetModel();
-    void debugMessage(const QString &message);
+    void debugMessage(const QString &message) const;
     void run(RunMode runMode);
     void runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
     void executeNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);

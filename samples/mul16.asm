@@ -20,13 +20,13 @@ _mul16:
     lda #0
     sta result
     sta result+1
-_mul16_next:
+.next:
     lda operand2
     ora operand2+1
-    beq _mul16_done
+    beq .done
     lda operand2
     and #1
-    beq _mul16_done_add
+    beq .done_add
     clc
     lda operand1
     adc result
@@ -34,11 +34,11 @@ _mul16_next:
     lda operand1+1
     adc result+1
     sta result+1
-_mul16_done_add:
+.done_add:
     asl operand1
     rol operand1+1
     lsr operand2+1
     ror operand2
-    jmp _mul16_next
-_mul16_done:
+    jmp .next
+.done:
     rts  ; _mul16

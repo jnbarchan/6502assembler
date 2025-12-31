@@ -14,7 +14,8 @@
 ProcessorModel::ProcessorModel(QObject *parent)
     : QObject{parent}
 {
-    _memory.resize(64 * 1024);
+    _memory = QByteArray::fromRawData(_memoryData, sizeof(_memoryData));
+    _memory.fill(0xa5);
     _memoryModel = new MemoryModel(this);
     resetModel();
     _instructions = nullptr;
@@ -217,7 +218,7 @@ void ProcessorModel::setStartNewRun(bool newStartNewRun)
 }
 
 
-void ProcessorModel::debugMessage(const QString &message)
+void ProcessorModel::debugMessage(const QString &message) const
 {
     qDebug() << message;
     emit sendMessageToConsole(message);

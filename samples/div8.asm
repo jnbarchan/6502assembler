@@ -18,16 +18,16 @@ brk
 div16:
   ldx #16
   lda #0
-divloop:
+.divloop:
   asl dividend
   rol dividend+1
   rol a
   cmp divisor
-  bcc no_sub
+  bcc .no_sub
   sbc divisor
   inc dividend
-no_sub:
+.no_sub:
   dex
-  bne divloop
+  bne .divloop
   rts
   

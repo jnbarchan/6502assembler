@@ -23,11 +23,11 @@ brk
 _outstr:
     ldx #0
 _outstr_X:
-_outstr_loop:
+.loop:
     lda pad,X
-    beq _outstr_done
+    beq .done
     jsr __outch
     inx
-    jmp _outstr_loop
-_outstr_done:
+    jmp .loop
+.done:
     rts  ; _outstr

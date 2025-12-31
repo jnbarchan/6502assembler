@@ -167,7 +167,10 @@ void MainWindow::saveToFile(QString fileName)
         return;
     }
     if (fileName != scratchFileName())
+    {
+        ui->codeEditor->document()->setModified(false);
         setCurrentFileNameToSave(fileName);
+    }
 }
 
 bool MainWindow::checkSaveFile()

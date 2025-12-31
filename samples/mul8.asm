@@ -10,18 +10,18 @@ brk
 _mul8:
     lda #0
     sta $74
-_mul8_next:
+.next:
     lda $72
-    beq _mul8_done
+    beq .done
     and #1
-    beq _mul8_done_add
+    beq .done_add
     clc
     lda $70
     adc $74
     sta $74
-_mul8_done_add:
+.done_add:
     asl $70
     lsr $72
-    jmp _mul8_next
-_mul8_done:
+    jmp .next
+.done:
     rts  ; _mul8
