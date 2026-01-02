@@ -66,18 +66,18 @@ private:
     AssembleState assembleState() const;
     void setAssembleState(AssembleState newAssembleState);
     void debugMessage(const QString &message) const;
+    QString scopedLabelName(const QString &label) const;
+    void assignLabelValue(const QString &scopedLabel, int value);
     bool assemblePass();
-    bool assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof);
+    bool assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof);
     bool getNextLine();
     bool getNextToken(bool wantOperator = false);
-    int getTokensExpressionValueAsInt(bool *ok);
+    int getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing = false, bool *indirectAddressingMetCloseParen = nullptr);
     bool tokenIsDirective() const;
     bool tokenIsLabel() const;
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
     int tokenValueAsInt(bool *ok) const;
-    QString scopedLabelName(const QString &label) const;
-    void assignLabelValue(const QString &scopedLabel, int value);
 };
 
 #endif // ASSEMBLER_H

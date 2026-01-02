@@ -1,4 +1,5 @@
 #include <QDebug>
+#include <QStack>
 
 #include "assembler.h"
 
@@ -79,6 +80,27 @@ void Assembler::debugMessage(const QString &message) const
 }
 
 
+QString Assembler::scopedLabelName(const QString &label) const
+{
+    if (!label.startsWith('.'))
+        return label;
+    if (_currentCodeLabelScope.isEmpty())
+        debugMessage(QString("Warning: Local label not in any other label scope: %1").arg(label));
+    return _currentCodeLabelScope + label;
+}
+
+void Assembler::assignLabelValue(const QString &scopedLabel, int value)
+{
+    if (scopedLabel.isEmpty())
+        debugMessage(QString("Warning: Defining label with no name"));
+    if (_codeLabels.value(scopedLabel, value) != value)
+        debugMessage(QString("Warning: Label redefinition: %1").arg(scopedLabel));
+    setCodeLabel(scopedLabel, value);
+    if (!scopedLabel.contains('.'))
+        _currentCodeLabelScope = scopedLabel;
+}
+
+
 void Assembler::restart(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(_codeStream);
@@ -127,8 +149,8 @@ bool Assembler::assemblePass()
     _instructionsCodeLineNumbers.clear();
     Opcodes opcode;
     OpcodeOperand operand;
-    bool hasOpcode, blankLine, eof;
-    while (assembleNextStatement(opcode, operand, hasOpcode, blankLine, eof))
+    bool hasOpcode, eof;
+    while (assembleNextStatement(opcode, operand, hasOpcode, eof))
     {
         if (hasOpcode)
         {
@@ -143,20 +165,20 @@ bool Assembler::assemblePass()
     return true;
 }
 
-bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &blankLine, bool &eof)
+bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof)
 {
     //
     // ASSEMBLING PHASE
     //
 
-    hasOpcode = blankLine = eof = false;
+    hasOpcode = eof = false;
     _currentToken.clear();
     if (!getNextLine())
     {
         eof = true;
         return false;
     }
-    blankLine = !getNextToken();
+    bool blankLine = !getNextToken();
     if (blankLine)
         return true;
 
@@ -175,7 +197,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             {
                 getNextToken();
                 bool ok;
-                int value = getTokensExpressionValueAsInt(&ok);
+                int value = getTokensExpressionValueAsInt(ok);
                 if (ok)
                     assignLabelValue(scopedLabelName(label), value);
                 return true;
@@ -214,7 +236,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             {
                 getNextToken();
                 bool ok;
-                int value = getTokensExpressionValueAsInt(&ok);
+                int value = getTokensExpressionValueAsInt(ok);
                 if (!ok)
                 {
                     debugMessage(QString("Bad value: %1").arg(_currentToken));
@@ -249,7 +271,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         operand.mode = AddressingMode::Immediate;
         getNextToken();
         bool ok;
-        int value = getTokensExpressionValueAsInt(&ok);
+        int value = getTokensExpressionValueAsInt(ok);
         if (!ok)
         {
             debugMessage(QString("Bad value: %1").arg(_currentToken));
@@ -264,63 +286,21 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         operand.mode = AddressingMode::Accumulator;
         getNextToken();
     }
-    else if (_currentToken == "(")
+    else if (tokenIsInt() || tokenIsLabel() || _currentToken == "*" || _currentToken == "(")
     {
-        getNextToken();
-        bool ok;
-        int value = getTokensExpressionValueAsInt(&ok);
-        if (!ok)
-        {
-            debugMessage(QString("Bad value: %1").arg(_currentToken));
-            return false;
-        }
-        operand.arg = value;
-
-        bool recognised = false;
-        if (_currentToken == ',')
-        {
-            if (getNextToken() && _currentToken.toUpper() == "X")
-                if (getNextToken() && _currentToken == ")")
-                {
-                    operand.mode = AddressingMode::IndexedIndirectX;
-                    recognised = true;
-                }
-        }
-        else if (_currentToken == ")")
-        {
-            operand.mode = AddressingMode::Indirect;
-            recognised = true;
-            if (getNextToken())
-            {
-                recognised = false;
-                if (_currentToken == ",")
-                    if (getNextToken() && _currentToken.toUpper() == "Y")
-                    {
-                        operand.mode = AddressingMode::IndirectIndexedY;
-                        recognised = true;
-                    }
-            }
-        }
-        if (!recognised)
-        {
-            debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
-            return false;
-        }
-    }
-    else if (tokenIsInt() || tokenIsLabel() || _currentToken == "*")
-    {
+        QString firstToken(_currentToken);
+        bool allowForIndirectAddressing = firstToken == "(";
+        const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
         operand.mode = AddressingMode::Absolute;
-        switch (opcode)
-        {
-        case Opcodes::BCC: case Opcodes::BCS: case Opcodes::BEQ: case Opcodes::BMI:
-        case Opcodes::BNE: case Opcodes::BPL: case Opcodes::BVC: case Opcodes::BVS:
+        if (opcodeInfo.modes & AddressingMode::Relative)
             operand.mode = AddressingMode::Relative;
-            break;
-        default: break;
-        }
+        else if (allowForIndirectAddressing)
+            if (opcodeInfo.modes & (AddressingMode::Indirect | AddressingMode::IndexedIndirectX | AddressingMode::IndirectIndexedY))
+                operand.mode = AddressingMode::Indirect;
 
         bool ok;
-        int value = getTokensExpressionValueAsInt(&ok);
+        bool indirectAddressingMetCloseParen;
+        int value = getTokensExpressionValueAsInt(ok, allowForIndirectAddressing, &indirectAddressingMetCloseParen);
         if (!ok)
         {
             debugMessage(QString("Bad value: %1").arg(_currentToken));
@@ -333,18 +313,38 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             bool recognised = false;
             if (_currentToken == ",")
             {
-                recognised = true;
                 getNextToken();
                 if (_currentToken.toUpper() == "X")
+                {
                     operand.mode = AddressingMode::AbsoluteX;
+                    recognised = true;
+                    if (allowForIndirectAddressing)
+                    {
+                        if (!indirectAddressingMetCloseParen)
+                        {
+                            if (getNextToken() && _currentToken == ")")
+                                operand.mode = AddressingMode::IndexedIndirectX;
+                        }
+                        else
+                            recognised = false;
+                    }
+                }
                 else if (_currentToken.toUpper() == "Y")
+                {
                     operand.mode = AddressingMode::AbsoluteY;
-                else
-                    recognised = false;
+                    recognised = true;
+                    if (allowForIndirectAddressing)
+                    {
+                        if (indirectAddressingMetCloseParen)
+                            operand.mode = AddressingMode::IndirectIndexedY;
+                        else
+                            recognised = false;
+                    }
+                }
             }
             if (!recognised)
             {
-                debugMessage(QString("Unrecognized operand absolute addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+                debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
                 return false;
             }
         }
@@ -486,60 +486,144 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     return true;
 }
 
-int Assembler::getTokensExpressionValueAsInt(bool *ok)
+int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing /*= false*/, bool *indirectAddressingMetCloseParen /*= nullptr*/)
 {
-    const QList<QString> operators{ "+", "-", "&", "|", "<<", ">>", "*", "/" };
-
-    bool _ok;
-    if (ok == nullptr)
-        ok = &_ok;
-    *ok = false;
-    if (_currentToken.isEmpty())
-        return -1;
-    int value = tokenValueAsInt(ok);
-    if (!*ok)
-        return -1;
-    while (getNextToken(true))
+    enum Operators { OpenParen, CloseParen, BitOr, BitAnd, ShiftLeft, ShiftRight, Plus, Minus, Multiply, Divide, };
+    struct OperatorInfo { Operators _operator; int precedence; QString string; };
+    static const OperatorInfo operatorsInfo[]
     {
-        QString _operator(_currentToken);
-        if (!operators.contains(_operator))
-            return value;
+        { OpenParen, 0, "(", },
+        { CloseParen, 0, ")", },
+        { BitOr, 10, "|", },
+        { BitAnd, 20, "&", },
+        { ShiftLeft, 30, "<<", },
+        { ShiftRight, 30, ">>", },
+        { Plus, 40, "+", },
+        { Minus, 40, "-", },
+        { Multiply, 50, "*", },
+        { Divide, 50, "/", },
+    };
+    static_assert(OpenParen == 0, "Operators::OpenParen must have a value of 0");
+    QStack<int> operatorStack;
+    QStack<int> valueStack;
 
-        getNextToken();
-        int value2 = tokenValueAsInt(ok);
-        if (!*ok)
-            return -1;
-
-        if (_operator == "+")
-            value += value2;
-        else if (_operator == "-")
-            value -= value2;
-        else if (_operator == "&")
-            value &= value2;
-        else if (_operator == "|")
-            value |= value2;
-        else if (_operator == "<<")
-            value <<= value2;
-        else if (_operator == ">>")
-            value >>= value2;
-        else if (_operator == "*")
-            value *= value2;
-        else if (_operator == "/")
+    QString firstToken(_currentToken);
+    if (firstToken != "(")
+        allowForIndirectAddressing = false;
+    ok = false;
+    if (indirectAddressingMetCloseParen != nullptr)
+        *indirectAddressingMetCloseParen = false;
+    int value = -1;
+    bool wantOperator = false;
+    bool endOfExpression = false;
+    do
+    {
+        int foundOperator = -1;
+        if (_currentToken.isEmpty())
+            endOfExpression = true;
+        else if (_currentToken == "," && allowForIndirectAddressing)
+            endOfExpression = true;
+        else if (!wantOperator)
         {
-            if (value2 == 0)
+            if (_currentToken == "(")
+                operatorStack.push(OpenParen);
+            else
             {
-                debugMessage(QString("Warning: Division by zero"));
-                *ok = false;
-                return -1;
+                value = tokenValueAsInt(&ok);
+                if (!ok)
+                    return -1;
+                valueStack.push(value);
+                wantOperator = true;
             }
-            value /= value2;
         }
         else
         {
-            *ok = false;
-            return -1;
+            QString _operator(_currentToken);
+            for (int i = 0; i < sizeof(operatorsInfo) / sizeof(operatorsInfo[0]) && foundOperator < 0; i++)
+                if (operatorsInfo[i].string == _operator)
+                    foundOperator = i;
+            if (foundOperator < 0)
+                endOfExpression = true;
+            else if (operatorsInfo[foundOperator]._operator != CloseParen)
+                wantOperator = false;
+       }
+
+       if (foundOperator >= 0 || endOfExpression)
+       {
+            while (!operatorStack.isEmpty() && operatorsInfo[operatorStack.top()]._operator != OpenParen
+                   && (endOfExpression || operatorsInfo[foundOperator]._operator == CloseParen || operatorsInfo[operatorStack.top()].precedence >= operatorsInfo[foundOperator].precedence))
+            {
+                if (operatorStack.size() < 1 || valueStack.size() < 2)
+                {
+                   ok = false;
+                   return -1;
+                }
+                int opIndex = operatorStack.pop();
+                int valRight = valueStack.pop();
+                int valLeft = valueStack.pop();
+                switch (operatorsInfo[opIndex]._operator)
+                {
+                case BitOr:         value = valLeft | valRight; break;
+                case BitAnd:        value = valLeft & valRight; break;
+                case ShiftLeft:     value = valLeft << valRight; break;
+                case ShiftRight:    value = valLeft >> valRight; break;
+                case Plus:          value = valLeft + valRight; break;
+                case Minus:         value = valLeft - valRight; break;
+                case Multiply:      value = valLeft * valRight; break;
+                case Divide:
+                    if (valRight == 0)
+                    {
+                        debugMessage(QString("Warning: Division by zero"));
+                        ok = false;
+                        return -1;
+                    }
+                    value = valLeft / valRight;
+                    break;
+                default: Q_ASSERT(false); break;
+                }
+                valueStack.push(value);
+            }
+
+            if (foundOperator >= 0)
+            {
+                if (operatorsInfo[foundOperator]._operator == CloseParen)
+                {
+                    if (!operatorStack.isEmpty() && operatorsInfo[operatorStack.top()]._operator == OpenParen)
+                    {
+                        operatorStack.pop();
+                        if (allowForIndirectAddressing)
+                            if (operatorStack.isEmpty())
+                            {
+                                if (indirectAddressingMetCloseParen != nullptr)
+                                    *indirectAddressingMetCloseParen = true;
+                                allowForIndirectAddressing = false;
+                            }
+                    }
+                    else
+                    {
+                        ok = false;
+                        return -1;
+                    }
+                }
+                else
+                    operatorStack.push(foundOperator);
+            }
         }
-    }
+
+       if (!endOfExpression)
+            getNextToken(wantOperator);
+
+    } while (!endOfExpression);
+
+    ok = false;
+    if (valueStack.size() != 1)
+        return -1;
+    if (allowForIndirectAddressing)
+        if (_currentToken == "," && operatorStack.size() == 1 && operatorsInfo[operatorStack.top()]._operator == OpenParen)
+            operatorStack.pop();
+    if (!operatorStack.isEmpty())
+        return -1;
+    ok = true;
     return value;
 }
 
@@ -632,25 +716,5 @@ int Assembler::tokenValueAsInt(bool *ok) const
     }
     *ok = false;
     return -1;
-}
-
-QString Assembler::scopedLabelName(const QString &label) const
-{
-    if (!label.startsWith('.'))
-        return label;
-    if (_currentCodeLabelScope.isEmpty())
-        debugMessage(QString("Warning: Local label not in any other label scope: %1").arg(label));
-    return _currentCodeLabelScope + label;
-}
-
-void Assembler::assignLabelValue(const QString &scopedLabel, int value)
-{
-    if (scopedLabel.isEmpty())
-        debugMessage(QString("Warning: Defining label with no name"));
-    if (_codeLabels.value(scopedLabel, value) != value)
-        debugMessage(QString("Warning: Label redefinition: %1").arg(scopedLabel));
-    setCodeLabel(scopedLabel, value);
-    if (!scopedLabel.contains('.'))
-        _currentCodeLabelScope = scopedLabel;
 }
 
