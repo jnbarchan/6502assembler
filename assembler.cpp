@@ -265,6 +265,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     if (_currentToken.isEmpty())
     {
         operand.mode = AddressingMode::Implicit;
+        operand.arg = 0;
     }
     else if (_currentToken == '#')
     {
@@ -284,6 +285,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     else if (_currentToken.toUpper() == "A")
     {
         operand.mode = AddressingMode::Accumulator;
+        operand.arg = 0;
         getNextToken();
     }
     else if (tokenIsInt() || tokenIsLabel() || _currentToken == "*" || _currentToken == "(")
@@ -356,19 +358,19 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     }
 
     bool zpArg = (operand.arg & 0xff00) == 0;
-    int relative;
+    const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
     switch (operand.mode)
     {
     case AddressingMode::Absolute:
-        if (zpArg && Assembly::opcodeSupportsAddressingMode(opcode, AddressingMode::ZeroPage))
+        if (zpArg && (opcodeInfo.modes & AddressingMode::ZeroPage))
             operand.mode = AddressingMode::ZeroPage;
         break;
     case AddressingMode::AbsoluteX:
-        if (zpArg && Assembly::opcodeSupportsAddressingMode(opcode, AddressingMode::ZeroPageX))
+        if (zpArg && (opcodeInfo.modes & AddressingMode::ZeroPageX))
             operand.mode = AddressingMode::ZeroPageX;
         break;
     case AddressingMode::AbsoluteY:
-        if (zpArg && Assembly::opcodeSupportsAddressingMode(opcode, AddressingMode::ZeroPageY))
+        if (zpArg && (opcodeInfo.modes & AddressingMode::ZeroPageY))
             operand.mode = AddressingMode::ZeroPageY;
         break;
     case AddressingMode::IndexedIndirectX:
@@ -379,8 +381,8 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             return false;
         }
         break;
-    case AddressingMode::Relative:
-        relative = operand.arg - _currentCodeInstructionNumber;
+    case AddressingMode::Relative: {
+        int relative = operand.arg - _currentCodeInstructionNumber;
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
             {
@@ -389,6 +391,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             }
         operand.arg = relative;
         break;
+    }
     default: break;
     }
 
@@ -588,22 +591,19 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
             {
                 if (operatorsInfo[foundOperator]._operator == CloseParen)
                 {
-                    if (!operatorStack.isEmpty() && operatorsInfo[operatorStack.top()]._operator == OpenParen)
-                    {
-                        operatorStack.pop();
-                        if (allowForIndirectAddressing)
-                            if (operatorStack.isEmpty())
-                            {
-                                if (indirectAddressingMetCloseParen != nullptr)
-                                    *indirectAddressingMetCloseParen = true;
-                                allowForIndirectAddressing = false;
-                            }
-                    }
-                    else
+                    if (operatorStack.isEmpty() || operatorsInfo[operatorStack.top()]._operator != OpenParen)
                     {
                         ok = false;
                         return -1;
                     }
+                    operatorStack.pop();
+                    if (allowForIndirectAddressing)
+                        if (operatorStack.isEmpty())
+                        {
+                            if (indirectAddressingMetCloseParen != nullptr)
+                                *indirectAddressingMetCloseParen = true;
+                            allowForIndirectAddressing = false;
+                        }
                 }
                 else
                     operatorStack.push(foundOperator);

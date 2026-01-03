@@ -3,6 +3,7 @@
 #include <QTextBlock>
 
 #include "emulator.h"
+#include "syntaxhighlighter.h"
 
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
@@ -43,6 +44,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::currentInstructionNumberChanged, this, &MainWindow::currentInstructionNumberChanged);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
+
+    syntaxHighlighter = new SyntaxHighlighter(ui->codeEditor->document());
 
     ui->tvMemory->setModel(processorModel()->memoryModel());
     ui->tvMemory->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);

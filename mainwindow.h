@@ -16,6 +16,7 @@ class MainWindow;
 QT_END_NAMESPACE
 
 class MemoryViewItemDelegate;
+class SyntaxHighlighter;
 
 class MainWindow : public QMainWindow
 {
@@ -69,6 +70,7 @@ private:
     QString _currentFileNameToSave;
     MemoryViewItemDelegate *tvMemoryViewItemDelegate;
     QModelIndex _lastMemoryModelDataChangedIndex;
+    SyntaxHighlighter *syntaxHighlighter;
 
     void updateWindowTitle();
     QString scratchFileName() const;

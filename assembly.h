@@ -24,17 +24,30 @@ public:
     };
     Q_ENUM(Opcodes)
 
+    static const QList<Opcodes>& branchJumpOpcodes()
+    {
+        static const QList<Opcodes> list =
+        {
+            BEQ, BNE, BMI, BPL, BCS, BCC, BVS, BVC,
+            JMP, JSR
+        };
+        return list;
+    }
+    static QMetaEnum OpcodesMetaEnum()
+    {
+        return QMetaEnum::fromType<Opcodes>();
+    }
     static Opcodes OpcodesKeyToValue(const char *key)
     {
-        return static_cast<Opcodes>(QMetaEnum::fromType<Opcodes>().keyToValue(key));
+        return static_cast<Opcodes>(OpcodesMetaEnum().keyToValue(key));
     }
     static bool OpcodesValueIsValid(Opcodes value)
     {
-        return value >= 0 && value < QMetaEnum::fromType<Opcodes>().keyCount();
+        return value >= 0 && value < OpcodesMetaEnum().keyCount();
     }
     static const char *OpcodesValueToKey(Opcodes value)
     {
-        return QMetaEnum::fromType<Opcodes>().valueToKey(value);
+        return OpcodesMetaEnum().valueToKey(value);
     }
     static QString OpcodesValueToString(Opcodes value)
     {
