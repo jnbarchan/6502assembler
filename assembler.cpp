@@ -41,9 +41,14 @@ void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
     emit currentCodeLineNumberChanged(_currentCodeLineNumber);
 }
 
-const QList<Instruction> &Assembler::instructions() const
+const QList<Instruction> *Assembler::instructions() const
 {
     return _instructions;
+}
+
+void Assembler::setInstructions(QList<Instruction> *newInstructions)
+{
+    _instructions = newInstructions;
 }
 
 const QList<int> &Assembler::instructionsCodeLineNumbers() const
@@ -145,7 +150,7 @@ void Assembler::setAssembleState(AssembleState newAssembleState)
 
 bool Assembler::assemblePass()
 {
-    _instructions.clear();
+    _instructions->clear();
     _instructionsCodeLineNumbers.clear();
     Opcodes opcode;
     OpcodeOperand operand;
@@ -154,7 +159,7 @@ bool Assembler::assemblePass()
     {
         if (hasOpcode)
         {
-            _instructions.append(Instruction(opcode, operand));
+            _instructions->append(Instruction(opcode, operand));
             _instructionsCodeLineNumbers.append(_currentCodeLineNumber);
             setCurrentCodeInstructionNumber(_currentCodeInstructionNumber + 1);
         }

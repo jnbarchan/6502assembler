@@ -4,7 +4,10 @@ Emulator::Emulator(QObject *parent)
     : QObject{parent}
 {
     _processorModel = new ProcessorModel(this);
+    _processorModel->setInstructions(&_instructions);
+
     _assembler = new Assembler(this);
+    _assembler->setInstructions(&_instructions);
 }
 
 int Emulator::mapInstructionNumberToLineNumber(int instructionNumber) const

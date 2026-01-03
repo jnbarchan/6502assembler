@@ -25,6 +25,8 @@ signals:
 
 private:
     ProcessorModel *_processorModel;
+    QList<Instruction> _instructions;
+
     Assembler *_assembler;
 };
 

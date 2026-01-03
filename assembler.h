@@ -19,7 +19,8 @@ class Assembler : public QObject
 public:
     explicit Assembler(QObject *parent = nullptr);
 
-    const QList<Instruction> &instructions() const;
+    const QList<Instruction> *instructions() const;
+    void setInstructions(QList<Instruction> *newInstructions);
     const QList<int> &instructionsCodeLineNumbers() const;
 
     bool needsAssembling() const;
@@ -54,7 +55,7 @@ private:
     QTextStream _currentLineStream;
     int _currentCodeLineNumber;
 
-    QList<Instruction> _instructions;
+    QList<Instruction> *_instructions;
     int _currentCodeInstructionNumber;
     QList<int> _instructionsCodeLineNumbers;
 

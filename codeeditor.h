@@ -9,6 +9,9 @@ class CodeEditor : public QPlainTextEdit
 public:
     explicit CodeEditor(QWidget *parent = nullptr);
 
+    void highlightCurrentBlock(QTextBlock &block);
+    void unhighlightCurrentBlock();
+
 signals:
 };
 

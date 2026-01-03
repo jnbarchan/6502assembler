@@ -31,7 +31,7 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         QString pattern = QStringLiteral("\\b(?:") + list.join('|') + QStringLiteral(")\\b");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
-    static const QRegularExpression registerRegex("(\\b(A|X|Y|SP|PC)\\b)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression registerRegex("(\\b(A|X|Y)\\b)", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression immediateRegex("#\\S+");
 
     QTextCharFormat commentFormat;

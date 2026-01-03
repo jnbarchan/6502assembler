@@ -240,7 +240,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         assembler()->assemble();
         if (assembler()->needsAssembling())
             return;
-        processorModel()->setInstructions(&assembler()->instructions());
+        processorModel()->setStartNewRun(true);
     }
     else
         registerChanged(nullptr, 0);
@@ -412,31 +412,21 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     lastText = text;
 
     setHaveDoneReset(false);
-    if (!ui->codeEditor->extraSelections().isEmpty())
-        ui->codeEditor->setExtraSelections({});
+    ui->codeEditor->unhighlightCurrentBlock();
 }
 
 /*slot*/ void MainWindow::currentCodeLineNumberChanged(int lineNumber)
 {
     if (lineNumber < 0)
     {
-        if (!ui->codeEditor->extraSelections().isEmpty())
-            ui->codeEditor->setExtraSelections({});
+        ui->codeEditor->unhighlightCurrentBlock();
         return;
     }
     const QTextDocument *document(ui->codeEditor->document());
     if (lineNumber >= document->blockCount())
         lineNumber = document->blockCount() - 1;
     QTextBlock block(document->findBlockByLineNumber(lineNumber));
-    QTextCursor cursor(block);
-    QTextEdit::ExtraSelection selection;
-    cursor.movePosition(QTextCursor::StartOfLine);
-    selection.cursor = cursor;
-    selection.format.setBackground(QColor(255, 220, 180)); // light orange
-    selection.format.setProperty(QTextFormat::FullWidthSelection, true);
-    ui->codeEditor->setExtraSelections({ selection });
-    ui->codeEditor->setTextCursor(cursor);
-    ui->codeEditor->centerCursor();
+    ui->codeEditor->highlightCurrentBlock(block);
 }
 
 /*slot*/ void MainWindow::currentInstructionNumberChanged(int instructionNumber)
