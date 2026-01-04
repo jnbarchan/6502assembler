@@ -9,13 +9,14 @@ divisor = $72
 quotient = $74
 remainder = $76
 
-lda #$ff
-sta dividend
-lda #$ff
-sta dividend+1
+_outnum_test:
+    lda #$ff
+    sta dividend
+    lda #$ff
+    sta dividend+1
 
-jsr _outnum
-brk
+    jsr _outnum
+    rts  ; _outnum_test
 
 _outnum:
     lda #10
@@ -65,54 +66,7 @@ _outdigit:
     jmp __outch  ; _outdigit
 
 
-_outstr:
-    ldx #0
-_outstr_X:
-.loop:
-    lda pad,X
-    beq .done
-    jsr __outch
-    inx
-    jmp .loop
-.done:
-    rts  ; _outstr
+.include "outstr.asm"
 
+.include "div16.asm"
 
-_div16:
-    lda #0
-    sta quotient
-    sta quotient+1
-    sta remainder
-    sta remainder+1
-    ldx #16
-
-.loop:
-    asl dividend
-    rol dividend+1
-    rol remainder
-    rol remainder+1
-
-    sec
-    lda remainder
-    sbc divisor
-    sta remainder 
-    lda remainder+1
-    sbc divisor+1
-    sta remainder+1
-    bcs .next
-
-    clc
-    lda remainder
-    adc divisor
-    sta remainder 
-    lda remainder+1
-    adc divisor+1
-    sta remainder+1
-    clc
-
-.next:
-    rol quotient
-    rol quotient+1
-    dex
-    bne .loop
-    rts  ; _div16

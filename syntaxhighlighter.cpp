@@ -12,7 +12,14 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
 void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
 {
     static const QRegularExpression commentRegex(";.*");
-    static const QRegularExpression directiveRegex("^\\s*[a-z_][a-z_0-9]*\\s*=");
+    static const QRegularExpression directiveRegex1("^\\s*[a-z_][a-z_0-9]*\\s*=");
+    static const QRegularExpression directiveRegex2 = []{
+        QStringList list;
+        for (const QString &str : Assembly::directives())
+            list.append(QRegularExpression::escape(str));
+        QString pattern = QStringLiteral("^\\s*(") + list.join('|') + QStringLiteral(")\\b");
+        return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
+    }();
     static const QRegularExpression labelDefinitionRegex("^\\s*(\\.?[a-z_][a-z_0-9]*):", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression labelBranchJumpRegex = []{
         QStringList list;
@@ -74,7 +81,10 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     }
     QStringView code(text.constData(), codeEnd);
 
-    match = directiveRegex.match(code);
+    match = directiveRegex1.match(code);
+    if (match.hasMatch())
+        setFormat(0, codeEnd, directiveFormat);
+    match = directiveRegex2.match(code);
     if (match.hasMatch())
         setFormat(0, codeEnd, directiveFormat);
 

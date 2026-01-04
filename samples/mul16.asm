@@ -3,18 +3,19 @@ operand1 = $70
 operand2 = $72
 result = $74
 
-lda #$ff
-sta operand1
-lda #$02
-sta operand1+1
+_mul16_test:
+    lda #$ff
+    sta operand1
+    lda #$02
+    sta operand1+1
 
-lda #$03
-sta operand2
-lda #$00
-sta operand2+1
+    lda #$03
+    sta operand2
+    lda #$00
+    sta operand2+1
 
-jsr _mul16
-brk
+    jsr _mul16
+    rts  ; _mul16_test
 
 _mul16:
     lda #0

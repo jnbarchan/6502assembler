@@ -1,4 +1,7 @@
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QStack>
 
 #include "assembler.h"
@@ -13,9 +16,24 @@
 Assembler::Assembler(QObject *parent)
     : QObject{parent}
 {
-    _codeStream = nullptr;
+    _codeFilename.clear();
     _currentCodeLineNumber = -1;
+    _codeFile = nullptr;
+    _codeStream = nullptr;
+    _codeLines.clear();
+    codeInputStateStack.clear();
+    _codeIncludeDirectories.clear();
     _assembleState = AssembleState::NotStarted;
+}
+
+Assembler::AssembleState Assembler::assembleState() const
+{
+    return _assembleState;
+}
+
+void Assembler::setAssembleState(AssembleState newAssembleState)
+{
+    _assembleState = newAssembleState;
 }
 
 bool Assembler::needsAssembling() const
@@ -38,7 +56,7 @@ void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
     if (_currentCodeLineNumber == newCurrentCodeLineNumber)
         return;
     _currentCodeLineNumber = newCurrentCodeLineNumber;
-    emit currentCodeLineNumberChanged(_currentCodeLineNumber);
+    emit currentCodeLineNumberChanged(_codeFilename, _currentCodeLineNumber);
 }
 
 const QList<Instruction> *Assembler::instructions() const
@@ -51,9 +69,9 @@ void Assembler::setInstructions(QList<Instruction> *newInstructions)
     _instructions = newInstructions;
 }
 
-const QList<int> &Assembler::instructionsCodeLineNumbers() const
+const QList<Assembler::CodeFileLineNumber> &Assembler::instructionsCodeFileLineNumbers() const
 {
-    return _instructionsCodeLineNumbers;
+    return _instructionsCodeFileLineNumbers;
 }
 
 int Assembler::currentCodeInstructionNumber() const
@@ -80,8 +98,27 @@ void Assembler::setCode(QTextStream *codeStream)
 
 void Assembler::debugMessage(const QString &message) const
 {
-    qDebug() << message;
-    emit sendMessageToConsole(message);
+    QString message2(message);
+    QString filename;
+    if (!_codeFilename.isEmpty())
+        filename = QString("\"%1\", ").arg(_codeFilename);
+    QString location;
+    if (!filename.isEmpty() || _currentCodeLineNumber >= 0)
+        location = QString("[%1line #%2]").arg(filename).arg(_currentCodeLineNumber + 1);
+    if (!location.isEmpty())
+        message2 = location + " " + message2;
+    qDebug() << message2;
+    emit sendMessageToConsole(message2);
+}
+
+void Assembler::assemblerWarning(const QString &message) const
+{
+    debugMessage("Assembler Warning: " + message);
+}
+
+void Assembler::assemblerError(const QString &message) const
+{
+    debugMessage("Assembler Error: " + message);
 }
 
 
@@ -90,16 +127,16 @@ QString Assembler::scopedLabelName(const QString &label) const
     if (!label.startsWith('.'))
         return label;
     if (_currentCodeLabelScope.isEmpty())
-        debugMessage(QString("Warning: Local label not in any other label scope: %1").arg(label));
+        assemblerWarning(QString("Local label not in any other label scope: %1").arg(label));
     return _currentCodeLabelScope + label;
 }
 
 void Assembler::assignLabelValue(const QString &scopedLabel, int value)
 {
     if (scopedLabel.isEmpty())
-        debugMessage(QString("Warning: Defining label with no name"));
+        assemblerWarning(QString("Defining label with no name"));
     if (_codeLabels.value(scopedLabel, value) != value)
-        debugMessage(QString("Warning: Label redefinition: %1").arg(scopedLabel));
+        assemblerWarning(QString("Label redefinition: %1").arg(scopedLabel));
     setCodeLabel(scopedLabel, value);
     if (!scopedLabel.contains('.'))
         _currentCodeLabelScope = scopedLabel;
@@ -109,19 +146,29 @@ void Assembler::assignLabelValue(const QString &scopedLabel, int value)
 void Assembler::restart(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(_codeStream);
-    setCurrentCodeLineNumber(0);
-    setCurrentCodeInstructionNumber(0);
-    _currentToken.clear();
-    _currentCodeLabelScope = "";
 
     if (!assemblePass2)
     {
+        while (!codeInputStateStack.isEmpty())
+        {
+            closeIncludeFile();
+            CodeInputState state = codeInputStateStack.pop();
+            _codeStream = state._codeStream;
+            Q_ASSERT(_codeStream);
+        }
+        _codeFilename.clear();
+        _codeFile = nullptr;
         _codeLines.clear();
         _codeStream->seek(0);
         _codeLabels.clear();
         _codeLabels["__outch"] = __JSR_outch;
         setAssembleState(AssembleState::NotStarted);
     }
+
+    setCurrentCodeLineNumber(0);
+    setCurrentCodeInstructionNumber(0);
+    _currentToken.clear();
+    _currentCodeLabelScope = "";
 }
 
 void Assembler::assemble()
@@ -137,21 +184,11 @@ void Assembler::assemble()
     setAssembleState(Assembled);
 }
 
-Assembler::AssembleState Assembler::assembleState() const
-{
-    return _assembleState;
-}
-
-void Assembler::setAssembleState(AssembleState newAssembleState)
-{
-    _assembleState = newAssembleState;
-}
-
 
 bool Assembler::assemblePass()
 {
     _instructions->clear();
-    _instructionsCodeLineNumbers.clear();
+    _instructionsCodeFileLineNumbers.clear();
     Opcodes opcode;
     OpcodeOperand operand;
     bool hasOpcode, eof;
@@ -160,7 +197,7 @@ bool Assembler::assemblePass()
         if (hasOpcode)
         {
             _instructions->append(Instruction(opcode, operand));
-            _instructionsCodeLineNumbers.append(_currentCodeLineNumber);
+            _instructionsCodeFileLineNumbers.append(CodeFileLineNumber(_codeFilename, _currentCodeLineNumber));
             setCurrentCodeInstructionNumber(_currentCodeInstructionNumber + 1);
         }
         setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
@@ -244,16 +281,28 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 int value = getTokensExpressionValueAsInt(ok);
                 if (!ok)
                 {
-                    debugMessage(QString("Bad value: %1").arg(_currentToken));
+                    assemblerError(QString("Bad value: %1").arg(_currentToken));
                     return false;
                 }
                 Q_UNUSED(value)
-                debugMessage(QString("Cannot yet implement directive: %1").arg(directive));
+                assemblerError(QString("Cannot yet implement directive: %1").arg(directive));
                 return false;
+            }
+            if (directive == ".include")
+            {
+                getNextToken();
+                bool ok = _currentToken.length() >= 2 && _currentToken.at(0) == '\"' && _currentToken.at(_currentToken.size() - 1) == '\"';
+                if (!ok)
+                {
+                    assemblerError(QString("Bad value: %1").arg(_currentToken));
+                    return false;
+                }
+                QString value = _currentToken.mid(1, _currentToken.size() - 2);
+                return startIncludeFile(value);
             }
             else
             {
-                debugMessage(QString("Unimplemented directive: %1").arg(directive));
+                assemblerError(QString("Unimplemented directive: %1").arg(directive));
                 return false;
             }
         }
@@ -261,7 +310,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
 
     if (!hasOpcode)
     {
-        debugMessage(QString("Unrecognized opcode mnemonic: %1").arg(mnemonic));
+        assemblerError(QString("Unrecognized opcode mnemonic: %1").arg(mnemonic));
         return false;
     }
 
@@ -280,11 +329,11 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         int value = getTokensExpressionValueAsInt(ok);
         if (!ok)
         {
-            debugMessage(QString("Bad value: %1").arg(_currentToken));
+            assemblerError(QString("Bad value: %1").arg(_currentToken));
             return false;
         }
         if (value < -128 || value > 256)
-            debugMessage(QString("Warning: Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
+            assemblerWarning(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
         operand.arg = value;
     }
     else if (_currentToken.toUpper() == "A")
@@ -310,7 +359,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         int value = getTokensExpressionValueAsInt(ok, allowForIndirectAddressing, &indirectAddressingMetCloseParen);
         if (!ok)
         {
-            debugMessage(QString("Bad value: %1").arg(_currentToken));
+            assemblerError(QString("Bad value: %1").arg(_currentToken));
             return false;
         }
         operand.arg = value;
@@ -351,14 +400,14 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             }
             if (!recognised)
             {
-                debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+                assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
                 return false;
             }
         }
     }
     else
     {
-        debugMessage(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+        assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
         return false;
     }
 
@@ -382,7 +431,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     case AddressingMode::IndirectIndexedY:
         if (!zpArg)
         {
-            debugMessage(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(operand.mode)).arg(opcodeName));
+            assemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(operand.mode)).arg(opcodeName));
             return false;
         }
         break;
@@ -391,7 +440,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
             {
-                debugMessage(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
+                assemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
                 return false;
             }
         operand.arg = relative;
@@ -402,13 +451,13 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
 
     if (getNextToken())
     {
-        debugMessage(QString("Unexpected token at end of statement: %1 %2").arg(_currentToken).arg(opcodeName));
+        assemblerError(QString("Unexpected token at end of statement: %1 %2").arg(_currentToken).arg(opcodeName));
         return false;
     }
 
     if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
     {
-        debugMessage(QString("Opcode does not support operand addressing mode: %1 %2")
+        assemblerError(QString("Opcode does not support operand addressing mode: %1 %2")
                          .arg(Assembly::OpcodesValueToString(opcode))
                          .arg(Assembly::AddressingModeValueToString(operand.mode)));
         return false;
@@ -418,11 +467,109 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
 }
 
 
+const QStringList &Assembler::codeIncludeDirectories() const
+{
+    return _codeIncludeDirectories;
+}
+
+void Assembler::setCodeIncludeDirectories(const QStringList &newCodeIncludeDirectories)
+{
+    _codeIncludeDirectories = newCodeIncludeDirectories;
+}
+
+QString Assembler::findIncludeFilePath(const QString &includeFilename)
+{
+    if (includeFilename.isEmpty())
+        return includeFilename;
+    QFileInfo fileInfo(includeFilename);
+    if (!fileInfo.isRelative())
+        return includeFilename;
+    if (!_codeFilename.isEmpty())
+    {
+        fileInfo.setFile(QDir(fileInfo.dir()).filePath(includeFilename));
+        if (fileInfo.exists())
+            return fileInfo.filePath();
+    }
+    for (const QString &includeDir : _codeIncludeDirectories)
+    {
+        fileInfo.setFile(QDir(includeDir).filePath(includeFilename));
+        if (fileInfo.exists())
+            return fileInfo.filePath();
+    }
+    return includeFilename;
+}
+
+bool Assembler::startIncludeFile(const QString &includeFilename)
+{
+    QString includeFilePath = findIncludeFilePath(includeFilename);
+    QFile *file = new QFile(includeFilePath);
+    if (!file->open(QFile::ReadOnly | QFile::Text))
+    {
+        assemblerError(QString("Could not include file: %1: %2").arg(includeFilePath).arg(file->errorString()));
+        delete file;
+        return false;
+    }
+
+    CodeInputState state;
+    state._codeFilename = _codeFilename;
+    state._currentCodeLineNumber = _currentCodeLineNumber;
+    state._codeFile = _codeFile;
+    state._codeStream = _codeStream;
+    state._codeLines = _codeLines;
+
+    codeInputStateStack.push(state);
+
+    _codeFilename = includeFilename;
+    _currentCodeLineNumber = -1;
+    _codeFile = file;
+    _codeStream = new QTextStream(file);
+    _codeLines = QStringList();
+
+    return true;
+}
+
+void Assembler::endIncludeFile()
+{
+    if (codeInputStateStack.isEmpty())
+        return;
+
+    closeIncludeFile();
+
+    CodeInputState state = codeInputStateStack.pop();
+    _codeFilename = state._codeFilename;
+    _currentCodeLineNumber = state._currentCodeLineNumber;
+    _codeFile = state._codeFile;
+    _codeStream = state._codeStream;
+    _codeLines = state._codeLines;
+}
+
+void Assembler::closeIncludeFile()
+{
+    if (_codeFile != nullptr)
+    {
+        if (_codeStream != nullptr)
+        {
+            delete _codeStream;
+            _codeStream = nullptr;
+        }
+        _codeFile->close();
+        delete _codeFile;
+        _codeFile = nullptr;
+    }
+}
+
+
 bool Assembler::getNextLine()
 {
     _currentLine.clear();
     while (_currentCodeLineNumber >= _codeLines.size())
     {
+        if (_codeStream->atEnd() && !codeInputStateStack.isEmpty())
+        {
+            endIncludeFile();
+            setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+            continue;
+        }
         if (!_codeStream->readLineInto(&_currentLine))
             return false;
         _codeLines.append(_currentLine);
@@ -454,7 +601,7 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
 
     _currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
-        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '_' || firstChar == '.'
+        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.'
               || (!wantOperator && (firstChar == '-' || firstChar == '*'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
@@ -471,6 +618,19 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
                 _currentToken.append(nextChar);
                 _currentLineStream >> nextChar;
             }
+        }
+    }
+    else if (firstChar == '\"')
+    {
+        while (!(nextChar.isNull() || nextChar == '\"'))
+        {
+            _currentToken.append(nextChar);
+            _currentLineStream >> nextChar;
+        }
+        if (nextChar == '\"')
+        {
+            _currentToken.append(nextChar);
+            _currentLineStream >> nextChar;
         }
     }
     else if (firstChar == '<' || firstChar == '>')
@@ -581,7 +741,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                 case Divide:
                     if (valRight == 0)
                     {
-                        debugMessage(QString("Warning: Division by zero"));
+                        assemblerWarning(QString("Division by zero"));
                         ok = false;
                         return -1;
                     }
@@ -636,7 +796,7 @@ bool Assembler::tokenIsDirective() const
 {
     if (!_currentToken.startsWith('.'))
         return false;
-    return _directives.contains(_currentToken);
+    return Assembly::directives().contains(_currentToken);
 }
 
 bool Assembler::tokenIsLabel() const

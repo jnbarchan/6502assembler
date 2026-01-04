@@ -114,6 +114,15 @@ public:
     static const OpcodesInfo &getOpcodeInfo(const Opcodes opcode);
     static bool opcodeSupportsAddressingMode(const Opcodes opcode, AddressingMode mode);
 
+    static const QStringList& directives()
+    {
+        static const QStringList list =
+        {
+            ".byte", ".include",
+        };
+        return list;
+    }
+
     struct OpcodeOperand
     {
         AddressingMode mode;

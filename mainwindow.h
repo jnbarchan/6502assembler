@@ -56,7 +56,7 @@ private slots:
     void stepOver();
     void stepOut();
     void codeTextChanged();
-    void currentCodeLineNumberChanged(int lineNumber);
+    void currentCodeLineNumberChanged(const QString &filename, int lineNumber);
     void currentInstructionNumberChanged(int instructionNumber);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
     void registerChanged(QSpinBox *spn, int value);

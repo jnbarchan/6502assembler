@@ -3,18 +3,19 @@ divisor = $72
 quotient = $74
 remainder = $76
 
-lda #0
-sta dividend
-lda #1
-sta dividend+1
+_div16_test:
+    lda #0
+    sta dividend
+    lda #1
+    sta dividend+1
 
-lda #100
-sta divisor
-lda #0
-sta divisor+1
+    lda #100
+    sta divisor
+    lda #0
+    sta divisor+1
 
-jsr _div16
-brk
+    jsr _div16
+    rts  ; _div16_test
 
 _div16:
     lda #0

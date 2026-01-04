@@ -1,16 +1,17 @@
-lda #$55
-sta $70
-lda #$66
-sta $70+1
+_addsub16_test:
+    lda #$55
+    sta $70
+    lda #$66
+    sta $70+1
 
-lda #$10
-sta $72
-lda #$20
-sta $72+1
+    lda #$10
+    sta $72
+    lda #$20
+    sta $72+1
 
-jsr _add16
-jsr _sub16
-brk
+    jsr _add16
+    jsr _sub16
+    rts  ; _addsub16_test
 
 _add16:
     clc

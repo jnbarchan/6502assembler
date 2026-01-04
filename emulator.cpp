@@ -10,17 +10,22 @@ Emulator::Emulator(QObject *parent)
     _assembler->setInstructions(&_instructions);
 }
 
-int Emulator::mapInstructionNumberToLineNumber(int instructionNumber) const
+void Emulator::mapInstructionNumberToFileLineNumber(int instructionNumber, QString &filename, int &lineNumber) const
 {
+    filename.clear();
+    lineNumber = -1;
     if (_processorModel->instructions() == nullptr)
-        return -1;
+        return;
     const QList<Instruction> &instructions(*_processorModel->instructions());
-    const QList<int> &lineNumbers(_assembler->instructionsCodeLineNumbers());
-    Q_ASSERT(instructions.size() == lineNumbers.size());
+    const QList<Assembler::CodeFileLineNumber> &codeFileLineNumbers(_assembler->instructionsCodeFileLineNumbers());
     Q_ASSERT(instructionNumber >= 0 && instructionNumber <= instructions.size());
     if (instructionNumber < 0)
-        return -1;
-    if (instructionNumber >= instructions.size() || instructionNumber >= lineNumbers.size())
-        return 1000;/*TEMPORARY*/
-    return lineNumbers.at(instructionNumber);
+        return;
+    if (instructionNumber >= instructions.size() || instructionNumber >= codeFileLineNumbers.size())
+    {
+        lineNumber = 1000;/*TEMPORARY*/
+        return;
+    }
+    filename = codeFileLineNumbers.at(instructionNumber)._codeFilename;
+    lineNumber = codeFileLineNumbers.at(instructionNumber)._currentCodeLineNumber;
 }

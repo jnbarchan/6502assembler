@@ -5,17 +5,18 @@
 
 dividend = $70
 divisor = $72
-lda #1
-sta dividend
-lda #0
-sta dividend+1
-lda #1
-sta divisor
-jsr div16
-brk
+_div8_test:
+  lda #1
+  sta dividend
+  lda #0
+  sta dividend+1
+  lda #1
+  sta divisor
+  jsr _div8
+  rts  ; _div8_test
 
 
-div16:
+_div8:
   ldx #16
   lda #0
 .divloop:
@@ -29,5 +30,5 @@ div16:
 .no_sub:
   dex
   bne .divloop
-  rts
+  rts  ; _div8
   

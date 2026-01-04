@@ -25,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     g_emulator = new Emulator(this);
 
+    assembler()->setCodeIncludeDirectories({ SAMPLES_RELATIVE_PATH });
     connect(assembler(), &Assembler::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
     connect(assembler(), &Assembler::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
 
@@ -274,12 +275,21 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::sendMessageToConsole(const QString &message)
 {
-    ui->teConsole->appendPlainText(message);
+    QTextCursor cursor(ui->teConsole->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    if (cursor.positionInBlock() != 0)
+        cursor.insertBlock();
+    cursor.insertText(message);
+    cursor.insertBlock();
+    ui->teConsole->setTextCursor(cursor);
 }
 
 /*slot*/ void MainWindow::sendCharToConsole(char ch)
 {
-    ui->teConsole->insertPlainText(QString(ch));
+    QTextCursor cursor(ui->teConsole->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText(QString(ch));
+    ui->teConsole->setTextCursor(cursor);
 }
 
 /*slot*/ void MainWindow::debugMessage(const QString &message)
@@ -374,7 +384,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     codeBytes.clear();
     delete codeStream;
     codeStream = nullptr;
-    currentCodeLineNumberChanged(-1);
+    currentCodeLineNumberChanged("", -1);
     ui->teConsole->clear();
     _lastMemoryModelDataChangedIndex = QModelIndex();
     registerChanged(nullptr, 0);
@@ -415,8 +425,10 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     ui->codeEditor->unhighlightCurrentBlock();
 }
 
-/*slot*/ void MainWindow::currentCodeLineNumberChanged(int lineNumber)
+/*slot*/ void MainWindow::currentCodeLineNumberChanged(const QString &filename, int lineNumber)
 {
+    if (!filename.isEmpty())
+        return;
     if (lineNumber < 0)
     {
         ui->codeEditor->unhighlightCurrentBlock();
@@ -431,8 +443,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::currentInstructionNumberChanged(int instructionNumber)
 {
-    int lineNumber = emulator()->mapInstructionNumberToLineNumber(instructionNumber);
-    currentCodeLineNumberChanged(lineNumber);
+    QString filename;
+    int lineNumber;
+    emulator()->mapInstructionNumberToFileLineNumber(instructionNumber, filename, lineNumber);
+    if (filename.isEmpty())
+        currentCodeLineNumberChanged(filename, lineNumber);
 }
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)

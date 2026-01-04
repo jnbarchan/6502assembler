@@ -19,7 +19,7 @@ public:
 
     Assembler *assembler() const { return _assembler; };
 
-    int mapInstructionNumberToLineNumber(int instructionNumber) const;
+    void mapInstructionNumberToFileLineNumber(int instructionNumber, QString &filename, int &lineNumber) const;
 
 signals:
 
