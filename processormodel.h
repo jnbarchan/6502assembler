@@ -2,6 +2,7 @@
 #define PROCESSORMODEL_H
 
 #include <QAbstractItemModel>
+#include <QBrush>
 #include <QMetaEnum>
 #include <QObject>
 
@@ -91,7 +92,7 @@ public slots:
     void stepOut();
 
 signals:
-    void sendMessageToConsole(const QString &message) const;
+    void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent) const;
     void sendCharToConsole(char ch) const;
     void modelReset();
     void stopRunChanged();
@@ -119,6 +120,7 @@ private:
 
     void resetModel();
     void debugMessage(const QString &message) const;
+    void executionError(const QString &message) const;
     void run(RunMode runMode);
     void runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
     void executeNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);

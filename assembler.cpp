@@ -14,14 +14,15 @@
 #define __JSR_outch 0xefff
 
 Assembler::Assembler(QObject *parent)
-    : QObject{parent}
+    : QObject{parent},
+    currentToken(currentLine.currentToken)
 {
-    _codeFilename.clear();
-    _currentCodeLineNumber = -1;
-    _codeFile = nullptr;
-    _codeStream = nullptr;
-    _codeLines.clear();
-    codeInputStateStack.clear();
+    currentFile.filename.clear();
+    currentFile.lineNumber = -1;
+    currentFile.file = nullptr;
+    currentFile.stream = nullptr;
+    currentFile.lines.clear();
+    codeFileStateStack.clear();
     _codeIncludeDirectories.clear();
     _assembleState = AssembleState::NotStarted;
 }
@@ -48,15 +49,15 @@ void Assembler::setNeedsAssembling()
 
 int Assembler::currentCodeLineNumber() const
 {
-    return _currentCodeLineNumber;
+    return currentFile.lineNumber;
 }
 
 void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
 {
-    if (_currentCodeLineNumber == newCurrentCodeLineNumber)
+    if (currentFile.lineNumber == newCurrentCodeLineNumber)
         return;
-    _currentCodeLineNumber = newCurrentCodeLineNumber;
-    emit currentCodeLineNumberChanged(_codeFilename, _currentCodeLineNumber);
+    currentFile.lineNumber = newCurrentCodeLineNumber;
+    emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
 }
 
 const QList<Instruction> *Assembler::instructions() const
@@ -91,7 +92,7 @@ void Assembler::setCodeLabel(const QString &key, int value)
 
 void Assembler::setCode(QTextStream *codeStream)
 {
-    _codeStream = codeStream;
+    currentFile.stream = codeStream;
     restart();
 }
 
@@ -100,11 +101,11 @@ void Assembler::debugMessage(const QString &message) const
 {
     QString message2(message);
     QString filename;
-    if (!_codeFilename.isEmpty())
-        filename = QString("\"%1\", ").arg(_codeFilename);
+    if (!currentFile.filename.isEmpty())
+        filename = QString("\"%1\", ").arg(currentFile.filename);
     QString location;
-    if (!filename.isEmpty() || _currentCodeLineNumber >= 0)
-        location = QString("[%1line #%2]").arg(filename).arg(_currentCodeLineNumber + 1);
+    if (!filename.isEmpty() || currentFile.lineNumber >= 0)
+        location = QString("[%1line #%2]").arg(filename).arg(currentFile.lineNumber + 1);
     if (!location.isEmpty())
         message2 = location + " " + message2;
     qDebug() << message2;
@@ -145,21 +146,21 @@ void Assembler::assignLabelValue(const QString &scopedLabel, int value)
 
 void Assembler::restart(bool assemblePass2 /*= false*/)
 {
-    Q_ASSERT(_codeStream);
+    Q_ASSERT(currentFile.stream);
 
     if (!assemblePass2)
     {
-        while (!codeInputStateStack.isEmpty())
+        while (!codeFileStateStack.isEmpty())
         {
             closeIncludeFile();
-            CodeInputState state = codeInputStateStack.pop();
-            _codeStream = state._codeStream;
-            Q_ASSERT(_codeStream);
+            CodeFileState state = codeFileStateStack.pop();
+            currentFile.stream = state.stream;
+            Q_ASSERT(currentFile.stream);
         }
-        _codeFilename.clear();
-        _codeFile = nullptr;
-        _codeLines.clear();
-        _codeStream->seek(0);
+        currentFile.filename.clear();
+        currentFile.file = nullptr;
+        currentFile.lines.clear();
+        currentFile.stream->seek(0);
         _codeLabels.clear();
         _codeLabels["__outch"] = __JSR_outch;
         setAssembleState(AssembleState::NotStarted);
@@ -167,7 +168,7 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
 
     setCurrentCodeLineNumber(0);
     setCurrentCodeInstructionNumber(0);
-    _currentToken.clear();
+    currentToken.clear();
     _currentCodeLabelScope = "";
 }
 
@@ -197,10 +198,10 @@ bool Assembler::assemblePass()
         if (hasOpcode)
         {
             _instructions->append(Instruction(opcode, operand));
-            _instructionsCodeFileLineNumbers.append(CodeFileLineNumber(_codeFilename, _currentCodeLineNumber));
+            _instructionsCodeFileLineNumbers.append(CodeFileLineNumber(currentFile.filename, currentFile.lineNumber));
             setCurrentCodeInstructionNumber(_currentCodeInstructionNumber + 1);
         }
-        setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+        setCurrentCodeLineNumber(currentFile.lineNumber + 1);
     }
     if (!eof)
         return false;
@@ -214,7 +215,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     //
 
     hasOpcode = eof = false;
-    _currentToken.clear();
+    currentToken.clear();
     if (!getNextLine())
     {
         eof = true;
@@ -224,18 +225,18 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     if (blankLine)
         return true;
 
-    QString mnemonic(_currentToken);
+    QString mnemonic(currentToken);
     opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
     hasOpcode = Assembly::OpcodesValueIsValid(opcode);
     if (!hasOpcode)
     {
         if (tokenIsLabel())
         {
-            QString label(_currentToken);
+            QString label(currentToken);
 
             bool more = getNextToken();
 
-            if (_currentToken == '=')
+            if (currentToken == '=')
             {
                 getNextToken();
                 bool ok;
@@ -249,13 +250,13 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 bool isCodeLabel = true;
                 if (_codeLabelRequiresColon)
                 {
-                    if (_currentToken == ':')
+                    if (currentToken == ':')
                         more = getNextToken();
                     else
                     {
                         isCodeLabel = false;
                         more = true;
-                        _currentToken = label;
+                        currentToken = label;
                     }
                 }
                 if (isCodeLabel)
@@ -265,14 +266,14 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             if (!more)
                 return true;
 
-            mnemonic = _currentToken;
+            mnemonic = currentToken;
             opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
             hasOpcode = Assembly::OpcodesValueIsValid(opcode);
         }
 
         if (tokenIsDirective())
         {
-            QString directive(_currentToken);
+            QString directive(currentToken);
 
             if (directive == ".byte")
             {
@@ -281,7 +282,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 int value = getTokensExpressionValueAsInt(ok);
                 if (!ok)
                 {
-                    assemblerError(QString("Bad value: %1").arg(_currentToken));
+                    assemblerError(QString("Bad value: %1").arg(currentToken));
                     return false;
                 }
                 Q_UNUSED(value)
@@ -291,13 +292,13 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             if (directive == ".include")
             {
                 getNextToken();
-                bool ok = _currentToken.length() >= 2 && _currentToken.at(0) == '\"' && _currentToken.at(_currentToken.size() - 1) == '\"';
+                bool ok = currentToken.length() >= 2 && currentToken.at(0) == '\"' && currentToken.at(currentToken.size() - 1) == '\"';
                 if (!ok)
                 {
-                    assemblerError(QString("Bad value: %1").arg(_currentToken));
+                    assemblerError(QString("Bad value: %1").arg(currentToken));
                     return false;
                 }
-                QString value = _currentToken.mid(1, _currentToken.size() - 2);
+                QString value = currentToken.mid(1, currentToken.size() - 2);
                 return startIncludeFile(value);
             }
             else
@@ -316,12 +317,12 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
 
     QString opcodeName(Assembly::OpcodesValueToString(opcode));
     getNextToken();
-    if (_currentToken.isEmpty())
+    if (currentToken.isEmpty())
     {
         operand.mode = AddressingMode::Implicit;
         operand.arg = 0;
     }
-    else if (_currentToken == '#')
+    else if (currentToken == '#')
     {
         operand.mode = AddressingMode::Immediate;
         getNextToken();
@@ -329,22 +330,22 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         int value = getTokensExpressionValueAsInt(ok);
         if (!ok)
         {
-            assemblerError(QString("Bad value: %1").arg(_currentToken));
+            assemblerError(QString("Bad value: %1").arg(currentToken));
             return false;
         }
         if (value < -128 || value > 256)
             assemblerWarning(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
         operand.arg = value;
     }
-    else if (_currentToken.toUpper() == "A")
+    else if (currentToken.toUpper() == "A")
     {
         operand.mode = AddressingMode::Accumulator;
         operand.arg = 0;
         getNextToken();
     }
-    else if (tokenIsInt() || tokenIsLabel() || _currentToken == "*" || _currentToken == "(")
+    else if (tokenIsInt() || tokenIsLabel() || currentToken == "*" || currentToken == "(")
     {
-        QString firstToken(_currentToken);
+        QString firstToken(currentToken);
         bool allowForIndirectAddressing = firstToken == "(";
         const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
         operand.mode = AddressingMode::Absolute;
@@ -359,18 +360,18 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         int value = getTokensExpressionValueAsInt(ok, allowForIndirectAddressing, &indirectAddressingMetCloseParen);
         if (!ok)
         {
-            assemblerError(QString("Bad value: %1").arg(_currentToken));
+            assemblerError(QString("Bad value: %1").arg(currentToken));
             return false;
         }
         operand.arg = value;
 
-        if (!_currentToken.isEmpty())
+        if (!currentToken.isEmpty())
         {
             bool recognised = false;
-            if (_currentToken == ",")
+            if (currentToken == ",")
             {
                 getNextToken();
-                if (_currentToken.toUpper() == "X")
+                if (currentToken.toUpper() == "X")
                 {
                     operand.mode = AddressingMode::AbsoluteX;
                     recognised = true;
@@ -378,14 +379,14 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                     {
                         if (!indirectAddressingMetCloseParen)
                         {
-                            if (getNextToken() && _currentToken == ")")
+                            if (getNextToken() && currentToken == ")")
                                 operand.mode = AddressingMode::IndexedIndirectX;
                         }
                         else
                             recognised = false;
                     }
                 }
-                else if (_currentToken.toUpper() == "Y")
+                else if (currentToken.toUpper() == "Y")
                 {
                     operand.mode = AddressingMode::AbsoluteY;
                     recognised = true;
@@ -400,14 +401,14 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             }
             if (!recognised)
             {
-                assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+                assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
                 return false;
             }
         }
     }
     else
     {
-        assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(_currentToken).arg(opcodeName));
+        assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
         return false;
     }
 
@@ -451,7 +452,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
 
     if (getNextToken())
     {
-        assemblerError(QString("Unexpected token at end of statement: %1 %2").arg(_currentToken).arg(opcodeName));
+        assemblerError(QString("Unexpected token at end of statement: %1 %2").arg(currentToken).arg(opcodeName));
         return false;
     }
 
@@ -484,7 +485,7 @@ QString Assembler::findIncludeFilePath(const QString &includeFilename)
     QFileInfo fileInfo(includeFilename);
     if (!fileInfo.isRelative())
         return includeFilename;
-    if (!_codeFilename.isEmpty())
+    if (!currentFile.filename.isEmpty())
     {
         fileInfo.setFile(QDir(fileInfo.dir()).filePath(includeFilename));
         if (fileInfo.exists())
@@ -510,113 +511,104 @@ bool Assembler::startIncludeFile(const QString &includeFilename)
         return false;
     }
 
-    CodeInputState state;
-    state._codeFilename = _codeFilename;
-    state._currentCodeLineNumber = _currentCodeLineNumber;
-    state._codeFile = _codeFile;
-    state._codeStream = _codeStream;
-    state._codeLines = _codeLines;
+    CodeFileState state(currentFile);
 
-    codeInputStateStack.push(state);
+    codeFileStateStack.push(state);
 
-    _codeFilename = includeFilename;
-    _currentCodeLineNumber = -1;
-    _codeFile = file;
-    _codeStream = new QTextStream(file);
-    _codeLines = QStringList();
+    currentFile.filename = includeFilename;
+    currentFile.lineNumber = -1;
+    currentFile.file = file;
+    currentFile.stream = new QTextStream(file);
+    currentFile.lines = QStringList();
 
     return true;
 }
 
 void Assembler::endIncludeFile()
 {
-    if (codeInputStateStack.isEmpty())
+    if (codeFileStateStack.isEmpty())
         return;
 
     closeIncludeFile();
 
-    CodeInputState state = codeInputStateStack.pop();
-    _codeFilename = state._codeFilename;
-    _currentCodeLineNumber = state._currentCodeLineNumber;
-    _codeFile = state._codeFile;
-    _codeStream = state._codeStream;
-    _codeLines = state._codeLines;
+    currentFile = codeFileStateStack.pop();
 }
 
 void Assembler::closeIncludeFile()
 {
-    if (_codeFile != nullptr)
+    if (currentFile.file != nullptr)
     {
-        if (_codeStream != nullptr)
+        if (currentFile.stream != nullptr)
         {
-            delete _codeStream;
-            _codeStream = nullptr;
+            delete currentFile.stream;
+            currentFile.stream = nullptr;
         }
-        _codeFile->close();
-        delete _codeFile;
-        _codeFile = nullptr;
+        currentFile.file->close();
+        delete currentFile.file;
+        currentFile.file = nullptr;
     }
 }
 
 
 bool Assembler::getNextLine()
 {
-    _currentLine.clear();
-    while (_currentCodeLineNumber >= _codeLines.size())
+    currentLine.line.clear();
+    while (currentFile.lineNumber >= currentFile.lines.size())
     {
-        if (_codeStream->atEnd() && !codeInputStateStack.isEmpty())
+        if (currentFile.stream->atEnd() && !codeFileStateStack.isEmpty())
         {
             endIncludeFile();
-            setCurrentCodeLineNumber(_currentCodeLineNumber + 1);
+            setCurrentCodeLineNumber(currentFile.lineNumber + 1);
             continue;
         }
-        if (!_codeStream->readLineInto(&_currentLine))
+        if (!currentFile.stream->readLineInto(&currentLine.line))
             return false;
-        _codeLines.append(_currentLine);
+        currentFile.lines.append(currentLine.line);
     }
-    if (_currentCodeLineNumber >= _codeLines.size())
+    if (currentFile.lineNumber >= currentFile.lines.size())
         return false;
-    _currentLine = _codeLines.at(_currentCodeLineNumber);
-    _currentLineStream.setString(&_currentLine, QIODeviceBase::ReadOnly);
+    currentLine.line = currentFile.lines.at(currentFile.lineNumber);
+    currentLine.lineStream.setString(&currentLine.line, QIODeviceBase::ReadOnly);
     return true;
 }
 
 bool Assembler::getNextToken(bool wantOperator /*= false*/)
 {
-    _currentToken.clear();
+    currentToken.clear();
     QChar firstChar, nextChar;
 
-    _currentLineStream >> firstChar;
+    QTextStream &currentLineStream(currentLine.lineStream);
+    currentLineStream >> firstChar;
     while (firstChar.isSpace())
-        _currentLineStream >> firstChar;
+        currentLineStream >> firstChar;
 
     if (firstChar.isNull())
         return false;
     if (firstChar == ';')
     {
-        QString comment;
-        comment = _currentLineStream.readLine();
+        QString comment = currentLineStream.readLine();
+        Q_UNUSED(comment)
         return false;
     }
 
-    _currentToken.append(firstChar);
+    currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
         if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.'
               || (!wantOperator && (firstChar == '-' || firstChar == '*'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
             return true;
-    _currentLineStream >> nextChar;
+    currentLineStream >> nextChar;
     if (firstChar == '\'')
     {
         if (!nextChar.isNull())
         {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
+            currentToken.append(nextChar);
+            currentLineStream >> nextChar;
             if (nextChar == '\'')
             {
-                _currentToken.append(nextChar);
-                _currentLineStream >> nextChar;
+                currentToken.append(nextChar);
+                currentLineStream >> nextChar;
             }
         }
     }
@@ -624,33 +616,33 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     {
         while (!(nextChar.isNull() || nextChar == '\"'))
         {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
+            currentToken.append(nextChar);
+            currentLineStream >> nextChar;
         }
         if (nextChar == '\"')
         {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
+            currentToken.append(nextChar);
+            currentLineStream >> nextChar;
         }
     }
     else if (firstChar == '<' || firstChar == '>')
     {
         if (nextChar == firstChar)
         {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
+            currentToken.append(nextChar);
+            currentLineStream >> nextChar;
         }
     }
     else
     {
         while (!(nextChar.isNull() || nextChar.isSpace() || (nextChar.isPunct() && nextChar != '_') || nextChar.isSymbol()))
         {
-            _currentToken.append(nextChar);
-            _currentLineStream >> nextChar;
+            currentToken.append(nextChar);
+            currentLineStream >> nextChar;
         }
     }
     if (!nextChar.isNull())
-        _currentLineStream.seek(_currentLineStream.pos() - 1);
+        currentLineStream.seek(currentLineStream.pos() - 1);
     return true;
 }
 
@@ -675,7 +667,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     QStack<int> operatorStack;
     QStack<int> valueStack;
 
-    QString firstToken(_currentToken);
+    QString firstToken(currentToken);
     if (firstToken != "(")
         allowForIndirectAddressing = false;
     ok = false;
@@ -687,13 +679,13 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     do
     {
         int foundOperator = -1;
-        if (_currentToken.isEmpty())
+        if (currentToken.isEmpty())
             endOfExpression = true;
-        else if (_currentToken == "," && allowForIndirectAddressing)
+        else if (currentToken == "," && allowForIndirectAddressing)
             endOfExpression = true;
         else if (!wantOperator)
         {
-            if (_currentToken == "(")
+            if (currentToken == "(")
                 operatorStack.push(OpenParen);
             else
             {
@@ -706,7 +698,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
         }
         else
         {
-            QString _operator(_currentToken);
+            QString _operator(currentToken);
             for (int i = 0; i < sizeof(operatorsInfo) / sizeof(operatorsInfo[0]) && foundOperator < 0; i++)
                 if (operatorsInfo[i].string == _operator)
                     foundOperator = i;
@@ -784,7 +776,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     if (valueStack.size() != 1)
         return -1;
     if (allowForIndirectAddressing)
-        if (_currentToken == "," && operatorStack.size() == 1 && operatorsInfo[operatorStack.top()]._operator == OpenParen)
+        if (currentToken == "," && operatorStack.size() == 1 && operatorsInfo[operatorStack.top()]._operator == OpenParen)
             operatorStack.pop();
     if (!operatorStack.isEmpty())
         return -1;
@@ -794,24 +786,24 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
 
 bool Assembler::tokenIsDirective() const
 {
-    if (!_currentToken.startsWith('.'))
+    if (!currentToken.startsWith('.'))
         return false;
-    return Assembly::directives().contains(_currentToken);
+    return Assembly::directives().contains(currentToken);
 }
 
 bool Assembler::tokenIsLabel() const
 {
-    if (_currentToken.size() == 0)
+    if (currentToken.size() == 0)
         return false;
-    QChar ch = _currentToken.at(0);
+    QChar ch = currentToken.at(0);
     if (!(ch == '.' || ch == '_' || ch.isLetter()))
         return false;
     if (ch == '.')
         if (tokenIsDirective())
             return false;
-    for (int i = 1; i < _currentToken.size(); i++)
+    for (int i = 1; i < currentToken.size(); i++)
     {
-        ch = _currentToken.at(i);
+        ch = currentToken.at(i);
         if (!(ch == '_' || ch.isLetter() || ch.isDigit()))
             return false;
     }
@@ -820,7 +812,7 @@ bool Assembler::tokenIsLabel() const
 
 bool Assembler::tokenIsInt() const
 {
-    QChar firstChar = _currentToken.size() > 0 ? _currentToken.at(0) : QChar();
+    QChar firstChar = currentToken.size() > 0 ? currentToken.at(0) : QChar();
     return firstChar == '%' || firstChar == '$' || firstChar.isDigit() || firstChar == '-' || firstChar == '\'';
 }
 
@@ -829,17 +821,17 @@ int Assembler::tokenToInt(bool *ok) const
     bool _ok;
     if (ok == nullptr)
         ok = &_ok;
-    QChar firstChar = _currentToken.size() > 0 ? _currentToken.at(0) : QChar();
+    QChar firstChar = currentToken.size() > 0 ? currentToken.at(0) : QChar();
     if (firstChar == '%')
-        return _currentToken.mid(1).toInt(ok, 2);
+        return currentToken.mid(1).toInt(ok, 2);
     else if (firstChar == '$')
-        return _currentToken.mid(1).toInt(ok, 16);
+        return currentToken.mid(1).toInt(ok, 16);
     else if (firstChar.isDigit() || firstChar == '-')
-        return _currentToken.toInt(ok, 10);
+        return currentToken.toInt(ok, 10);
     else if (firstChar == '\'')
     {
-        QChar nextChar = _currentToken.size() > 1 ? _currentToken.at(1) : QChar();
-        QChar nextChar2 = _currentToken.size() > 2 ? _currentToken.at(2) : QChar();
+        QChar nextChar = currentToken.size() > 1 ? currentToken.at(1) : QChar();
+        QChar nextChar2 = currentToken.size() > 2 ? currentToken.at(2) : QChar();
         if (nextChar2 == '\'')
         {
             *ok = true;
@@ -861,7 +853,7 @@ int Assembler::tokenValueAsInt(bool *ok) const
         return value;
     if (tokenIsLabel())
     {
-        QString label = scopedLabelName(_currentToken);
+        QString label = scopedLabelName(currentToken);
         if (_codeLabels.contains(label))
         {
             *ok = true;
@@ -872,9 +864,9 @@ int Assembler::tokenValueAsInt(bool *ok) const
             *ok = true;
             return 0xffff;
         }
-        sendMessageToConsole(QString("Label not defined: %1").arg(_currentToken));
+        sendMessageToConsole(QString("Label not defined: %1").arg(currentToken));
     }
-    else if (_currentToken == "*")
+    else if (currentToken == "*")
     {
         *ok = true;
         return _currentCodeInstructionNumber;

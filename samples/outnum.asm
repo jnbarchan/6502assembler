@@ -16,6 +16,11 @@ _outnum_test:
     sta dividend+1
 
     jsr _outnum
+    lda #10
+    jsr __outch
+    jsr _outnum
+    lda #10
+    jsr __outch
     rts  ; _outnum_test
 
 _outnum:

@@ -56,31 +56,33 @@ public:
     void setCodeIncludeDirectories(const QStringList &newCodeIncludeDirectories);
 
 signals:
-    void sendMessageToConsole(const QString &message) const;
+    void sendMessageToConsole(const QString &message, Qt::GlobalColor colour = Qt::transparent) const;
     void currentCodeLineNumberChanged(const QString &filename, int lineNumber);
 
 private:
     enum AssembleState { NotStarted, Pass1, Pass2, Assembled };
     AssembleState _assembleState;
 
-    QString _codeFilename;
-    int _currentCodeLineNumber;
-    QFile *_codeFile;
-    QTextStream *_codeStream;
-    QStringList _codeLines;
-    struct CodeInputState
+    struct CodeFileState
     {
-        QString _codeFilename;
-        int _currentCodeLineNumber;
-        QFile *_codeFile = nullptr;
-        QTextStream *_codeStream = nullptr;
-        QStringList _codeLines;
+        QString filename;
+        int lineNumber;
+        QFile *file = nullptr;
+        QTextStream *stream = nullptr;
+        QStringList lines;
     };
-    QStack<CodeInputState> codeInputStateStack;
+    CodeFileState currentFile;
+    QStack<CodeFileState> codeFileStateStack;
     QStringList _codeIncludeDirectories;
 
-    QString _currentLine, _currentToken;
-    QTextStream _currentLineStream;
+    struct CodeLineState
+    {
+        QString currentToken;
+        QString line;
+        QTextStream lineStream;
+    };
+    CodeLineState currentLine;
+    QString &currentToken /* = currentLine.currentToken */;
 
     QList<Instruction> *_instructions;
     int _currentCodeInstructionNumber;

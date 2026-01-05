@@ -273,13 +273,22 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 }
 
 
-/*slot*/ void MainWindow::sendMessageToConsole(const QString &message)
+/*slot*/ void MainWindow::sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent)
 {
     QTextCursor cursor(ui->teConsole->textCursor());
     cursor.movePosition(QTextCursor::End);
     if (cursor.positionInBlock() != 0)
         cursor.insertBlock();
+    QTextCharFormat savedFormat(cursor.charFormat());
+    if (colour != Qt::transparent)
+    {
+        QTextCharFormat format;
+        format.setForeground(colour);
+        cursor.setCharFormat(format);
+    }
     cursor.insertText(message);
+    if (colour != Qt::transparent)
+        cursor.setCharFormat(savedFormat);
     cursor.insertBlock();
     ui->teConsole->setTextCursor(cursor);
 }

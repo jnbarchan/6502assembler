@@ -220,8 +220,19 @@ void ProcessorModel::setStartNewRun(bool newStartNewRun)
 
 void ProcessorModel::debugMessage(const QString &message) const
 {
-    qDebug() << message;
-    emit sendMessageToConsole(message);
+    QString message2(message);
+    QString location;
+    if (_currentInstructionNumber >= 0)
+        location = QString("[instruction #%2]").arg(_currentInstructionNumber);
+    if (!location.isEmpty())
+        message2 = location + " " + message2;
+    qDebug() << message2;
+    emit sendMessageToConsole(message2, Qt::red);
+}
+
+void ProcessorModel::executionError(const QString &message) const
+{
+    debugMessage("Execution Error: " + message);
 }
 
 
@@ -395,14 +406,14 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         }
         break;
     default:
-        debugMessage(QString("EXECUTION: Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
+        executionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
         setStopRun(true);
         return;
     }
 
     if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
     {
-        debugMessage(QString("EXECUTION: Opcode does not support operand addressing mode: %1 %2")
+        executionError(QString("Opcode does not support operand addressing mode: %1 %2")
                          .arg(Assembly::OpcodesValueToString(opcode))
                          .arg(Assembly::AddressingModeValueToString(operand.mode)));
         setStopRun(true);
@@ -678,7 +689,7 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         break;
 
     default:
-        debugMessage(QString("EXECUTION: Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
+        executionError(QString("Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
         setStopRun(true);
         return;
     }
@@ -699,7 +710,7 @@ void ProcessorModel::jumpTo(uint16_t instructionNumber)
     }
     if (instructionNumber < 0 || instructionNumber > _instructions->size())
     {
-        debugMessage(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
+        executionError(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
         setStopRun(true);
         return;
     }

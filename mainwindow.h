@@ -42,7 +42,7 @@ private:
 
 private slots:
     void actionEnablement();
-    void sendMessageToConsole(const QString &message);
+    void sendMessageToConsole(const QString &message, QBrush colour);
     void sendCharToConsole(char ch);
     void debugMessage(const QString &message);
     void rbgNumBaseClicked(QAbstractButton *rb);
