@@ -13,6 +13,7 @@ using Opcodes = Assembly::Opcodes;
 using AddressingMode = Assembly::AddressingMode;
 using OpcodeOperand = Assembly::OpcodeOperand;
 using Instruction = Assembly::Instruction;
+using InternalJSRs = Assembly::InternalJSRs;
 
 
 class Assembler : public QObject

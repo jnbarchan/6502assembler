@@ -139,6 +139,8 @@ public:
         }
     };
 
+    enum InternalJSRs { __JSR_outch = 0xeffe, __JSR_get_time = 0xeffc, __JSR_get_elapsed_time = 0xeffa, };
+
 private:
     static OpcodesInfo opcodesInfo[];
 };

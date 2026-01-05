@@ -3,6 +3,7 @@
 
 #include <QAbstractItemModel>
 #include <QBrush>
+#include <QElapsedTimer>
 #include <QMetaEnum>
 #include <QObject>
 
@@ -12,6 +13,7 @@ using Opcodes = Assembly::Opcodes;
 using AddressingMode = Assembly::AddressingMode;
 using OpcodeOperand = Assembly::OpcodeOperand;
 using Instruction = Assembly::Instruction;
+using InternalJSRs = Assembly::InternalJSRs;
 
 
 class MemoryModel;
@@ -118,6 +120,8 @@ private:
 
     bool _startNewRun, _stopRun, _isRunning;
 
+    QElapsedTimer elapsedTimer;
+
     void resetModel();
     void debugMessage(const QString &message) const;
     void executionError(const QString &message) const;
@@ -127,6 +131,8 @@ private:
     void setNZStatusFlags(uint8_t value);
     void jumpTo(uint16_t instructionNumber);
     void jsr_outch();
+    void jsr_get_time();
+    void jsr_get_elapsed_time();
 };
 
 

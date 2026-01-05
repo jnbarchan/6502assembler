@@ -1,4 +1,5 @@
 #include <QBrush>
+#include <QDateTime>
 #include <QCoreApplication>
 #include <QDebug>
 
@@ -8,8 +9,6 @@
 //
 // ProcessorModel Class
 //
-
-#define __JSR_outch 0xefff
 
 ProcessorModel::ProcessorModel(QObject *parent)
     : QObject{parent}
@@ -134,12 +133,12 @@ void ProcessorModel::setMemoryByteAt(uint16_t address, uint8_t value)
 
 uint16_t ProcessorModel::memoryWordAt(uint16_t address) const
 {
-    return _memory.at(address) | (_memory.at(uint16_t(address + 1)) << 8);
+    return _memory.at(address) | (_memory.at(static_cast<uint16_t>(address + 1)) << 8);
 }
 
 uint16_t ProcessorModel::memoryZPWordAt(uint8_t address) const
 {
-    return _memory.at(address) | (_memory.at(uint8_t(address + 1)) << 8);
+    return _memory.at(address) | (_memory.at(static_cast<uint8_t>(address + 1)) << 8);
 }
 
 unsigned int ProcessorModel::memorySize() const
@@ -288,17 +287,20 @@ void ProcessorModel::run(RunMode runMode)
     if (!step || startNewRun() || stopRun())
     {
         restart();
+        elapsedTimer.start();
         setCurrentInstructionNumber(0);
         setStartNewRun(false);
     }
     if (stopRun())
         return;
 
-    int stopAtInstructionNumber = -1;
-    bool keepGoing = true;
     int count = 0;
     const int processEventsEverySoOften = 1000;
+
     setIsRunning(true);
+
+    int stopAtInstructionNumber = -1;
+    bool keepGoing = true;
     while (!stopRun() && keepGoing && _currentInstructionNumber < _instructions->size())
     {
         const Instruction &instruction(_instructions->at(_currentInstructionNumber));
@@ -314,8 +316,8 @@ void ProcessorModel::run(RunMode runMode)
             }
             else if (runMode == StepOut)
             {
-                uint16_t rtsAddress = memoryByteAt(_stackBottom + uint8_t(_stackRegister + 1)) << 8;
-                rtsAddress |= memoryByteAt(_stackBottom + uint8_t(_stackRegister + 2));
+                uint16_t rtsAddress = memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1)) << 8;
+                rtsAddress |= memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 2));
                 stopAtInstructionNumber = rtsAddress;
                 keepGoing = true;
             }
@@ -331,6 +333,7 @@ void ProcessorModel::run(RunMode runMode)
         if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
             QCoreApplication::processEvents();//TEMPORARY
     }
+
     setIsRunning(false);
 }
 
@@ -380,15 +383,15 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         if (operand.mode == AddressingMode::Absolute)
             ;
         else if (operand.mode == AddressingMode::ZeroPage)
-            _argAddress = uint8_t(_argAddress);
+            _argAddress = static_cast<uint8_t>(_argAddress);
         else if (operand.mode == AddressingMode::AbsoluteX)
             _argAddress += _xregister;
         else if (operand.mode == AddressingMode::ZeroPageX)
-            _argAddress = uint8_t(_argAddress + _xregister);
+            _argAddress = static_cast<uint8_t>(_argAddress + _xregister);
         else if (operand.mode == AddressingMode::AbsoluteY)
             _argAddress += _yregister;
         else if (operand.mode == AddressingMode::ZeroPageY)
-            _argAddress = uint8_t(_argAddress + _yregister);
+            _argAddress = static_cast<uint8_t>(_argAddress + _yregister);
         else if (operand.mode == AddressingMode::Indirect)
             _argAddress = memoryWordAt(_argAddress);
         else if (operand.mode == AddressingMode::IndexedIndirectX)
@@ -629,8 +632,8 @@ void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOpe
         break;
     case Opcodes::JSR:
         tempValue16 = _currentInstructionNumber;
-        pushToStack(uint8_t(tempValue16));
-        pushToStack(uint8_t(tempValue16 >> 8));
+        pushToStack(static_cast<uint8_t>(tempValue16));
+        pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
         jumpTo(argAddress);
         break;
     case Opcodes::RTS:
@@ -703,11 +706,24 @@ void ProcessorModel::setNZStatusFlags(uint8_t value)
 
 void ProcessorModel::jumpTo(uint16_t instructionNumber)
 {
-    if (instructionNumber == __JSR_outch)
+    bool internal = false;
+    if (instructionNumber == InternalJSRs::__JSR_outch)
     {
         jsr_outch();
-        instructionNumber = (pullFromStack() << 8) | pullFromStack();
+        internal = true;
     }
+    else if (instructionNumber == InternalJSRs::__JSR_get_time)
+    {
+        jsr_get_time();
+        internal = true;
+    }
+    else if (instructionNumber == InternalJSRs::__JSR_get_elapsed_time)
+    {
+        jsr_get_elapsed_time();
+        internal = true;
+    }
+    if (internal)
+        instructionNumber = (pullFromStack() << 8) | pullFromStack();
     if (instructionNumber < 0 || instructionNumber > _instructions->size())
     {
         executionError(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
@@ -720,6 +736,20 @@ void ProcessorModel::jumpTo(uint16_t instructionNumber)
 void ProcessorModel::jsr_outch()
 {
     emit sendCharToConsole(accumulator());
+}
+
+void ProcessorModel::jsr_get_time()
+{
+    uint16_t milliseconds = static_cast<uint16_t>(QDateTime::currentMSecsSinceEpoch());
+    setAccumulator(static_cast<uint8_t>(milliseconds));
+    setXregister(static_cast<uint8_t>(milliseconds >> 8));
+}
+
+void ProcessorModel::jsr_get_elapsed_time()
+{
+    uint16_t milliseconds = static_cast<uint16_t>(elapsedTimer.elapsed());
+    setAccumulator(static_cast<uint8_t>(milliseconds));
+    setXregister(static_cast<uint8_t>(milliseconds >> 8));
 }
 
 

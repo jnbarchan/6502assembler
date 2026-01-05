@@ -11,8 +11,6 @@
 // Assembler Class
 //
 
-#define __JSR_outch 0xefff
-
 Assembler::Assembler(QObject *parent)
     : QObject{parent},
     currentToken(currentLine.currentToken)
@@ -162,7 +160,9 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
         currentFile.lines.clear();
         currentFile.stream->seek(0);
         _codeLabels.clear();
-        _codeLabels["__outch"] = __JSR_outch;
+        _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
+        _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
+        _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
         setAssembleState(AssembleState::NotStarted);
     }
 

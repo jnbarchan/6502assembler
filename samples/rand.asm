@@ -8,6 +8,10 @@
 
 ;; RND8_STATE: .byte $55      ; initial seed (non-zero)
 
+_RND8_STATE = $0500
+_RND16_STATE_LOW = $0502
+_RND16_STATE_HIGH = $0503
+
 _RND_TEST:
     lda #$55      ; initial seed (non-zero)
     sta _RND8_STATE
@@ -34,7 +38,7 @@ _RND8_NEXT:
         STA _RND8_STATE   ; save updated state
         LDA _RND8_STATE   ; return result in A
         RTS
-_RND8_STATE: NOP      ; initial seed (non-zero)
+;; _RND8_STATE: NOP      ; initial seed (non-zero)
 
 
 ; -------------------------------------------------------
@@ -49,19 +53,25 @@ _RND8_STATE: NOP      ; initial seed (non-zero)
 ;; _RND16_STATE_HIGH: .byte $12   ; seed high byte (non-zero)
 
 _RND16_NEXT:
-        LDA _RND16_STATE_LOW
+        LDA _RND16_STATE_HIGH
         LSR A                ; shift right, bit 0 -> carry
-        BCC .skip_feedback
+        STA _RND16_STATE_HIGH
+        ROR _RND16_STATE_LOW  ; shift full 16-bit value right
+        BCC .no_feedback
         ; feedback when bit 0 was 1
         LDA _RND16_STATE_HIGH
-        EOR #%10101010       ; feedback mask for high byte (example)
+        EOR #$B4          ; high byte of polynomial
         STA _RND16_STATE_HIGH
-.skip_feedback:
-        LDA _RND16_STATE_HIGH
-        ROR _RND16_STATE_LOW     ; rotate right through low byte
+.no_feedback:
         LDA _RND16_STATE_LOW     ; result low byte in A
         LDX _RND16_STATE_HIGH    ; result high byte in X
         RTS
 
-_RND16_STATE_LOW: NOP   ; seed low byte (non-zero)
-_RND16_STATE_HIGH: NOP   ; seed high byte (non-zero)
+;; _RND16_STATE_LOW: NOP   ; seed low byte (non-zero)
+;; _RND16_STATE_HIGH: NOP   ; seed high byte (non-zero)
+
+_RND16_SEED_FROM_TIME:
+    jsr __get_time
+    sta _RND16_STATE_LOW
+    stx _RND16_STATE_HIGH
+    rts
