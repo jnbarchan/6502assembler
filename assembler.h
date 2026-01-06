@@ -46,6 +46,9 @@ public:
     int currentCodeInstructionNumber() const;
     void setCurrentCodeInstructionNumber(int newCurrentCodeInstructionNumber);
 
+    QList<uint16_t> *breakpoints() const;
+    void setBreakpoints(QList<uint16_t> *newBreakpoints);
+
     void setCodeLabel(const QString &key, int value);
 
     void setCode(QTextStream *codeStream);
@@ -88,6 +91,7 @@ private:
     QList<Instruction> *_instructions;
     int _currentCodeInstructionNumber;
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
+    QList<uint16_t> *_breakpoints;
 
     QMap<QString, int> _codeLabels;
     QString _currentCodeLabelScope;

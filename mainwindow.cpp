@@ -71,6 +71,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionStepInto, &QAction::triggered, this, &MainWindow::stepInto);
     connect(ui->actionStepOver, &QAction::triggered, this, &MainWindow::stepOver);
     connect(ui->actionStepOut, &QAction::triggered, this, &MainWindow::stepOut);
+    connect(ui->actionContinue, &QAction::triggered, this, &MainWindow::continueRun);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
 
@@ -82,6 +83,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->btnStepOver->setDefaultAction(ui->actionStepOver);
     ui->actionStepOut->setIcon(ui->btnStepOut->icon());
     ui->btnStepOut->setDefaultAction(ui->actionStepOut);
+    ui->actionContinue->setIcon(ui->btnContinue->icon());
+    ui->btnContinue->setDefaultAction(ui->actionContinue);
     ui->actionReset->setIcon(ui->btnReset->icon());
     ui->btnReset->setDefaultAction(ui->actionReset);
 
@@ -222,7 +225,6 @@ void MainWindow::setRunStopButton(bool run)
 void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 {
     bool run = runMode == ProcessorModel::Run;
-    bool stepOneStatementOnly = runMode == ProcessorModel::StepInto;
     if (processorModel()->isRunning())
     {
         if (run)
@@ -260,15 +262,19 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             }
     }
 
+    bool stepOneStatementOnly = runMode == ProcessorModel::StepInto;
     if (!stepOneStatementOnly)
         setRunStopButton(false);
+
     switch (runMode)
     {
     case ProcessorModel::Run: processorModel()->run(); break;
     case ProcessorModel::StepInto: processorModel()->stepInto(); break;
     case ProcessorModel::StepOver: processorModel()->stepOver(); break;
     case ProcessorModel::StepOut: processorModel()->stepOut(); break;
+    case ProcessorModel::Continue: processorModel()->continueRun(); break;
     }
+
     if (!stepOneStatementOnly)
         setRunStopButton(true);
 }
@@ -284,6 +290,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     ui->btnStepInto->defaultAction()->setEnabled(enable);
     ui->btnStepOver->defaultAction()->setEnabled(enable);
     ui->btnStepOut->defaultAction()->setEnabled(enable);
+    ui->btnContinue->defaultAction()->setEnabled(enable);
 }
 
 
@@ -418,6 +425,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 /*slot*/ void MainWindow::run()
 {
     assembleAndRun(ProcessorModel::Run);
+}
+
+/*slot*/ void MainWindow::continueRun()
+{
+    assembleAndRun(ProcessorModel::Continue);
 }
 
 /*slot*/ void MainWindow::stepInto()

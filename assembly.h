@@ -118,7 +118,7 @@ public:
     {
         static const QStringList list =
         {
-            ".byte", ".include",
+            ".byte", ".include", ".break",
         };
         return list;
     }

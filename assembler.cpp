@@ -83,6 +83,16 @@ void Assembler::setCurrentCodeInstructionNumber(int newCurrentCodeInstructionNum
     _currentCodeInstructionNumber = newCurrentCodeInstructionNumber;
 }
 
+QList<uint16_t> *Assembler::breakpoints() const
+{
+    return _breakpoints;
+}
+
+void Assembler::setBreakpoints(QList<uint16_t> *newBreakpoints)
+{
+    _breakpoints = newBreakpoints;
+}
+
 void Assembler::setCodeLabel(const QString &key, int value)
 {
     _codeLabels[key] = value;
@@ -157,8 +167,9 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
         }
         currentFile.filename.clear();
         currentFile.file = nullptr;
-        currentFile.lines.clear();
         currentFile.stream->seek(0);
+        currentFile.lines.clear();
+        _breakpoints->clear();
         _codeLabels.clear();
         _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
         _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
@@ -289,7 +300,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 assemblerError(QString("Cannot yet implement directive: %1").arg(directive));
                 return false;
             }
-            if (directive == ".include")
+            else if (directive == ".include")
             {
                 getNextToken();
                 bool ok = currentToken.length() >= 2 && currentToken.at(0) == '\"' && currentToken.at(currentToken.size() - 1) == '\"';
@@ -300,6 +311,12 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 }
                 QString value = currentToken.mid(1, currentToken.size() - 2);
                 return startIncludeFile(value);
+            }
+            else if (directive == ".break")
+            {
+                if (!_breakpoints->contains(_currentCodeInstructionNumber))
+                    _breakpoints->append(_currentCodeInstructionNumber);
+                return true;
             }
             else
             {

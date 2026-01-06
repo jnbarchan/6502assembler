@@ -26,6 +26,7 @@ signals:
 private:
     ProcessorModel *_processorModel;
     QList<Instruction> _instructions;
+    QList<uint16_t> _breakpoints;
 
     Assembler *_assembler;
 };

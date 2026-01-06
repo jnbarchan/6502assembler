@@ -35,7 +35,7 @@ public:
     };
     static_assert(Carry == 0x01, "StatusFlags::Carry must have a value of 0x01");
     Q_FLAG(StatusFlags)
-    enum RunMode { Run, StepInto, StepOver, StepOut };
+    enum RunMode { Run, StepInto, StepOver, StepOut, Continue };
     Q_ENUM(RunMode)
 
     explicit ProcessorModel(QObject *parent = nullptr);
@@ -76,6 +76,9 @@ public:
     int currentInstructionNumber() const;
     void setCurrentInstructionNumber(int newCurrentInstructionNumber);
 
+    const QList<uint16_t> *breakpoints() const;
+    void setBreakpoints(const QList<uint16_t> *newBreakpoints);
+
     bool isRunning() const;
     void setIsRunning(bool newIsRunning);
     bool stopRun() const;
@@ -91,6 +94,7 @@ public slots:
     void endRun();
     void stop();
     void run();
+    void continueRun();
     void stepInto();
     void stepOver();
     void stepOut();
@@ -119,6 +123,7 @@ private:
 
     const QList<Instruction> *_instructions;
     int _currentInstructionNumber;
+    const QList<uint16_t> *_breakpoints;
 
     bool _startNewRun, _stopRun, _isRunning;
 

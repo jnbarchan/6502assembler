@@ -5,9 +5,11 @@ Emulator::Emulator(QObject *parent)
 {
     _processorModel = new ProcessorModel(this);
     _processorModel->setInstructions(&_instructions);
+    _processorModel->setBreakpoints(&_breakpoints);
 
     _assembler = new Assembler(this);
     _assembler->setInstructions(&_instructions);
+    _assembler->setBreakpoints(&_breakpoints);
 }
 
 void Emulator::mapInstructionNumberToFileLineNumber(int instructionNumber, QString &filename, int &lineNumber) const

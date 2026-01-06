@@ -168,6 +168,16 @@ void ProcessorModel::setCurrentInstructionNumber(int newCurrentInstructionNumber
     emit currentInstructionNumberChanged(_currentInstructionNumber);
 }
 
+const QList<uint16_t> *ProcessorModel::breakpoints() const
+{
+    return _breakpoints;
+}
+
+void ProcessorModel::setBreakpoints(const QList<uint16_t> *newBreakpoints)
+{
+    _breakpoints = newBreakpoints;
+}
+
 void ProcessorModel::resetModel()
 {
     _stackRegister = 0xFD;
@@ -275,6 +285,11 @@ void ProcessorModel::executionError(const QString &message) const
     run(Run);
 }
 
+void ProcessorModel::continueRun()
+{
+    run(Continue);
+}
+
 /*slot*/ void ProcessorModel::stepInto()
 {
     run(StepInto);
@@ -295,13 +310,18 @@ void ProcessorModel::run(RunMode runMode)
 {
     if (_isRunning)
         return;
-    bool step = runMode != Run;
-    if (!step || startNewRun() || stopRun())
+
+    bool startedNewRun = false;
+    bool step = runMode == StepInto || runMode == StepOut || runMode == StepOver;
+    if (runMode == Run || startNewRun() || stopRun())
     {
         restart();
         elapsedTimer.start();
         setCurrentInstructionNumber(0);
         setStartNewRun(false);
+        startedNewRun = true;
+        if (runMode == Continue)
+            runMode = Run;
     }
     if (stopRun())
         return;
@@ -313,6 +333,9 @@ void ProcessorModel::run(RunMode runMode)
 
     int stopAtInstructionNumber = -1;
     bool keepGoing = true;
+    if (startedNewRun)
+        if (_breakpoints->contains(_currentInstructionNumber))
+            keepGoing = false;
     while (!stopRun() && keepGoing && _currentInstructionNumber < _instructions->size())
     {
         const Instruction &instruction(_instructions->at(_currentInstructionNumber));
@@ -337,9 +360,8 @@ void ProcessorModel::run(RunMode runMode)
 
         runNextInstruction(opcode, operand);
 
-        if (step)
-            if (_currentInstructionNumber == stopAtInstructionNumber)
-                keepGoing = false;
+        if (_currentInstructionNumber == stopAtInstructionNumber || _breakpoints->contains(_currentInstructionNumber))
+            keepGoing = false;
 
         count++;
         if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)

@@ -522,6 +522,26 @@
        </widget>
       </item>
       <item>
+       <widget class="QToolButton" name="btnContinue">
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Continue</string>
+        </property>
+        <property name="icon">
+         <iconset theme="go-next">
+          <normaloff>.</normaloff>.</iconset>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QToolButton" name="btnReset">
         <property name="minimumSize">
          <size>
@@ -566,6 +586,7 @@
     <addaction name="actionStepInto"/>
     <addaction name="actionStepOver"/>
     <addaction name="actionStepOut"/>
+    <addaction name="actionContinue"/>
     <addaction name="actionReset"/>
     <addaction name="separator"/>
     <addaction name="actionExit"/>
@@ -616,6 +637,11 @@
   <action name="actionStepOut">
    <property name="text">
     <string>Step Out</string>
+   </property>
+  </action>
+  <action name="actionContinue">
+   <property name="text">
+    <string>Continue</string>
    </property>
   </action>
  </widget>

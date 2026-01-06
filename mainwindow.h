@@ -52,6 +52,7 @@ private slots:
     void modelReset();
     void reset();
     void run();
+    void continueRun();
     void stepInto();
     void stepOver();
     void stepOut();
