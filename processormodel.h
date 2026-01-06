@@ -84,6 +84,8 @@ public:
     bool startNewRun() const;
     void setStartNewRun(bool newStartNewRun);
 
+    const Instruction *nextInstructionToExecute() const;
+
 public slots:
     void restart();
     void endRun();
@@ -126,8 +128,8 @@ private:
     void debugMessage(const QString &message) const;
     void executionError(const QString &message) const;
     void run(RunMode runMode);
-    void runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
-    void executeNextStatement(const Opcodes &opcode, const OpcodeOperand &operand);
+    void runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
+    void executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
     void setNZStatusFlags(uint8_t value);
     void jumpTo(uint16_t instructionNumber);
     void jsr_outch();

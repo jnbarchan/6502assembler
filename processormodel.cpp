@@ -216,6 +216,18 @@ void ProcessorModel::setStartNewRun(bool newStartNewRun)
     _startNewRun = newStartNewRun;
 }
 
+const Instruction *ProcessorModel::nextInstructionToExecute() const
+{
+    int instructionNumber;
+    if (startNewRun() || stopRun())
+        instructionNumber = 0;
+    else
+        instructionNumber = _currentInstructionNumber;
+    if (instructionNumber < 0 || instructionNumber >= _instructions->size())
+        return nullptr;
+    return &_instructions->at(instructionNumber);
+}
+
 
 void ProcessorModel::debugMessage(const QString &message) const
 {
@@ -323,7 +335,7 @@ void ProcessorModel::run(RunMode runMode)
             }
         }
 
-        runNextStatement(opcode, operand);
+        runNextInstruction(opcode, operand);
 
         if (step)
             if (_currentInstructionNumber == stopAtInstructionNumber)
@@ -337,7 +349,7 @@ void ProcessorModel::run(RunMode runMode)
     setIsRunning(false);
 }
 
-void ProcessorModel::runNextStatement(const Opcodes &opcode, const OpcodeOperand &operand)
+void ProcessorModel::runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand)
 {
     if (stopRun())
         return;
@@ -345,11 +357,11 @@ void ProcessorModel::runNextStatement(const Opcodes &opcode, const OpcodeOperand
     //
     // EXECUTION PHASE
     //
-    executeNextStatement(opcode, operand);
+    executeNextInstruction(opcode, operand);
 }
 
 
-void ProcessorModel::executeNextStatement(const Opcodes &opcode, const OpcodeOperand &operand)
+void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand)
 {
     //
     // EXECUTION PHASE

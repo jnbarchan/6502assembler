@@ -23,7 +23,7 @@ void CodeEditor::highlightCurrentBlock(QTextBlock &block)
     setExtraSelections({ selection });
     setTextCursor(cursor);
     centerCursor();
-    setTextCursor(savedTextCursor);
+    // setTextCursor(savedTextCursor);
 }
 
 void CodeEditor::unhighlightCurrentBlock()

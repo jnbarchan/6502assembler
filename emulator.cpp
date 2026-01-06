@@ -18,7 +18,6 @@ void Emulator::mapInstructionNumberToFileLineNumber(int instructionNumber, QStri
         return;
     const QList<Instruction> &instructions(*_processorModel->instructions());
     const QList<Assembler::CodeFileLineNumber> &codeFileLineNumbers(_assembler->instructionsCodeFileLineNumbers());
-    Q_ASSERT(instructionNumber >= 0 && instructionNumber <= instructions.size());
     if (instructionNumber < 0)
         return;
     if (instructionNumber >= instructions.size() || instructionNumber >= codeFileLineNumbers.size())

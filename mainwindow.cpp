@@ -246,6 +246,20 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     else
         registerChanged(nullptr, 0);
 
+    if (runMode == ProcessorModel::StepInto)
+    {
+        const Instruction *instruction = processorModel()->nextInstructionToExecute();
+        if (instruction != nullptr)
+            if (instruction->opcode == Opcodes::JSR)
+            {
+                QString filename;
+                int lineNumber;
+                emulator()->mapInstructionNumberToFileLineNumber(instruction->operand.arg, filename, lineNumber);
+                if (!filename.isEmpty())
+                    runMode = ProcessorModel::StepOver;
+            }
+    }
+
     if (!stepOneStatementOnly)
         setRunStopButton(false);
     switch (runMode)
