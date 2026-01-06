@@ -13,7 +13,13 @@ public:
     void highlightCurrentBlock(QTextBlock &block);
     void unhighlightCurrentBlock();
 
+protected:
+    void keyPressEvent(QKeyEvent *e) override;
+
 signals:
+
+private:
+    void handleReturnKey();
 };
 
 #endif // CODEEDITOR_H
