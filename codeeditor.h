@@ -20,6 +20,7 @@ signals:
 
 private:
     void handleReturnKey();
+    void handleShiftDeleteKey();
 };
 
 #endif // CODEEDITOR_H

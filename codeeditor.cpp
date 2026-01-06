@@ -50,9 +50,31 @@ void CodeEditor::handleReturnKey()
         else
             break;
 
+    c.beginEditBlock();
     // Insert newline + indent
     c.insertBlock();
     c.insertText(indent);
+    c.endEditBlock();
+
+    setTextCursor(c);
+}
+
+void CodeEditor::handleShiftDeleteKey()
+{
+    QTextCursor c = textCursor();
+    if (c.hasSelection())
+    {
+        cut();
+        return;
+    }
+    c.beginEditBlock();
+    // Select the line contents
+    c.select(QTextCursor::LineUnderCursor);
+    // Extend selection to include the line break, if there is one
+    if (c.selectionEnd() < c.document()->characterCount() - 1)
+        c.setPosition(c.selectionEnd() + 1, QTextCursor::KeepAnchor);
+    c.removeSelectedText();
+    c.endEditBlock();
 
     setTextCursor(c);
 }
@@ -64,6 +86,10 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
         handleReturnKey();
         return; // IMPORTANT: do not pass to base class
     }
-
+    else if (e->key() == Qt::Key_Delete && (e->modifiers() & Qt::ShiftModifier))
+    {
+        handleShiftDeleteKey();
+        return;
+    }
     QPlainTextEdit::keyPressEvent(e);
 }
