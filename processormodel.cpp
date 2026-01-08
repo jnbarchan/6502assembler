@@ -92,7 +92,7 @@ uint8_t ProcessorModel::statusFlags() const
 void ProcessorModel::setStatusFlags(uint8_t newStatusFlags)
 {
     _statusFlags = newStatusFlags;
-    emit statusFlagsChanged();
+    // emit statusFlagsChanged();
 }
 
 uint8_t ProcessorModel::statusFlag(uint8_t flagBit) const
@@ -103,13 +103,13 @@ uint8_t ProcessorModel::statusFlag(uint8_t flagBit) const
 void ProcessorModel::clearStatusFlag(uint8_t newFlagBit)
 {
     _statusFlags &= ~newFlagBit;
-    emit statusFlagsChanged();
+    // emit statusFlagsChanged();
 }
 
 void ProcessorModel::setStatusFlag(uint8_t newFlagBit)
 {
     _statusFlags |= newFlagBit;
-    emit statusFlagsChanged();
+    // emit statusFlagsChanged();
 }
 
 void ProcessorModel::setStatusFlag(uint8_t newFlagBit, bool on)
@@ -730,6 +730,18 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         setStopRun(true);
         return;
     }
+
+    switch (opcode)
+    {
+    case Opcodes::STA: case Opcodes::STX: case Opcodes::STY:
+    case Opcodes::TXS: case Opcodes::PHA: case Opcodes::PHP:
+    case Opcodes::JMP: case Opcodes::JSR: case Opcodes::RTS:
+    case Opcodes::NOP:
+        break;
+    default:
+        emit statusFlagsChanged();
+        break;
+    }
 }
 
 void ProcessorModel::setNZStatusFlags(uint8_t value)
@@ -856,7 +868,8 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
 
 /*slot*/ void MemoryModel::memoryChanged(uint16_t address)
 {
-    clearLastMemoryChanged();
+    if (lastMemoryChangedAddress != address)
+        clearLastMemoryChanged();
     lastMemoryChangedAddress = address;
     QModelIndex ix = addressToIndex(address);
     emit dataChanged(ix, ix, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });

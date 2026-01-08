@@ -13,6 +13,7 @@
 Emulator *g_emulator;
 ProcessorModel *processorModel();
 
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -29,20 +30,25 @@ MainWindow::MainWindow(QWidget *parent)
     connect(assembler(), &Assembler::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
     connect(assembler(), &Assembler::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
 
-    connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
-    connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole);
-    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); });
-    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); });
-    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); });
-    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); });
-    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, processorModel()->yregister()); });
-    connect(processorModel(), &ProcessorModel::modelReset, this, &MainWindow::modelReset);
+    Qt::ConnectionType processorModelConnectionType(Qt::QueuedConnection);
+    Qt::ConnectionType queuedChangedSignalsConnectionType(Qt::DirectConnection);
+
+    connect(emulator(), &Emulator::processQueuedChangedSignal, this, &MainWindow::processQueuedChangedSignal);
+
+    connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
+    connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
+    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, processorModel()->yregister()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::modelReset, this, &MainWindow::modelReset, processorModelConnectionType);
     modelReset();
 
-    connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement);
+    connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
 
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
-    connect(processorModel(), &ProcessorModel::currentInstructionNumberChanged, this, &MainWindow::currentInstructionNumberChanged);
+    connect(processorModel(), &ProcessorModel::currentInstructionNumberChanged, this, &MainWindow::currentInstructionNumberChanged, queuedChangedSignalsConnectionType);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
 
@@ -54,7 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
     tvMemoryViewItemDelegate = new MemoryViewItemDelegate(ui->tvMemory);
     ui->tvMemory->setItemDelegate(tvMemoryViewItemDelegate);
     _lastMemoryModelDataChangedIndex = QModelIndex();
-    connect(processorModel()->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged);
+    connect(processorModel()->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged, queuedChangedSignalsConnectionType);
 
     connect(ui->rbgNumBase, &QButtonGroup::buttonClicked, this, &MainWindow::rbgNumBaseClicked);
     ui->rbNumBaseHex->click();
@@ -266,6 +272,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (!stepOneStatementOnly)
         setRunStopButton(false);
 
+    emulator()->startQueuingChangedSignals();
+
     switch (runMode)
     {
     case ProcessorModel::Run: processorModel()->run(); break;
@@ -274,6 +282,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     case ProcessorModel::StepOut: processorModel()->stepOut(); break;
     case ProcessorModel::Continue: processorModel()->continueRun(); break;
     }
+
+    emulator()->endQueuingChangedSignals();
 
     if (!stepOneStatementOnly)
         setRunStopButton(true);
@@ -291,35 +301,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     ui->btnStepOver->defaultAction()->setEnabled(enable);
     ui->btnStepOut->defaultAction()->setEnabled(enable);
     ui->btnContinue->defaultAction()->setEnabled(enable);
-}
-
-
-/*slot*/ void MainWindow::sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent)
-{
-    QTextCursor cursor(ui->teConsole->textCursor());
-    cursor.movePosition(QTextCursor::End);
-    if (cursor.positionInBlock() != 0)
-        cursor.insertBlock();
-    QTextCharFormat savedFormat(cursor.charFormat());
-    if (colour != Qt::transparent)
-    {
-        QTextCharFormat format;
-        format.setForeground(colour);
-        cursor.setCharFormat(format);
-    }
-    cursor.insertText(message);
-    if (colour != Qt::transparent)
-        cursor.setCharFormat(savedFormat);
-    cursor.insertBlock();
-    ui->teConsole->setTextCursor(cursor);
-}
-
-/*slot*/ void MainWindow::sendCharToConsole(char ch)
-{
-    QTextCursor cursor(ui->teConsole->textCursor());
-    cursor.movePosition(QTextCursor::End);
-    cursor.insertText(QString(ch));
-    ui->teConsole->setTextCursor(cursor);
 }
 
 /*slot*/ void MainWindow::debugMessage(const QString &message)
@@ -365,6 +346,19 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     scrollToLastMemoryModelDataChangedIndex();
 }
 
+/*slot*/ void MainWindow::codeTextChanged()
+{
+    // workaround for my https://forum.qt.io/topic/163968/qplaintextedit-qtextedit-signals-textchanged-contentschange-are-emitted-often-when-no-change
+    static QString lastText;
+    QString text(ui->codeEditor->toPlainText());
+    if (text == lastText)
+        return;
+    lastText = text;
+
+    setHaveDoneReset(false);
+    ui->codeEditor->unhighlightCurrentBlock();
+}
+
 /*slot*/ void MainWindow::openFile()
 {
     if (!checkSaveFile())
@@ -394,6 +388,35 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (fileInfo.suffix().isEmpty())
         fileName.append(".asm");
     saveToFile(fileName);
+}
+
+
+/*slot*/ void MainWindow::sendMessageToConsole(const QString &message, QBrush colour /*= Qt::transparent*/)
+{
+    QTextCursor cursor(ui->teConsole->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    if (cursor.positionInBlock() != 0)
+        cursor.insertBlock();
+    QTextCharFormat savedFormat(cursor.charFormat());
+    if (colour != Qt::transparent)
+    {
+        QTextCharFormat format;
+        format.setForeground(colour);
+        cursor.setCharFormat(format);
+    }
+    cursor.insertText(message);
+    if (colour != Qt::transparent)
+        cursor.setCharFormat(savedFormat);
+    cursor.insertBlock();
+    ui->teConsole->setTextCursor(cursor);
+}
+
+/*slot*/ void MainWindow::sendCharToConsole(char ch)
+{
+    QTextCursor cursor(ui->teConsole->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText(QString(ch));
+    ui->teConsole->setTextCursor(cursor);
 }
 
 /*slot*/ void MainWindow::modelReset()
@@ -447,21 +470,14 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     assembleAndRun(ProcessorModel::StepOut);
 }
 
-/*slot*/ void MainWindow::codeTextChanged()
-{
-    // workaround for my https://forum.qt.io/topic/163968/qplaintextedit-qtextedit-signals-textchanged-contentschange-are-emitted-often-when-no-change
-    static QString lastText;
-    QString text(ui->codeEditor->toPlainText());
-    if (text == lastText)
-        return;
-    lastText = text;
-
-    setHaveDoneReset(false);
-    ui->codeEditor->unhighlightCurrentBlock();
-}
 
 /*slot*/ void MainWindow::currentCodeLineNumberChanged(const QString &filename, int lineNumber)
 {
+    if (emulator()->queueChangedSignals())
+    {
+        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::currentCodeLineNumberChanged(filename, lineNumber));
+        return;
+    }
     if (!filename.isEmpty())
         return;
     if (lineNumber < 0)
@@ -478,6 +494,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::currentInstructionNumberChanged(int instructionNumber)
 {
+    if (emulator()->queueChangedSignals())
+    {
+        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::currentInstructionNumberChanged(instructionNumber));
+        return;
+    }
     QString filename;
     int lineNumber;
     emulator()->mapInstructionNumberToFileLineNumber(instructionNumber, filename, lineNumber);
@@ -485,8 +506,13 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         currentCodeLineNumberChanged(filename, lineNumber);
 }
 
-/*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles)
+/*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles /*= QList<int>()*/)
 {
+    if (emulator()->queueChangedSignals())
+    {
+        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::memoryModelDataChanged(topLeft, bottomRight, roles));
+        return;
+    }
     if (roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole) || roles.contains(Qt::ForegroundRole))
         if (topLeft == bottomRight)
         {
@@ -497,6 +523,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::registerChanged(QSpinBox *spn, int value)
 {
+    if (emulator()->queueChangedSignals())
+    {
+        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::registerChanged(spn, value));
+        return;
+    }
     bool changeColor = (spn == ui->spnAccumulator || spn == ui->spnXRegister || spn == ui->spnYRegister);
     if (spnLastChangedColor != nullptr && (changeColor || spn == nullptr))
     {
@@ -514,6 +545,22 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             spn->setPalette(palette);
             spnLastChangedColor = spn;
         }
+    }
+}
+
+/*slot*/ void MainWindow::processQueuedChangedSignal(const QueuedChangeSignal &sig)
+{
+    Q_ASSERT(!emulator()->queueChangedSignals());
+    switch (sig.tag)
+    {
+    case QueuedChangeSignal::CurrentCodeLineNumberChanged:
+        currentCodeLineNumberChanged(sig.codeLine.filename, sig.codeLine.lineNumber); break;
+    case QueuedChangeSignal::CurrentInstructionNumberChanged:
+        currentInstructionNumberChanged(sig.instruction.instructionNumber); break;
+    case QueuedChangeSignal::MemoryModelDataChanged:
+        memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles); break;
+    case QueuedChangeSignal::RegisterChanged:
+        registerChanged(sig._register.spn, sig._register.value); break;
     }
 }
 

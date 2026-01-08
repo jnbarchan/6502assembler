@@ -9,6 +9,8 @@
 
 #include "emulator.h"
 
+using QueuedChangeSignal = Emulator::QueuedChangeSignal;
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -42,13 +44,14 @@ private:
 
 private slots:
     void actionEnablement();
-    void sendMessageToConsole(const QString &message, QBrush colour);
-    void sendCharToConsole(char ch);
     void debugMessage(const QString &message);
     void rbgNumBaseClicked(QAbstractButton *rb);
+    void codeTextChanged();
     void openFile();
     void saveFile();
     void saveFileAs();
+    void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
+    void sendCharToConsole(char ch);
     void modelReset();
     void reset();
     void run();
@@ -56,11 +59,11 @@ private slots:
     void stepInto();
     void stepOver();
     void stepOut();
-    void codeTextChanged();
     void currentCodeLineNumberChanged(const QString &filename, int lineNumber);
     void currentInstructionNumberChanged(int instructionNumber);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
     void registerChanged(QSpinBox *spn, int value);
+    void processQueuedChangedSignal(const QueuedChangeSignal &sig);
 
 private:
     Ui::MainWindow *ui;
