@@ -4,7 +4,6 @@
 #include <QAbstractButton>
 #include <QModelIndex>
 #include <QSpinBox>
-#include <QStyledItemDelegate>
 #include <QMainWindow>
 
 #include "emulator.h"
@@ -84,24 +83,6 @@ private:
     void scrollToLastMemoryModelDataChangedIndex() const;
     void setRunStopButton(bool run);
     void assembleAndRun(ProcessorModel::RunMode runMode);
-};
-
-
-class MemoryViewItemDelegate : public QStyledItemDelegate
-{
-public:
-    MemoryViewItemDelegate(QObject *parent = nullptr);
-
-    int fixedDigits() const;
-    void setFixedDigits(int newFixedDigits);
-
-    int integerBase() const;
-    void setIntegerBase(int newIntegerBase);
-
-    virtual QString displayText(const QVariant &value, const QLocale &locale) const override;
-
-private:
-    int _fixedDigits, _integerBase;
 };
 
 #endif // MAINWINDOW_H
