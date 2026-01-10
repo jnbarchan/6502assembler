@@ -101,14 +101,14 @@ private:
     AssembleState assembleState() const;
     void setAssembleState(AssembleState newAssembleState);
     void debugMessage(const QString &message) const;
-    void assemblerWarning(const QString &message) const;
-    void assemblerError(const QString &message) const;
+    void assemblerWarningMessage(const QString &message) const;
+    void assemblerErrorMessage(const QString &message) const;
     QString scopedLabelName(const QString &label) const;
     void assignLabelValue(const QString &scopedLabel, int value);
-    bool assemblePass();
-    bool assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof);
+    void assemblePass();
+    void assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof);
     QString findIncludeFilePath(const QString &includeFilename);
-    bool startIncludeFile(const QString &includeFilename);
+    void startIncludeFile(const QString &includeFilename);
     void endIncludeFile();
     void closeIncludeFile();
     bool getNextLine();
@@ -119,6 +119,13 @@ private:
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
     int tokenValueAsInt(bool *ok) const;
+};
+
+
+class AssemblerError : public std::runtime_error
+{
+public:
+    AssemblerError(const QString &msg);
 };
 
 #endif // ASSEMBLER_H

@@ -251,7 +251,7 @@ void ProcessorModel::debugMessage(const QString &message) const
     emit sendMessageToConsole(message2, Qt::red);
 }
 
-void ProcessorModel::executionError(const QString &message) const
+void ProcessorModel::executionErrorMessage(const QString &message) const
 {
     debugMessage("Execution Error: " + message);
 }
@@ -311,61 +311,68 @@ void ProcessorModel::run(RunMode runMode)
     if (_isRunning)
         return;
 
-    bool startedNewRun = false;
-    bool step = runMode == StepInto || runMode == StepOut || runMode == StepOver;
-    if (runMode == Run || startNewRun() || stopRun())
+    try
     {
-        restart();
-        elapsedTimer.start();
-        setCurrentInstructionNumber(0);
-        setStartNewRun(false);
-        startedNewRun = true;
-        if (runMode == Continue)
-            runMode = Run;
-    }
-    if (stopRun())
-        return;
-
-    int count = 0;
-    const int processEventsEverySoOften = 1000;
-
-    setIsRunning(true);
-
-    int stopAtInstructionNumber = -1;
-    bool keepGoing = true;
-    if (startedNewRun)
-        if (_breakpoints->contains(_currentInstructionNumber))
-            keepGoing = false;
-    while (!stopRun() && keepGoing && _currentInstructionNumber < _instructions->size())
-    {
-        const Instruction &instruction(_instructions->at(_currentInstructionNumber));
-        const Opcodes &opcode(instruction.opcode);
-        const OpcodeOperand &operand(instruction.operand);
-        keepGoing = !step || stopAtInstructionNumber >= 0;
-        if (step && stopAtInstructionNumber < 0)
+        bool startedNewRun = false;
+        bool step = runMode == StepInto || runMode == StepOut || runMode == StepOver;
+        if (runMode == Run || startNewRun() || stopRun())
         {
-            if (runMode == StepOver && opcode == Opcodes::JSR)
-            {
-                stopAtInstructionNumber = _currentInstructionNumber + 1;
-                keepGoing = true;
-            }
-            else if (runMode == StepOut)
-            {
-                uint16_t rtsAddress = memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1)) << 8;
-                rtsAddress |= memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 2));
-                stopAtInstructionNumber = rtsAddress;
-                keepGoing = true;
-            }
+            restart();
+            elapsedTimer.start();
+            setCurrentInstructionNumber(0);
+            setStartNewRun(false);
+            startedNewRun = true;
+            if (runMode == Continue)
+                runMode = Run;
         }
+        if (stopRun())
+            return;
 
-        runNextInstruction(opcode, operand);
+        int count = 0;
+        const int processEventsEverySoOften = 1000;
 
-        if (_currentInstructionNumber == stopAtInstructionNumber || _breakpoints->contains(_currentInstructionNumber))
-            keepGoing = false;
+        setIsRunning(true);
 
-        count++;
-        if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
-            QCoreApplication::processEvents();//TEMPORARY
+        int stopAtInstructionNumber = -1;
+        bool keepGoing = true;
+        if (startedNewRun)
+            if (_breakpoints->contains(_currentInstructionNumber))
+                keepGoing = false;
+        while (!stopRun() && keepGoing && _currentInstructionNumber < _instructions->size())
+        {
+            const Instruction &instruction(_instructions->at(_currentInstructionNumber));
+            const Opcodes &opcode(instruction.opcode);
+            const OpcodeOperand &operand(instruction.operand);
+            keepGoing = !step || stopAtInstructionNumber >= 0;
+            if (step && stopAtInstructionNumber < 0)
+            {
+                if (runMode == StepOver && opcode == Opcodes::JSR)
+                {
+                    stopAtInstructionNumber = _currentInstructionNumber + 1;
+                    keepGoing = true;
+                }
+                else if (runMode == StepOut)
+                {
+                    uint16_t rtsAddress = memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1)) << 8;
+                    rtsAddress |= memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 2));
+                    stopAtInstructionNumber = rtsAddress;
+                    keepGoing = true;
+                }
+            }
+
+            runNextInstruction(opcode, operand);
+
+            if (_currentInstructionNumber == stopAtInstructionNumber || _breakpoints->contains(_currentInstructionNumber))
+                keepGoing = false;
+
+            count++;
+            if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
+                QCoreApplication::processEvents();//TEMPORARY
+        }
+    }
+    catch (const ExecutionError &e)
+    {
+        executionErrorMessage(QString(e.what()));
     }
 
     setIsRunning(false);
@@ -443,18 +450,16 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         }
         break;
     default:
-        executionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
         setStopRun(true);
-        return;
+        throw ExecutionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
     }
 
     if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
     {
-        executionError(QString("Opcode does not support operand addressing mode: %1 %2")
+        setStopRun(true);
+        throw ExecutionError(QString("Opcode does not support operand addressing mode: %1 %2")
                          .arg(Assembly::OpcodesValueToString(opcode))
                          .arg(Assembly::AddressingModeValueToString(operand.mode)));
-        setStopRun(true);
-        return;
     }
 
     setCurrentInstructionNumber(_currentInstructionNumber + 1);
@@ -726,9 +731,8 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         break;
 
     default:
-        executionError(QString("Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
         setStopRun(true);
-        return;
+        throw ExecutionError(QString("Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
     }
 
     switch (opcode)
@@ -772,9 +776,8 @@ void ProcessorModel::jumpTo(uint16_t instructionNumber)
         instructionNumber = (pullFromStack() << 8) | pullFromStack();
     if (instructionNumber < 0 || instructionNumber > _instructions->size())
     {
-        executionError(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
         setStopRun(true);
-        return;
+        throw ExecutionError(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
     }
     setCurrentInstructionNumber(instructionNumber);
 }
@@ -875,3 +878,14 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     emit dataChanged(ix, ix, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });
 }
 
+
+
+//
+// ExecutionError Class
+//
+
+ExecutionError::ExecutionError(const QString &msg)
+    : std::runtime_error(msg.toStdString())
+{
+
+}

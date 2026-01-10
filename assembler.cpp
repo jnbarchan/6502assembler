@@ -120,12 +120,12 @@ void Assembler::debugMessage(const QString &message) const
     emit sendMessageToConsole(message2);
 }
 
-void Assembler::assemblerWarning(const QString &message) const
+void Assembler::assemblerWarningMessage(const QString &message) const
 {
     debugMessage("Assembler Warning: " + message);
 }
 
-void Assembler::assemblerError(const QString &message) const
+void Assembler::assemblerErrorMessage(const QString &message) const
 {
     debugMessage("Assembler Error: " + message);
 }
@@ -136,16 +136,16 @@ QString Assembler::scopedLabelName(const QString &label) const
     if (!label.startsWith('.'))
         return label;
     if (_currentCodeLabelScope.isEmpty())
-        assemblerWarning(QString("Local label not in any other label scope: %1").arg(label));
+        assemblerWarningMessage(QString("Local label not in any other label scope: %1").arg(label));
     return _currentCodeLabelScope + label;
 }
 
 void Assembler::assignLabelValue(const QString &scopedLabel, int value)
 {
     if (scopedLabel.isEmpty())
-        assemblerWarning(QString("Defining label with no name"));
+        assemblerWarningMessage(QString("Defining label with no name"));
     if (_codeLabels.value(scopedLabel, value) != value)
-        assemblerWarning(QString("Label redefinition: %1").arg(scopedLabel));
+        assemblerWarningMessage(QString("Label redefinition: %1").arg(scopedLabel));
     setCodeLabel(scopedLabel, value);
     if (!scopedLabel.contains('.'))
         _currentCodeLabelScope = scopedLabel;
@@ -185,26 +185,33 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
 
 void Assembler::assemble()
 {
-    restart();
-    setAssembleState(Pass1);
-    if (!assemblePass())
-        return;
-    restart(true);
-    setAssembleState(Pass2);
-    if (!assemblePass())
-        return;
-    setAssembleState(Assembled);
+    try
+    {
+        restart();
+        setAssembleState(Pass1);
+        assemblePass();
+        restart(true);
+        setAssembleState(Pass2);
+        assemblePass();
+        setAssembleState(Assembled);
+    }
+    catch (const AssemblerError &e)
+    {
+        assemblerErrorMessage(QString(e.what()));
+        setAssembleState(NotStarted);
+    }
 }
 
 
-bool Assembler::assemblePass()
+void Assembler::assemblePass()
 {
     _instructions->clear();
     _instructionsCodeFileLineNumbers.clear();
     Opcodes opcode;
     OpcodeOperand operand;
     bool hasOpcode, eof;
-    while (assembleNextStatement(opcode, operand, hasOpcode, eof))
+    assembleNextStatement(opcode, operand, hasOpcode, eof);
+    while (!eof)
     {
         if (hasOpcode)
         {
@@ -213,13 +220,11 @@ bool Assembler::assemblePass()
             setCurrentCodeInstructionNumber(_currentCodeInstructionNumber + 1);
         }
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
+        assembleNextStatement(opcode, operand, hasOpcode, eof);
     }
-    if (!eof)
-        return false;
-    return true;
 }
 
-bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof)
+void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof)
 {
     //
     // ASSEMBLING PHASE
@@ -230,11 +235,11 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     if (!getNextLine())
     {
         eof = true;
-        return false;
+        return;
     }
     bool blankLine = !getNextToken();
     if (blankLine)
-        return true;
+        return;
 
     QString mnemonic(currentToken);
     opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
@@ -252,9 +257,10 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 getNextToken();
                 bool ok;
                 int value = getTokensExpressionValueAsInt(ok);
-                if (ok)
-                    assignLabelValue(scopedLabelName(label), value);
-                return true;
+                if (!ok)
+                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+                assignLabelValue(scopedLabelName(label), value);
+                return;
             }
             else
             {
@@ -275,7 +281,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             }
 
             if (!more)
-                return true;
+                return;
 
             mnemonic = currentToken;
             opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
@@ -292,45 +298,33 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 bool ok;
                 int value = getTokensExpressionValueAsInt(ok);
                 if (!ok)
-                {
-                    assemblerError(QString("Bad value: %1").arg(currentToken));
-                    return false;
-                }
+                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
                 Q_UNUSED(value)
-                assemblerError(QString("Cannot yet implement directive: %1").arg(directive));
-                return false;
+                throw AssemblerError(QString("Cannot yet implement directive: %1").arg(directive));
             }
             else if (directive == ".include")
             {
                 getNextToken();
                 bool ok = currentToken.length() >= 2 && currentToken.at(0) == '\"' && currentToken.at(currentToken.size() - 1) == '\"';
                 if (!ok)
-                {
-                    assemblerError(QString("Bad value: %1").arg(currentToken));
-                    return false;
-                }
+                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
                 QString value = currentToken.mid(1, currentToken.size() - 2);
-                return startIncludeFile(value);
+                startIncludeFile(value);
+                return;
             }
             else if (directive == ".break")
             {
                 if (!_breakpoints->contains(_currentCodeInstructionNumber))
                     _breakpoints->append(_currentCodeInstructionNumber);
-                return true;
+                return;
             }
             else
-            {
-                assemblerError(QString("Unimplemented directive: %1").arg(directive));
-                return false;
-            }
+                throw AssemblerError(QString("Unimplemented directive: %1").arg(directive));
         }
     }
 
     if (!hasOpcode)
-    {
-        assemblerError(QString("Unrecognized opcode mnemonic: %1").arg(mnemonic));
-        return false;
-    }
+        throw AssemblerError(QString("Unrecognized opcode mnemonic: %1").arg(mnemonic));
 
     QString opcodeName(Assembly::OpcodesValueToString(opcode));
     getNextToken();
@@ -346,12 +340,9 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         bool ok;
         int value = getTokensExpressionValueAsInt(ok);
         if (!ok)
-        {
-            assemblerError(QString("Bad value: %1").arg(currentToken));
-            return false;
-        }
+            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
         if (value < -128 || value > 256)
-            assemblerWarning(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
+            assemblerWarningMessage(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
         operand.arg = value;
     }
     else if (currentToken.toUpper() == "A")
@@ -376,10 +367,7 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         bool indirectAddressingMetCloseParen;
         int value = getTokensExpressionValueAsInt(ok, allowForIndirectAddressing, &indirectAddressingMetCloseParen);
         if (!ok)
-        {
-            assemblerError(QString("Bad value: %1").arg(currentToken));
-            return false;
-        }
+            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
         operand.arg = value;
 
         if (!currentToken.isEmpty())
@@ -417,17 +405,11 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 }
             }
             if (!recognised)
-            {
-                assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
-                return false;
-            }
+                throw AssemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
         }
     }
     else
-    {
-        assemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
-        return false;
-    }
+        throw AssemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
 
     bool zpArg = (operand.arg & 0xff00) == 0;
     const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
@@ -448,19 +430,13 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     case AddressingMode::IndexedIndirectX:
     case AddressingMode::IndirectIndexedY:
         if (!zpArg)
-        {
-            assemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(operand.mode)).arg(opcodeName));
-            return false;
-        }
+            throw AssemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(operand.mode)).arg(opcodeName));
         break;
     case AddressingMode::Relative: {
         int relative = operand.arg - _currentCodeInstructionNumber;
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
-            {
-                assemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
-                return false;
-            }
+                throw AssemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
         operand.arg = relative;
         break;
     }
@@ -468,20 +444,12 @@ bool Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     }
 
     if (getNextToken())
-    {
-        assemblerError(QString("Unexpected token at end of statement: %1 %2").arg(currentToken).arg(opcodeName));
-        return false;
-    }
+        throw AssemblerError(QString("Unexpected token at end of statement: %1 %2").arg(currentToken).arg(opcodeName));
 
     if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
-    {
-        assemblerError(QString("Opcode does not support operand addressing mode: %1 %2")
+        throw AssemblerError(QString("Opcode does not support operand addressing mode: %1 %2")
                          .arg(Assembly::OpcodesValueToString(opcode))
                          .arg(Assembly::AddressingModeValueToString(operand.mode)));
-        return false;
-    }
-
-    return true;
 }
 
 
@@ -517,15 +485,15 @@ QString Assembler::findIncludeFilePath(const QString &includeFilename)
     return includeFilename;
 }
 
-bool Assembler::startIncludeFile(const QString &includeFilename)
+void Assembler::startIncludeFile(const QString &includeFilename)
 {
     QString includeFilePath = findIncludeFilePath(includeFilename);
     QFile *file = new QFile(includeFilePath);
     if (!file->open(QFile::ReadOnly | QFile::Text))
     {
-        assemblerError(QString("Could not include file: %1: %2").arg(includeFilePath).arg(file->errorString()));
+        QString errorString(file->errorString());
         delete file;
-        return false;
+        throw AssemblerError(QString("Could not include file: %1: %2").arg(includeFilePath).arg(errorString));
     }
 
     CodeFileState state(currentFile);
@@ -537,8 +505,6 @@ bool Assembler::startIncludeFile(const QString &includeFilename)
     currentFile.file = file;
     currentFile.stream = new QTextStream(file);
     currentFile.lines = QStringList();
-
-    return true;
 }
 
 void Assembler::endIncludeFile()
@@ -750,7 +716,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                 case Divide:
                     if (valRight == 0)
                     {
-                        assemblerWarning(QString("Division by zero"));
+                        assemblerWarningMessage(QString("Division by zero"));
                         ok = false;
                         return -1;
                     }
@@ -892,3 +858,13 @@ int Assembler::tokenValueAsInt(bool *ok) const
     return -1;
 }
 
+
+//
+// AssemblerError Class
+//
+
+AssemblerError::AssemblerError(const QString &msg)
+    : std::runtime_error(msg.toStdString())
+{
+
+}

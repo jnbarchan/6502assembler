@@ -131,7 +131,7 @@ private:
 
     void resetModel();
     void debugMessage(const QString &message) const;
-    void executionError(const QString &message) const;
+    void executionErrorMessage(const QString &message) const;
     void run(RunMode runMode);
     void runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
     void executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
@@ -170,4 +170,10 @@ private slots:
     void memoryChanged(uint16_t address);
 };
 
+
+class ExecutionError : public std::runtime_error
+{
+public:
+    ExecutionError(const QString &msg);
+};
 #endif // PROCESSORMODEL_H
