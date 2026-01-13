@@ -48,7 +48,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
 
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
-    connect(processorModel(), &ProcessorModel::currentInstructionNumberChanged, this, &MainWindow::currentInstructionNumberChanged, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::currentInstructionAddressChanged, this, &MainWindow::currentInstructionAddressChanged, queuedChangedSignalsConnectionType);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
 
@@ -247,9 +247,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         codeStream = new QTextStream(codeBytes);
         assembler()->setCode(codeStream);
         assembler()->assemble();
+        processorModel()->memoryModel()->notifyAllDataChanged();
         if (assembler()->needsAssembling())
             return;
         processorModel()->setStartNewRun(true);
+        processorModel()->setProgramCounter(0xC000);
     }
     else
         registerChanged(nullptr, 0);
@@ -262,7 +264,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             {
                 QString filename;
                 int lineNumber;
-                emulator()->mapInstructionNumberToFileLineNumber(instruction->operand.arg, filename, lineNumber);
+                emulator()->mapInstructionAddressToFileLineNumber(instruction->operand.arg, filename, lineNumber);
                 if (!filename.isEmpty())
                     runMode = ProcessorModel::StepOver;
             }
@@ -492,16 +494,16 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     ui->codeEditor->highlightCurrentBlock(block);
 }
 
-/*slot*/ void MainWindow::currentInstructionNumberChanged(int instructionNumber)
+/*slot*/ void MainWindow::currentInstructionAddressChanged(uint16_t instructionAddress)
 {
     if (emulator()->queueChangedSignals())
     {
-        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::currentInstructionNumberChanged(instructionNumber));
+        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::currentInstructionAddressChanged(instructionAddress));
         return;
     }
     QString filename;
     int lineNumber;
-    emulator()->mapInstructionNumberToFileLineNumber(instructionNumber, filename, lineNumber);
+    emulator()->mapInstructionAddressToFileLineNumber(instructionAddress, filename, lineNumber);
     if (filename.isEmpty())
         currentCodeLineNumberChanged(filename, lineNumber);
 }
@@ -555,8 +557,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     {
     case QueuedChangeSignal::CurrentCodeLineNumberChanged:
         currentCodeLineNumberChanged(sig.codeLine.filename, sig.codeLine.lineNumber); break;
-    case QueuedChangeSignal::CurrentInstructionNumberChanged:
-        currentInstructionNumberChanged(sig.instruction.instructionNumber); break;
+    case QueuedChangeSignal::CurrentInstructionAddressChanged:
+        currentInstructionAddressChanged(sig.instruction.instructionAddress); break;
     case QueuedChangeSignal::MemoryModelDataChanged:
         memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles); break;
     case QueuedChangeSignal::RegisterChanged:

@@ -11,6 +11,7 @@
 
 using Opcodes = Assembly::Opcodes;
 using AddressingMode = Assembly::AddressingMode;
+using AddressingModeFlag = Assembly::AddressingModeFlag;
 using OpcodeOperand = Assembly::OpcodeOperand;
 using Instruction = Assembly::Instruction;
 using InternalJSRs = Assembly::InternalJSRs;
@@ -24,18 +25,20 @@ public:
 
     struct CodeFileLineNumber
     {
+        uint16_t _locationCounter;
         QString _codeFilename;
         int _currentCodeLineNumber;
 
-        CodeFileLineNumber(QString filename, int lineNumber)
+        CodeFileLineNumber(uint16_t locationCounter, QString filename, int lineNumber)
         {
+            _locationCounter = locationCounter;
             _codeFilename = filename;
             _currentCodeLineNumber = lineNumber;
         }
     };
 
-    const QList<Instruction> *instructions() const;
-    void setInstructions(QList<Instruction> *newInstructions);
+    const Instruction *instructions() const;
+    void setInstructions(Instruction *newInstructions);
     const QList<CodeFileLineNumber> &instructionsCodeFileLineNumbers() const;
 
     bool needsAssembling() const;
@@ -43,8 +46,8 @@ public:
 
     int currentCodeLineNumber() const;
     void setCurrentCodeLineNumber(int newCurrentCodeLineNumber);
-    int currentCodeInstructionNumber() const;
-    void setCurrentCodeInstructionNumber(int newCurrentCodeInstructionNumber);
+    uint16_t locationCounter() const;
+    void setLocationCounter(uint16_t newLocationCounter);
 
     QList<uint16_t> *breakpoints() const;
     void setBreakpoints(QList<uint16_t> *newBreakpoints);
@@ -58,6 +61,9 @@ public:
 
     const QStringList &codeIncludeDirectories() const;
     void setCodeIncludeDirectories(const QStringList &newCodeIncludeDirectories);
+
+    char *memory() const;
+    void setMemory(char *newMemory);
 
 signals:
     void sendMessageToConsole(const QString &message, Qt::GlobalColor colour = Qt::transparent) const;
@@ -88,8 +94,9 @@ private:
     CodeLineState currentLine;
     QString &currentToken /* = currentLine.currentToken */;
 
-    QList<Instruction> *_instructions;
-    int _currentCodeInstructionNumber;
+    char *_memory;
+    Instruction *_instructions;
+    uint16_t _locationCounter;
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
     QList<uint16_t> *_breakpoints;
 
@@ -105,6 +112,7 @@ private:
     void assemblerErrorMessage(const QString &message) const;
     QString scopedLabelName(const QString &label) const;
     void assignLabelValue(const QString &scopedLabel, int value);
+    void cleanup();
     void assemblePass();
     void assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof);
     QString findIncludeFilePath(const QString &includeFilename);

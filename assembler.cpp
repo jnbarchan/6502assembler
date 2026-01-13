@@ -58,12 +58,22 @@ void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
     emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
 }
 
-const QList<Instruction> *Assembler::instructions() const
+char *Assembler::memory() const
+{
+    return _memory;
+}
+
+void Assembler::setMemory(char *newMemory)
+{
+    _memory = newMemory;
+}
+
+const Instruction *Assembler::instructions() const
 {
     return _instructions;
 }
 
-void Assembler::setInstructions(QList<Instruction> *newInstructions)
+void Assembler::setInstructions(Instruction *newInstructions)
 {
     _instructions = newInstructions;
 }
@@ -73,14 +83,14 @@ const QList<Assembler::CodeFileLineNumber> &Assembler::instructionsCodeFileLineN
     return _instructionsCodeFileLineNumbers;
 }
 
-int Assembler::currentCodeInstructionNumber() const
+uint16_t Assembler::locationCounter() const
 {
-    return _currentCodeInstructionNumber;
+    return _locationCounter;
 }
 
-void Assembler::setCurrentCodeInstructionNumber(int newCurrentCodeInstructionNumber)
+void Assembler::setLocationCounter(uint16_t newLocationCounter)
 {
-    _currentCodeInstructionNumber = newCurrentCodeInstructionNumber;
+    _locationCounter = newLocationCounter;
 }
 
 QList<uint16_t> *Assembler::breakpoints() const
@@ -151,36 +161,43 @@ void Assembler::assignLabelValue(const QString &scopedLabel, int value)
         _currentCodeLabelScope = scopedLabel;
 }
 
+void Assembler::cleanup()
+{
+    Q_ASSERT(currentFile.stream);
+
+    while (!codeFileStateStack.isEmpty())
+    {
+        closeIncludeFile();
+        CodeFileState state = codeFileStateStack.pop();
+        currentFile.stream = state.stream;
+        Q_ASSERT(currentFile.stream);
+    }
+    currentFile.filename.clear();
+    currentFile.file = nullptr;
+    currentFile.stream->seek(0);
+    currentFile.lines.clear();
+    _breakpoints->clear();
+    _codeLabels.clear();
+    _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
+    _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
+    _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
+    _currentCodeLabelScope = "";
+    currentToken.clear();
+    setAssembleState(AssembleState::NotStarted);
+}
+
 
 void Assembler::restart(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(currentFile.stream);
 
     if (!assemblePass2)
-    {
-        while (!codeFileStateStack.isEmpty())
-        {
-            closeIncludeFile();
-            CodeFileState state = codeFileStateStack.pop();
-            currentFile.stream = state.stream;
-            Q_ASSERT(currentFile.stream);
-        }
-        currentFile.filename.clear();
-        currentFile.file = nullptr;
-        currentFile.stream->seek(0);
-        currentFile.lines.clear();
-        _breakpoints->clear();
-        _codeLabels.clear();
-        _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
-        _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
-        _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
-        setAssembleState(AssembleState::NotStarted);
-    }
+        cleanup();
 
-    setCurrentCodeLineNumber(0);
-    setCurrentCodeInstructionNumber(0);
-    currentToken.clear();
     _currentCodeLabelScope = "";
+    currentToken.clear();
+    setCurrentCodeLineNumber(0);
+    setLocationCounter(0xC000);
 }
 
 void Assembler::assemble()
@@ -198,6 +215,7 @@ void Assembler::assemble()
     catch (const AssemblerError &e)
     {
         assemblerErrorMessage(QString(e.what()));
+        cleanup();
         setAssembleState(NotStarted);
     }
 }
@@ -205,7 +223,7 @@ void Assembler::assemble()
 
 void Assembler::assemblePass()
 {
-    _instructions->clear();
+    setLocationCounter(0xC000);
     _instructionsCodeFileLineNumbers.clear();
     Opcodes opcode;
     OpcodeOperand operand;
@@ -215,9 +233,12 @@ void Assembler::assemblePass()
     {
         if (hasOpcode)
         {
-            _instructions->append(Instruction(opcode, operand));
-            _instructionsCodeFileLineNumbers.append(CodeFileLineNumber(currentFile.filename, currentFile.lineNumber));
-            setCurrentCodeInstructionNumber(_currentCodeInstructionNumber + 1);
+            char *address = reinterpret_cast<char *>(_instructions) + _locationCounter;
+            Instruction *instruction = reinterpret_cast<Instruction *>(address);
+            Q_ASSERT(_locationCounter + sizeof(Instruction) <= 0x10000);
+            *instruction = Instruction(opcode, operand);
+            _instructionsCodeFileLineNumbers.append(CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
+            setLocationCounter(_locationCounter + sizeof(Instruction));
         }
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
         assembleNextStatement(opcode, operand, hasOpcode, eof);
@@ -277,7 +298,7 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                     }
                 }
                 if (isCodeLabel)
-                    assignLabelValue(scopedLabelName(label), _currentCodeInstructionNumber);
+                    assignLabelValue(scopedLabelName(label), _locationCounter);
             }
 
             if (!more)
@@ -314,8 +335,8 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             }
             else if (directive == ".break")
             {
-                if (!_breakpoints->contains(_currentCodeInstructionNumber))
-                    _breakpoints->append(_currentCodeInstructionNumber);
+                if (!_breakpoints->contains(_locationCounter))
+                    _breakpoints->append(_locationCounter);
                 return;
             }
             else
@@ -341,7 +362,7 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         int value = getTokensExpressionValueAsInt(ok);
         if (!ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-        if (value < -128 || value > 256)
+        if (value < -128 || value > 255)
             assemblerWarningMessage(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
         operand.arg = value;
     }
@@ -357,10 +378,10 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         bool allowForIndirectAddressing = firstToken == "(";
         const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
         operand.mode = AddressingMode::Absolute;
-        if (opcodeInfo.modes & AddressingMode::Relative)
+        if (opcodeInfo.modes & AddressingModeFlag::RelativeFlag)
             operand.mode = AddressingMode::Relative;
         else if (allowForIndirectAddressing)
-            if (opcodeInfo.modes & (AddressingMode::Indirect | AddressingMode::IndexedIndirectX | AddressingMode::IndirectIndexedY))
+            if (opcodeInfo.modes & (AddressingModeFlag::IndirectFlag | AddressingModeFlag::IndexedIndirectXFlag | AddressingModeFlag::IndirectIndexedYFlag))
                 operand.mode = AddressingMode::Indirect;
 
         bool ok;
@@ -368,6 +389,8 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         int value = getTokensExpressionValueAsInt(ok, allowForIndirectAddressing, &indirectAddressingMetCloseParen);
         if (!ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+        if (value < -32768 || value > 65535)
+            assemblerWarningMessage(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
         operand.arg = value;
 
         if (!currentToken.isEmpty())
@@ -416,15 +439,15 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
     switch (operand.mode)
     {
     case AddressingMode::Absolute:
-        if (zpArg && (opcodeInfo.modes & AddressingMode::ZeroPage))
+        if (zpArg && (opcodeInfo.modes & AddressingModeFlag::ZeroPageFlag))
             operand.mode = AddressingMode::ZeroPage;
         break;
     case AddressingMode::AbsoluteX:
-        if (zpArg && (opcodeInfo.modes & AddressingMode::ZeroPageX))
+        if (zpArg && (opcodeInfo.modes & AddressingModeFlag::ZeroPageXFlag))
             operand.mode = AddressingMode::ZeroPageX;
         break;
     case AddressingMode::AbsoluteY:
-        if (zpArg && (opcodeInfo.modes & AddressingMode::ZeroPageY))
+        if (zpArg && (opcodeInfo.modes & AddressingModeFlag::ZeroPageYFlag))
             operand.mode = AddressingMode::ZeroPageY;
         break;
     case AddressingMode::IndexedIndirectX:
@@ -433,7 +456,7 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             throw AssemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(operand.mode)).arg(opcodeName));
         break;
     case AddressingMode::Relative: {
-        int relative = operand.arg - _currentCodeInstructionNumber;
+        int relative = operand.arg - _locationCounter;
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
                 throw AssemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
@@ -852,7 +875,7 @@ int Assembler::tokenValueAsInt(bool *ok) const
     else if (currentToken == "*")
     {
         *ok = true;
-        return _currentCodeInstructionNumber;
+        return _locationCounter;
     }
     *ok = false;
     return -1;

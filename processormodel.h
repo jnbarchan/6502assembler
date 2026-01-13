@@ -11,6 +11,7 @@
 
 using Opcodes = Assembly::Opcodes;
 using AddressingMode = Assembly::AddressingMode;
+using AddressingModeFlag = Assembly::AddressingModeFlag;
 using OpcodeOperand = Assembly::OpcodeOperand;
 using Instruction = Assembly::Instruction;
 using InternalJSRs = Assembly::InternalJSRs;
@@ -22,7 +23,7 @@ class ProcessorModel : public QObject
 {
     Q_OBJECT
 public:
-    enum StatusFlags
+    enum StatusFlags : uint8_t
     {
         Negative = 0x80,
         Overflow = 0x40,
@@ -64,17 +65,17 @@ public:
     void setStatusFlag(uint8_t newFlagBit);
     void setStatusFlag(uint8_t newFlagBit, bool on);
 
+    char *memory();
+    unsigned int memorySize() const;
     uint8_t memoryByteAt(uint16_t address) const;
     void setMemoryByteAt(uint16_t address, uint8_t value);
     uint16_t memoryWordAt(uint16_t address) const;
     uint16_t memoryZPWordAt(uint8_t address) const;
-    unsigned int memorySize() const;
 
-    const QList<Instruction> *instructions() const;
-    void setInstructions(const QList<Instruction> *newInstructions);
+    Instruction *instructions() const;
 
-    int currentInstructionNumber() const;
-    void setCurrentInstructionNumber(int newCurrentInstructionNumber);
+    uint16_t programCounter() const;
+    void setProgramCounter(uint16_t newProgramCounter);
 
     const QList<uint16_t> *breakpoints() const;
     void setBreakpoints(const QList<uint16_t> *newBreakpoints);
@@ -110,19 +111,19 @@ signals:
     void stackRegisterChanged();
     void statusFlagsChanged();
     void memoryChanged(uint16_t address);
-    void currentInstructionNumberChanged(int instructionNumber);
+    void currentInstructionAddressChanged(uint16_t instructionAddress);
 
 private:
     char _memoryData[64 * 1024];
-    QByteArray _memory;
+    char *_memory;
     MemoryModel *_memoryModel;
     const uint16_t _stackBottom = 0x0100;
     uint8_t _stackRegister;
     uint8_t _accumulator, _xregister, _yregister;
     uint8_t _statusFlags;
 
-    const QList<Instruction> *_instructions;
-    int _currentInstructionNumber;
+    Instruction *_instructions;
+    uint16_t _programCounter;
     const QList<uint16_t> *_breakpoints;
 
     bool _startNewRun, _stopRun, _isRunning;
@@ -136,7 +137,7 @@ private:
     void runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
     void executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
     void setNZStatusFlags(uint8_t value);
-    void jumpTo(uint16_t instructionNumber);
+    void jumpTo(uint16_t instructionAddress);
     void jsr_outch();
     void jsr_get_time();
     void jsr_get_elapsed_time();
@@ -164,6 +165,7 @@ private:
     int lastMemoryChangedAddress;
 
 public slots:
+    void notifyAllDataChanged();
     void clearLastMemoryChanged();
 
 private slots:

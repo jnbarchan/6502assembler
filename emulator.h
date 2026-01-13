@@ -22,15 +22,15 @@ public:
 
     Assembler *assembler() const { return _assembler; };
 
-    void mapInstructionNumberToFileLineNumber(int instructionNumber, QString &filename, int &lineNumber) const;
+    void mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const;
 
     struct QueuedChangeSignal
     {
-        enum SignalType { CurrentCodeLineNumberChanged, CurrentInstructionNumberChanged, MemoryModelDataChanged, RegisterChanged, } tag;
+        enum SignalType { CurrentCodeLineNumberChanged, CurrentInstructionAddressChanged, MemoryModelDataChanged, RegisterChanged, } tag;
 
         struct { QString filename; int lineNumber; } codeLine{};
 
-        struct { int instructionNumber; } instruction{};
+        struct { uint16_t instructionAddress; } instruction{};
 
         struct { QModelIndex topLeft, bottomRight; QList<int> roles; } memory{};
 
@@ -43,10 +43,10 @@ public:
             qcs.codeLine.filename = filename; qcs.codeLine.lineNumber = lineNumber;
             return qcs;
         }
-        static QueuedChangeSignal currentInstructionNumberChanged(int instructionNumber)
+        static QueuedChangeSignal currentInstructionAddressChanged(uint16_t instructionAddress)
         {
-            QueuedChangeSignal qcs(CurrentInstructionNumberChanged);
-            qcs.instruction.instructionNumber = instructionNumber;
+            QueuedChangeSignal qcs(CurrentInstructionAddressChanged);
+            qcs.instruction.instructionAddress = instructionAddress;
             return qcs;
         }
         static QueuedChangeSignal memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>())
@@ -77,7 +77,8 @@ private slots:
 
 private:
     ProcessorModel *_processorModel;
-    QList<Instruction> _instructions;
+    char *_memory;
+    Instruction *_instructions;
     QList<uint16_t> _breakpoints;
 
     Assembler *_assembler;

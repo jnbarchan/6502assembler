@@ -4,34 +4,32 @@ Emulator::Emulator(QObject *parent)
     : QObject{parent}
 {
     _processorModel = new ProcessorModel(this);
-    _processorModel->setInstructions(&_instructions);
+    _memory = _processorModel->memory();
+    _instructions = _processorModel->instructions();
     _processorModel->setBreakpoints(&_breakpoints);
 
     _assembler = new Assembler(this);
-    _assembler->setInstructions(&_instructions);
+    _assembler->setMemory(_memory);
+    _assembler->setInstructions(_instructions);
     _assembler->setBreakpoints(&_breakpoints);
 
     _queueChangedSignals = false;
     connect(&pendingSignalsTimer, &QTimer::timeout, this, &Emulator::processQueuedChangedSignals);
 }
 
-void Emulator::mapInstructionNumberToFileLineNumber(int instructionNumber, QString &filename, int &lineNumber) const
+void Emulator::mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const
 {
     filename.clear();
     lineNumber = -1;
-    if (_processorModel->instructions() == nullptr)
-        return;
-    const QList<Instruction> &instructions(*_processorModel->instructions());
     const QList<Assembler::CodeFileLineNumber> &codeFileLineNumbers(_assembler->instructionsCodeFileLineNumbers());
-    if (instructionNumber < 0)
-        return;
-    if (instructionNumber >= instructions.size() || instructionNumber >= codeFileLineNumbers.size())
-    {
-        lineNumber = 1000;/*TEMPORARY*/
-        return;
-    }
-    filename = codeFileLineNumbers.at(instructionNumber)._codeFilename;
-    lineNumber = codeFileLineNumbers.at(instructionNumber)._currentCodeLineNumber;
+    for (int index = 0; index < codeFileLineNumbers.size(); index++)
+        if (codeFileLineNumbers.at(index)._locationCounter >= instructionAddress)
+        {
+            filename = codeFileLineNumbers.at(index)._codeFilename;
+            lineNumber = codeFileLineNumbers.at(index)._currentCodeLineNumber;
+            return;
+        }
+    lineNumber = 1000;/*TEMPORARY*/
 }
 
 bool Emulator::queueChangedSignals() const
@@ -71,7 +69,7 @@ void Emulator::enqueueQueuedChangedSignal(const QueuedChangeSignal &sig)
             if (other.codeLine.filename == sig.codeLine.filename)
                 remove = true;
             break;
-        case QueuedChangeSignal::CurrentInstructionNumberChanged:
+        case QueuedChangeSignal::CurrentInstructionAddressChanged:
             remove = true;
             break;
         case QueuedChangeSignal::MemoryModelDataChanged:

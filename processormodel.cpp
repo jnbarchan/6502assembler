@@ -13,11 +13,11 @@
 ProcessorModel::ProcessorModel(QObject *parent)
     : QObject{parent}
 {
-    _memory = QByteArray::fromRawData(_memoryData, sizeof(_memoryData));
-    _memory.fill(0xa5);
+    _memory = _memoryData;
+    std::memset(_memoryData, 0xa5, memorySize());
     _memoryModel = new MemoryModel(this);
     resetModel();
-    _instructions = nullptr;
+    _instructions = reinterpret_cast<Instruction *>(_memoryData);
     _startNewRun = true;
     _stopRun = true;
     _isRunning = false;
@@ -120,9 +120,19 @@ void ProcessorModel::setStatusFlag(uint8_t newFlagBit, bool on)
         clearStatusFlag(newFlagBit);
 }
 
+char *ProcessorModel::memory()
+{
+    return _memory;
+}
+
+unsigned int ProcessorModel::memorySize() const
+{
+    return sizeof(_memoryData);
+}
+
 uint8_t ProcessorModel::memoryByteAt(uint16_t address) const
 {
-    return _memory.at(address);
+    return _memory[address];
 }
 
 void ProcessorModel::setMemoryByteAt(uint16_t address, uint8_t value)
@@ -133,39 +143,28 @@ void ProcessorModel::setMemoryByteAt(uint16_t address, uint8_t value)
 
 uint16_t ProcessorModel::memoryWordAt(uint16_t address) const
 {
-    return _memory.at(address) | (_memory.at(static_cast<uint16_t>(address + 1)) << 8);
+    return _memory[address] | (_memory[static_cast<uint16_t>(address + 1)] << 8);
 }
 
 uint16_t ProcessorModel::memoryZPWordAt(uint8_t address) const
 {
-    return _memory.at(address) | (_memory.at(static_cast<uint8_t>(address + 1)) << 8);
+    return _memory[address] | (_memory[static_cast<uint8_t>(address + 1)] << 8);
 }
 
-unsigned int ProcessorModel::memorySize() const
-{
-    return _memory.size();
-}
-
-const QList<Instruction> *ProcessorModel::instructions() const
+Instruction *ProcessorModel::instructions() const
 {
     return _instructions;
 }
 
-void ProcessorModel::setInstructions(const QList<Instruction> *newInstructions)
+uint16_t ProcessorModel::programCounter() const
 {
-    _instructions = newInstructions;
-    setStartNewRun(true);
+    return _programCounter;
 }
 
-int ProcessorModel::currentInstructionNumber() const
+void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
 {
-    return _currentInstructionNumber;
-}
-
-void ProcessorModel::setCurrentInstructionNumber(int newCurrentInstructionNumber)
-{
-    _currentInstructionNumber = newCurrentInstructionNumber;
-    emit currentInstructionNumberChanged(_currentInstructionNumber);
+    _programCounter = newProgramCounter;
+    emit currentInstructionAddressChanged(_programCounter);
 }
 
 const QList<uint16_t> *ProcessorModel::breakpoints() const
@@ -228,25 +227,16 @@ void ProcessorModel::setStartNewRun(bool newStartNewRun)
 
 const Instruction *ProcessorModel::nextInstructionToExecute() const
 {
-    int instructionNumber;
-    if (startNewRun() || stopRun())
-        instructionNumber = 0;
-    else
-        instructionNumber = _currentInstructionNumber;
-    if (instructionNumber < 0 || instructionNumber >= _instructions->size())
-        return nullptr;
-    return &_instructions->at(instructionNumber);
+    char *address = reinterpret_cast<char *>(_instructions) + _programCounter;
+    return reinterpret_cast<Instruction *>(address);
 }
 
 
 void ProcessorModel::debugMessage(const QString &message) const
 {
     QString message2(message);
-    QString location;
-    if (_currentInstructionNumber >= 0)
-        location = QString("[instruction #%2]").arg(_currentInstructionNumber);
-    if (!location.isEmpty())
-        message2 = location + " " + message2;
+    QString location(QString("[instruction $%1]").arg(_programCounter, 4, 16, QChar('0')));
+    message2 = location + " " + message2;
     qDebug() << message2;
     emit sendMessageToConsole(message2, Qt::red);
 }
@@ -319,7 +309,6 @@ void ProcessorModel::run(RunMode runMode)
         {
             restart();
             elapsedTimer.start();
-            setCurrentInstructionNumber(0);
             setStartNewRun(false);
             startedNewRun = true;
             if (runMode == Continue)
@@ -333,36 +322,36 @@ void ProcessorModel::run(RunMode runMode)
 
         setIsRunning(true);
 
-        int stopAtInstructionNumber = -1;
+        int stopAtInstructionAddress = -1;
         bool keepGoing = true;
         if (startedNewRun)
-            if (_breakpoints->contains(_currentInstructionNumber))
+            if (_breakpoints->contains(_programCounter))
                 keepGoing = false;
-        while (!stopRun() && keepGoing && _currentInstructionNumber < _instructions->size())
+        while (!stopRun() && keepGoing)
         {
-            const Instruction &instruction(_instructions->at(_currentInstructionNumber));
+            const Instruction &instruction(*nextInstructionToExecute());
             const Opcodes &opcode(instruction.opcode);
             const OpcodeOperand &operand(instruction.operand);
-            keepGoing = !step || stopAtInstructionNumber >= 0;
-            if (step && stopAtInstructionNumber < 0)
+            keepGoing = !step || stopAtInstructionAddress >= 0;
+            if (step && stopAtInstructionAddress < 0)
             {
                 if (runMode == StepOver && opcode == Opcodes::JSR)
                 {
-                    stopAtInstructionNumber = _currentInstructionNumber + 1;
+                    stopAtInstructionAddress = _programCounter + sizeof(Instruction);
                     keepGoing = true;
                 }
                 else if (runMode == StepOut)
                 {
                     uint16_t rtsAddress = memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1)) << 8;
                     rtsAddress |= memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 2));
-                    stopAtInstructionNumber = rtsAddress;
+                    stopAtInstructionAddress = rtsAddress;
                     keepGoing = true;
                 }
             }
 
             runNextInstruction(opcode, operand);
 
-            if (_currentInstructionNumber == stopAtInstructionNumber || _breakpoints->contains(_currentInstructionNumber))
+            if (_programCounter == stopAtInstructionAddress || _breakpoints->contains(_programCounter))
                 keepGoing = false;
 
             count++;
@@ -372,6 +361,7 @@ void ProcessorModel::run(RunMode runMode)
     }
     catch (const ExecutionError &e)
     {
+        setStopRun(true);
         executionErrorMessage(QString(e.what()));
     }
 
@@ -409,7 +399,7 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         _argValue = operand.arg;
         break;
     case AddressingMode::Relative:
-        _argAddress = _currentInstructionNumber + int8_t(operand.arg);
+        _argAddress = _programCounter + static_cast<int8_t>(operand.arg);
         break;
     case AddressingMode::Absolute:
     case AddressingMode::AbsoluteX:
@@ -450,19 +440,15 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         }
         break;
     default:
-        setStopRun(true);
         throw ExecutionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
     }
 
     if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
-    {
-        setStopRun(true);
         throw ExecutionError(QString("Opcode does not support operand addressing mode: %1 %2")
                          .arg(Assembly::OpcodesValueToString(opcode))
                          .arg(Assembly::AddressingModeValueToString(operand.mode)));
-    }
 
-    setCurrentInstructionNumber(_currentInstructionNumber + 1);
+    setProgramCounter(_programCounter + sizeof(Instruction));
 
     clearStatusFlag(StatusFlags::Break);
 
@@ -670,7 +656,7 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         jumpTo(argAddress);
         break;
     case Opcodes::JSR:
-        tempValue16 = _currentInstructionNumber;
+        tempValue16 = _programCounter;
         pushToStack(static_cast<uint8_t>(tempValue16));
         pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
         jumpTo(argAddress);
@@ -731,7 +717,6 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         break;
 
     default:
-        setStopRun(true);
         throw ExecutionError(QString("Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
     }
 
@@ -754,32 +739,27 @@ void ProcessorModel::setNZStatusFlags(uint8_t value)
     setStatusFlag(StatusFlags::Zero, value == 0);
 }
 
-void ProcessorModel::jumpTo(uint16_t instructionNumber)
+void ProcessorModel::jumpTo(uint16_t instructionAddress)
 {
     bool internal = false;
-    if (instructionNumber == InternalJSRs::__JSR_outch)
+    if (instructionAddress == InternalJSRs::__JSR_outch)
     {
         jsr_outch();
         internal = true;
     }
-    else if (instructionNumber == InternalJSRs::__JSR_get_time)
+    else if (instructionAddress == InternalJSRs::__JSR_get_time)
     {
         jsr_get_time();
         internal = true;
     }
-    else if (instructionNumber == InternalJSRs::__JSR_get_elapsed_time)
+    else if (instructionAddress == InternalJSRs::__JSR_get_elapsed_time)
     {
         jsr_get_elapsed_time();
         internal = true;
     }
     if (internal)
-        instructionNumber = (pullFromStack() << 8) | pullFromStack();
-    if (instructionNumber < 0 || instructionNumber > _instructions->size())
-    {
-        setStopRun(true);
-        throw ExecutionError(QString("Jump to instruction number out of range: %1").arg(instructionNumber));
-    }
-    setCurrentInstructionNumber(instructionNumber);
+        instructionAddress = (pullFromStack() << 8) | pullFromStack();
+    setProgramCounter(instructionAddress);
 }
 
 void ProcessorModel::jsr_outch()
@@ -857,6 +837,13 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
             return QStringLiteral("%1").arg(section * columnCount(), 4, 16, QChar('0')).toUpper();
     }
     return QAbstractTableModel::headerData(section, orientation, role);
+}
+
+/*slot*/ void MemoryModel::notifyAllDataChanged()
+{
+    int lastRow = rowCount() - 1, lastCol = columnCount() - 1;
+    if (lastRow >= 0 && lastCol >= 0)
+        emit dataChanged(index(0, 0), index(lastRow, lastCol));
 }
 
 /*slot*/ void MemoryModel::clearLastMemoryChanged()
