@@ -275,7 +275,7 @@ void ProcessorModel::executionErrorMessage(const QString &message) const
     run(Run);
 }
 
-void ProcessorModel::continueRun()
+/*slot*/void ProcessorModel::continueRun()
 {
     run(Continue);
 }

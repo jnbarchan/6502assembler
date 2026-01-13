@@ -251,7 +251,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         if (assembler()->needsAssembling())
             return;
         processorModel()->setStartNewRun(true);
-        processorModel()->setProgramCounter(0xC000);
+        processorModel()->setProgramCounter(emulator()->runStartAddress());
     }
     else
         registerChanged(nullptr, 0);

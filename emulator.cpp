@@ -17,6 +17,15 @@ Emulator::Emulator(QObject *parent)
     connect(&pendingSignalsTimer, &QTimer::timeout, this, &Emulator::processQueuedChangedSignals);
 }
 
+const uint16_t Emulator::runStartAddress() const
+{
+    int value;
+    for (const QString &label : { "reset", "start", "START", "main", "MAIN", })
+        if ((value = assembler()->codeLabelValue(label)) >= 0)
+            return value;
+    return assembler()->defaultLocationCounter();
+}
+
 void Emulator::mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const
 {
     filename.clear();

@@ -136,7 +136,7 @@ public:
     {
         static const QStringList list =
         {
-            ".byte", ".include", ".break",
+            ".byte", ".include", ".break", ".org",
         };
         return list;
     }

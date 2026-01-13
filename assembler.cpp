@@ -68,6 +68,11 @@ void Assembler::setMemory(char *newMemory)
     _memory = newMemory;
 }
 
+const uint16_t Assembler::defaultLocationCounter() const
+{
+    return _defaultLocationCounter;
+}
+
 const Instruction *Assembler::instructions() const
 {
     return _instructions;
@@ -103,7 +108,13 @@ void Assembler::setBreakpoints(QList<uint16_t> *newBreakpoints)
     _breakpoints = newBreakpoints;
 }
 
-void Assembler::setCodeLabel(const QString &key, int value)
+int Assembler::codeLabelValue(const QString &key) const
+{
+    return _codeLabels.value(key, -1);
+}
+
+
+void Assembler::setCodeLabelValue(const QString &key, int value)
 {
     _codeLabels[key] = value;
 }
@@ -156,7 +167,7 @@ void Assembler::assignLabelValue(const QString &scopedLabel, int value)
         assemblerWarningMessage(QString("Defining label with no name"));
     if (_codeLabels.value(scopedLabel, value) != value)
         assemblerWarningMessage(QString("Label redefinition: %1").arg(scopedLabel));
-    setCodeLabel(scopedLabel, value);
+    setCodeLabelValue(scopedLabel, value);
     if (!scopedLabel.contains('.'))
         _currentCodeLabelScope = scopedLabel;
 }
@@ -197,7 +208,7 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
     _currentCodeLabelScope = "";
     currentToken.clear();
     setCurrentCodeLineNumber(0);
-    setLocationCounter(0xC000);
+    setLocationCounter(_defaultLocationCounter);
 }
 
 void Assembler::assemble()
@@ -223,7 +234,7 @@ void Assembler::assemble()
 
 void Assembler::assemblePass()
 {
-    setLocationCounter(0xC000);
+    setLocationCounter(_defaultLocationCounter);
     _instructionsCodeFileLineNumbers.clear();
     Opcodes opcode;
     OpcodeOperand operand;
@@ -237,7 +248,10 @@ void Assembler::assemblePass()
             Instruction *instruction = reinterpret_cast<Instruction *>(address);
             Q_ASSERT(_locationCounter + sizeof(Instruction) <= 0x10000);
             *instruction = Instruction(opcode, operand);
-            _instructionsCodeFileLineNumbers.append(CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
+            int i = 0;
+            while (i < _instructionsCodeFileLineNumbers.size() && _instructionsCodeFileLineNumbers.at(i)._locationCounter <= _locationCounter)
+                i++;
+            _instructionsCodeFileLineNumbers.insert(i, CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
             setLocationCounter(_locationCounter + sizeof(Instruction));
         }
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
@@ -337,6 +351,18 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             {
                 if (!_breakpoints->contains(_locationCounter))
                     _breakpoints->append(_locationCounter);
+                return;
+            }
+            else if (directive == ".org")
+            {
+                getNextToken();
+                bool ok;
+                int value = getTokensExpressionValueAsInt(ok);
+                if (!ok)
+                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+                if (value < 0 || value > 0xffff)
+                    assemblerWarningMessage(QString("Value out of range for directive: $%1 %2").arg(value, 2, 16, QChar('0')).arg(directive));
+                setLocationCounter(value);
                 return;
             }
             else

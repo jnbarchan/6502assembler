@@ -37,6 +37,8 @@ public:
         }
     };
 
+    const uint16_t defaultLocationCounter() const;
+
     const Instruction *instructions() const;
     void setInstructions(Instruction *newInstructions);
     const QList<CodeFileLineNumber> &instructionsCodeFileLineNumbers() const;
@@ -52,7 +54,8 @@ public:
     QList<uint16_t> *breakpoints() const;
     void setBreakpoints(QList<uint16_t> *newBreakpoints);
 
-    void setCodeLabel(const QString &key, int value);
+    int codeLabelValue(const QString &key) const;
+    void setCodeLabelValue(const QString &key, int value);
 
     void setCode(QTextStream *codeStream);
 
@@ -97,6 +100,7 @@ private:
     char *_memory;
     Instruction *_instructions;
     uint16_t _locationCounter;
+    const uint16_t _defaultLocationCounter = 0xC000;
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
     QList<uint16_t> *_breakpoints;
 
