@@ -9,10 +9,14 @@ divisor = $72
 quotient = $74
 remainder = $76
 
+jsr _outnum_test
+brk
+brk
+
 _outnum_test:
-    lda #$ff
+    lda #$ef
     sta dividend
-    lda #$ff
+    lda #$a9
     sta dividend+1
 
     jsr _outnum
@@ -21,6 +25,15 @@ _outnum_test:
     jsr _outnum
     lda #10
     jsr __outch
+
+    lda #$ef
+    sta dividend
+    lda #$a9
+    sta dividend+1
+    jsr _outnum4hex
+    lda #10
+    jsr __outch
+
     rts  ; _outnum_test
 
 _outnum:
@@ -69,7 +82,54 @@ _outdigit:
     clc
     adc #'0'
     jmp __outch  ; _outdigit
+    
+    
+_outnum4hex:
+    lda #0
+    ldx #pad_top
+    sta pad,X
+    dex
 
+    jsr .digits
+
+    inx
+    jsr _outstr_X
+    rts  ; _outnumhex
+    
+.digits:
+    lda dividend
+    and #$0f
+    jsr .hex_digit
+    lda dividend
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    jsr .hex_digit
+    lda dividend+1
+    and #$0f
+    jsr .hex_digit
+    lda dividend+1
+    lsr a
+    lsr a
+    lsr a
+    lsr a
+    jsr .hex_digit
+    rts  ; .digits
+    
+.hex_digit:
+    cmp #10
+    bpl .hex
+    clc
+    adc #'0'
+    bne .done
+.hex:
+    clc
+    adc #'a'-10
+.done:
+    sta pad,X
+    dex
+    rts  ; .hex_digit
 
 .include "outstr.asm"
 

@@ -329,21 +329,39 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
 
             if (directive == ".byte")
             {
-                getNextToken();
-                bool ok;
-                int value = getTokensExpressionValueAsInt(ok);
-                if (!ok)
-                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                Q_UNUSED(value)
-                throw AssemblerError(QString("Cannot yet implement directive: %1").arg(directive));
+                do
+                {
+                    char *address = reinterpret_cast<char *>(_instructions) + _locationCounter;
+                    getNextToken();
+                    bool ok;
+                    if (tokenIsString())
+                    {
+                        QString strValue = tokenToString(&ok);
+                        if (!ok)
+                            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+                        int len = strValue.length();
+                        std::memcpy(address, strValue.toUtf8().constData(), len);
+                        setLocationCounter(_locationCounter + len);
+                        getNextToken();
+                    }
+                    else
+                    {
+                        int intValue = getTokensExpressionValueAsInt(ok);
+                        if (!ok)
+                            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+                        *address = intValue & 0xff;
+                        setLocationCounter(_locationCounter + 1);
+                    }
+                } while (currentToken == ",");
+                return;
             }
             else if (directive == ".include")
             {
                 getNextToken();
-                bool ok = currentToken.length() >= 2 && currentToken.at(0) == '\"' && currentToken.at(currentToken.size() - 1) == '\"';
+                bool ok;
+                QString value = tokenToString(&ok);
                 if (!ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                QString value = currentToken.mid(1, currentToken.size() - 2);
                 startIncludeFile(value);
                 return;
             }
@@ -896,7 +914,7 @@ int Assembler::tokenValueAsInt(bool *ok) const
             *ok = true;
             return 0xffff;
         }
-        sendMessageToConsole(QString("Label not defined: %1").arg(currentToken));
+        assemblerWarningMessage(QString("Label not defined: %1").arg(currentToken));
     }
     else if (currentToken == "*")
     {
@@ -905,6 +923,25 @@ int Assembler::tokenValueAsInt(bool *ok) const
     }
     *ok = false;
     return -1;
+}
+
+bool Assembler::tokenIsString() const
+{
+    return currentToken.size() > 0 ? currentToken.at(0) == '\"' : false;
+}
+
+QString Assembler::tokenToString(bool *ok) const
+{
+    bool _ok;
+    if (ok == nullptr)
+        ok = &_ok;
+    if (currentToken.length() >= 2 && currentToken.at(0) == '\"' && currentToken.at(currentToken.size() - 1) == '\"')
+    {
+        *ok = true;
+        return currentToken.mid(1, currentToken.size() - 2);
+    }
+    *ok = false;
+    return QString();
 }
 
 

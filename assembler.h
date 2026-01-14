@@ -131,6 +131,8 @@ private:
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
     int tokenValueAsInt(bool *ok) const;
+    bool tokenIsString() const;
+    QString tokenToString(bool *ok) const;
 };
 
 
