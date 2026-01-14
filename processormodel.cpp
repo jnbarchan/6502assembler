@@ -164,6 +164,7 @@ uint16_t ProcessorModel::programCounter() const
 void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
 {
     _programCounter = newProgramCounter;
+    emit programCounterChanged();
     emit currentInstructionAddressChanged(_programCounter);
 }
 

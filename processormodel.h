@@ -108,6 +108,7 @@ signals:
     void accumulatorChanged();
     void xregisterChanged();
     void yregisterChanged();
+    void programCounterChanged();
     void stackRegisterChanged();
     void statusFlagsChanged();
     void memoryChanged(uint16_t address);

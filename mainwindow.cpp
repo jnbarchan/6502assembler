@@ -38,6 +38,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this]() { registerChanged(ui->spnProgramCounter, processorModel()->programCounter()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); }, queuedChangedSignalsConnectionType);
@@ -66,6 +67,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->rbNumBaseHex->click();
     ui->spnStatusFlags->setFixedDigits(8);
     ui->spnStatusFlags->setDisplayIntegerBase(2);
+    ui->spnProgramCounter->setDisplayIntegerBase(16);
+    ui->spnProgramCounter->setFixedDigits(4);
     ui->spnStackRegister->setFixedDigits(2);
     ui->spnStackRegister->setDisplayIntegerBase(16);
     spnLastChangedColor = nullptr;
@@ -423,6 +426,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::modelReset()
 {
+    ui->spnProgramCounter->setValue(processorModel()->programCounter());
     ui->spnStackRegister->setValue(processorModel()->stackRegister());
     ui->spnAccumulator->setValue(processorModel()->accumulator());
     ui->spnXRegister->setValue(processorModel()->xregister());
