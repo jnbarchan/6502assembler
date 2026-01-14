@@ -37,6 +37,9 @@ _outnum_test:
     rts  ; _outnum_test
 
 _outnum:
+    jsr _padnum
+    jmp _outstr_X  ; _outnum
+_padnum:
     lda #10
     sta divisor
     lda #0
@@ -52,8 +55,7 @@ _outnum:
 
     ldx x_save
     inx
-    jsr _outstr_X
-    rts  ; _outnum
+    rts  ; _padnum
 
 .next_digit:
     jsr _div16
@@ -85,6 +87,9 @@ _outdigit:
     
     
 _outnum4hex:
+    jsr _padnum4hex
+    jmp _outstr_X  ; _outnum4hex   
+_padnum4hex:
     lda #0
     ldx #pad_top
     sta pad,X
@@ -93,8 +98,7 @@ _outnum4hex:
     jsr .digits
 
     inx
-    jsr _outstr_X
-    rts  ; _outnumhex
+    rts  ; padnum4hex
     
 .digits:
     lda dividend
