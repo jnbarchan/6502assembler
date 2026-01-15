@@ -10,8 +10,7 @@ quotient = $74
 remainder = $76
 
 jsr _outnum_test
-brk
-brk
+rts
 
 _outnum_test:
     lda #$ef

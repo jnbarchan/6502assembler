@@ -273,31 +273,31 @@ void ProcessorModel::executionErrorMessage(const QString &message) const
 
 /*slot*/ void ProcessorModel::run()
 {
-    run(Run);
+    runInstructions(Run);
 }
 
 /*slot*/void ProcessorModel::continueRun()
 {
-    run(Continue);
+    runInstructions(Continue);
 }
 
 /*slot*/ void ProcessorModel::stepInto()
 {
-    run(StepInto);
+    runInstructions(StepInto);
 }
 
 /*slot*/ void ProcessorModel::stepOver()
 {
-    run(StepOver);
+    runInstructions(StepOver);
 }
 
 /*slot*/ void ProcessorModel::stepOut()
 {
-    run(StepOut);
+    runInstructions(StepOut);
 }
 
 
-void ProcessorModel::run(RunMode runMode)
+void ProcessorModel::runInstructions(RunMode runMode)
 {
     if (_isRunning)
         return;
@@ -314,6 +314,8 @@ void ProcessorModel::run(RunMode runMode)
             startedNewRun = true;
             if (runMode == Continue)
                 runMode = Run;
+            pushToStack(static_cast<uint8_t>(Assembly::__JSR_terminate));
+            pushToStack(static_cast<uint8_t>(Assembly::__JSR_terminate >> 8));
         }
         if (stopRun())
             return;
@@ -711,8 +713,11 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         break;
 
     case Opcodes::BRK:
+        tempValue16 = _programCounter;
+        pushToStack(static_cast<uint8_t>(tempValue16));
+        pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
         setStatusFlag(StatusFlags::Break);
-        setStopRun(true);
+        jumpTo(Assembly::__JSR_brk_handler);
         break;
     case Opcodes::NOP:
         break;
@@ -742,25 +747,39 @@ void ProcessorModel::setNZStatusFlags(uint8_t value)
 
 void ProcessorModel::jumpTo(uint16_t instructionAddress)
 {
-    bool internal = false;
-    if (instructionAddress == InternalJSRs::__JSR_outch)
+    bool internal = true;
+    switch (instructionAddress)
     {
-        jsr_outch();
-        internal = true;
-    }
-    else if (instructionAddress == InternalJSRs::__JSR_get_time)
-    {
-        jsr_get_time();
-        internal = true;
-    }
-    else if (instructionAddress == InternalJSRs::__JSR_get_elapsed_time)
-    {
-        jsr_get_elapsed_time();
-        internal = true;
+    case InternalJSRs::__JSR_terminate:
+        setStopRun(true);
+        return;
+    case InternalJSRs::__JSR_brk_handler:
+        jsr_brk_handler();
+        setStopRun(true);
+        return;
+    case InternalJSRs::__JSR_outch:
+        jsr_outch(); break;
+    case InternalJSRs::__JSR_get_time:
+        jsr_get_time(); break;
+    case InternalJSRs::__JSR_get_elapsed_time:
+        jsr_get_elapsed_time(); break;
+    default:
+        internal = false; break;
     }
     if (internal)
         instructionAddress = (pullFromStack() << 8) | pullFromStack();
     setProgramCounter(instructionAddress);
+}
+
+void ProcessorModel::jsr_brk_handler()
+{
+    uint16_t address = pullFromStack() << 8 | pullFromStack();
+    const char *memoryAddress(_memory + address);
+    int len = std::strlen(memoryAddress);
+    if (len > 255)
+        len = 255;
+    QString message(QString::fromUtf8(memoryAddress, len));
+    sendMessageToConsole(message);
 }
 
 void ProcessorModel::jsr_outch()

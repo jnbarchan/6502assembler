@@ -35,7 +35,7 @@ ldy #1
 sta (zp),Y
 ldx #4
 sta (zp,x)
-brk
+rts
 
 ldy #0
 labx0:
@@ -44,7 +44,7 @@ labx: inx
 bne labx
 iny
 bne labx0
-brk
+rts
 
 
 nop
@@ -55,7 +55,7 @@ zlab:
 zlab2: inx
 iny
 bne zlab2
-brk
+rts
 ;mem = 6
 
 

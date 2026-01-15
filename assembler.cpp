@@ -189,6 +189,8 @@ void Assembler::cleanup()
     currentFile.lines.clear();
     _breakpoints->clear();
     _codeLabels.clear();
+    _codeLabels["__terminate"] = InternalJSRs::__JSR_terminate;
+    _codeLabels["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
     _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
     _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
     _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;

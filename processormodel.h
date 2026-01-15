@@ -134,11 +134,12 @@ private:
     void resetModel();
     void debugMessage(const QString &message) const;
     void executionErrorMessage(const QString &message) const;
-    void run(RunMode runMode);
+    void runInstructions(RunMode runMode);
     void runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
     void executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
     void setNZStatusFlags(uint8_t value);
     void jumpTo(uint16_t instructionAddress);
+    void jsr_brk_handler();
     void jsr_outch();
     void jsr_get_time();
     void jsr_get_elapsed_time();

@@ -18,6 +18,12 @@ _div16_test:
     rts  ; _div16_test
 
 _div16:
+    lda divisor
+    ora divisor+1
+    bne .non_zero
+    brk
+    .byte "Division by zero.", 0
+.non_zero:
     lda #0
     sta quotient
     sta quotient+1
