@@ -120,7 +120,7 @@ void ProcessorModel::setStatusFlag(uint8_t newFlagBit, bool on)
         clearStatusFlag(newFlagBit);
 }
 
-char *ProcessorModel::memory()
+uint8_t *ProcessorModel::memory()
 {
     return _memory;
 }
@@ -228,8 +228,8 @@ void ProcessorModel::setStartNewRun(bool newStartNewRun)
 
 const Instruction *ProcessorModel::nextInstructionToExecute() const
 {
-    char *address = reinterpret_cast<char *>(_instructions) + _programCounter;
-    return reinterpret_cast<Instruction *>(address);
+    const uint8_t *address = reinterpret_cast<const uint8_t *>(_instructions) + _programCounter;
+    return reinterpret_cast<const Instruction *>(address);
 }
 
 
@@ -333,14 +333,14 @@ void ProcessorModel::runInstructions(RunMode runMode)
         while (!stopRun() && keepGoing)
         {
             const Instruction &instruction(*nextInstructionToExecute());
-            const Opcodes &opcode(instruction.opcode);
-            const OpcodeOperand &operand(instruction.operand);
+            const InstructionInfo &instructionInfo(instruction.getInstructionInfo());
+            const Operation operation(instructionInfo.operation);
             keepGoing = !step || stopAtInstructionAddress >= 0;
             if (step && stopAtInstructionAddress < 0)
             {
-                if (runMode == StepOver && opcode == Opcodes::JSR)
+                if (runMode == StepOver && operation == Operation::JSR)
                 {
-                    stopAtInstructionAddress = _programCounter + sizeof(Instruction);
+                    stopAtInstructionAddress = _programCounter + instructionInfo.bytes;
                     keepGoing = true;
                 }
                 else if (runMode == StepOut)
@@ -352,7 +352,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 }
             }
 
-            runNextInstruction(opcode, operand);
+            runNextInstruction(instruction);
 
             if (_programCounter == stopAtInstructionAddress || _breakpoints->contains(_programCounter))
                 keepGoing = false;
@@ -371,7 +371,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
     setIsRunning(false);
 }
 
-void ProcessorModel::runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand)
+void ProcessorModel::runNextInstruction(const Instruction &instruction)
 {
     if (stopRun())
         return;
@@ -379,30 +379,40 @@ void ProcessorModel::runNextInstruction(const Opcodes &opcode, const OpcodeOpera
     //
     // EXECUTION PHASE
     //
-    executeNextInstruction(opcode, operand);
+    executeNextInstruction(instruction);
 }
 
 
-void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand)
+void ProcessorModel::executeNextInstruction(const Instruction &instruction)
 {
     //
     // EXECUTION PHASE
     //
 
+    const InstructionInfo &instructionInfo(instruction.getInstructionInfo());
+    const Operation operation(instructionInfo.operation);
+    const AddressingMode mode(instructionInfo.addrMode);
+    const uint16_t operand(instruction.operand);
+    if (!instructionInfo.isValid())
+        throw ExecutionError(QString("Illegal opcode: %1 %2 %3")
+                                 .arg(instructionInfo.opcodeByte, 2, 16, QChar('0'))
+                                 .arg(Assembly::OperationValueToString(operation))
+                                 .arg(Assembly::AddressingModeValueToString(mode)));
+
     uint8_t _argValue = -1;
     uint16_t _argAddress = -1;
-    switch (operand.mode)
+    switch (mode)
     {
-    case AddressingMode::Implicit:
+    case AddressingMode::Implied:
         break;
     case AddressingMode::Accumulator:
         _argValue = _accumulator;
         break;
     case AddressingMode::Immediate:
-        _argValue = operand.arg;
+        _argValue = operand;
         break;
     case AddressingMode::Relative:
-        _argAddress = _programCounter + static_cast<int8_t>(operand.arg);
+        _argAddress = _programCounter + static_cast<int8_t>(operand);
         break;
     case AddressingMode::Absolute:
     case AddressingMode::AbsoluteX:
@@ -413,29 +423,29 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
     case AddressingMode::Indirect:
     case AddressingMode::IndexedIndirectX:
     case AddressingMode::IndirectIndexedY:
-        _argAddress = operand.arg;
-        if (operand.mode == AddressingMode::Absolute)
+        _argAddress = operand;
+        if (mode == AddressingMode::Absolute)
             ;
-        else if (operand.mode == AddressingMode::ZeroPage)
+        else if (mode == AddressingMode::ZeroPage)
             _argAddress = static_cast<uint8_t>(_argAddress);
-        else if (operand.mode == AddressingMode::AbsoluteX)
+        else if (mode == AddressingMode::AbsoluteX)
             _argAddress += _xregister;
-        else if (operand.mode == AddressingMode::ZeroPageX)
+        else if (mode == AddressingMode::ZeroPageX)
             _argAddress = static_cast<uint8_t>(_argAddress + _xregister);
-        else if (operand.mode == AddressingMode::AbsoluteY)
+        else if (mode == AddressingMode::AbsoluteY)
             _argAddress += _yregister;
-        else if (operand.mode == AddressingMode::ZeroPageY)
+        else if (mode == AddressingMode::ZeroPageY)
             _argAddress = static_cast<uint8_t>(_argAddress + _yregister);
-        else if (operand.mode == AddressingMode::Indirect)
+        else if (mode == AddressingMode::Indirect)
             _argAddress = memoryWordAt(_argAddress);
-        else if (operand.mode == AddressingMode::IndexedIndirectX)
+        else if (mode == AddressingMode::IndexedIndirectX)
             _argAddress = memoryZPWordAt(_argAddress + _xregister);
-        else if (operand.mode == AddressingMode::IndirectIndexedY)
+        else if (mode == AddressingMode::IndirectIndexedY)
             _argAddress = memoryWordAt(_argAddress) + _yregister;
-        switch (opcode)
+        switch (operation)
         {
-        case Opcodes::STA: case Opcodes::STX: case Opcodes::STY:
-        case Opcodes::JMP: case Opcodes::JSR:
+        case Operation::STA: case Operation::STX: case Operation::STY:
+        case Operation::JMP: case Operation::JSR:
             break;
         default:
             _argValue = memoryByteAt(_argAddress);
@@ -443,15 +453,10 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         }
         break;
     default:
-        throw ExecutionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(operand.mode)));
+        throw ExecutionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(mode)));
     }
 
-    if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
-        throw ExecutionError(QString("Opcode does not support operand addressing mode: %1 %2")
-                         .arg(Assembly::OpcodesValueToString(opcode))
-                         .arg(Assembly::AddressingModeValueToString(operand.mode)));
-
-    setProgramCounter(_programCounter + sizeof(Instruction));
+    setProgramCounter(_programCounter + instructionInfo.bytes);
 
     clearStatusFlag(StatusFlags::Break);
 
@@ -460,88 +465,88 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
     uint8_t tempValue8, origTempValue8;
     uint16_t tempValue16;
 
-    // Opcodes ordered/grouped as per http://www.6502.org/users/obelisk/6502/instructions.html
-    switch (opcode)
+    // Operations ordered/grouped as per http://www.6502.org/users/obelisk/6502/instructions.html
+    switch (operation)
     {
-    case Opcodes::LDA:
+    case Operation::LDA:
         setAccumulator(argValue);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::LDX:
+    case Operation::LDX:
         setXregister(argValue);
         setNZStatusFlags(_xregister);
         break;
-    case Opcodes::LDY:
+    case Operation::LDY:
         setYregister(argValue);
         setNZStatusFlags(_yregister);
         break;
-    case Opcodes::STA:
+    case Operation::STA:
         setMemoryByteAt(argAddress, _accumulator);
         break;
-    case Opcodes::STX:
+    case Operation::STX:
         setMemoryByteAt(argAddress, _xregister);
         break;
-    case Opcodes::STY:
+    case Operation::STY:
         setMemoryByteAt(argAddress, _yregister);
         break;
 
-    case Opcodes::TAX:
+    case Operation::TAX:
         setXregister(_accumulator);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::TAY:
+    case Operation::TAY:
         setYregister(_accumulator);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::TXA:
+    case Operation::TXA:
         setAccumulator(_xregister);
         setNZStatusFlags(_xregister);
         break;
-    case Opcodes::TYA:
+    case Operation::TYA:
         setAccumulator(_yregister);
         setNZStatusFlags(_yregister);
         break;
 
-    case Opcodes::TSX:
+    case Operation::TSX:
         setXregister(_stackRegister);
         setNZStatusFlags(_xregister);
         break;
-    case Opcodes::TXS:
+    case Operation::TXS:
         setStackRegister(_xregister);
         break;
-    case Opcodes::PHA:
+    case Operation::PHA:
         pushToStack(_accumulator);
         break;
-    case Opcodes::PHP:
+    case Operation::PHP:
         pushToStack(_statusFlags);
         break;
-    case Opcodes::PLA:
+    case Operation::PLA:
         setAccumulator(pullFromStack());
         setNZStatusFlags(_xregister);
         break;
-    case Opcodes::PLP:
+    case Operation::PLP:
         setStatusFlags(pullFromStack());
         break;
 
-    case Opcodes::AND:
+    case Operation::AND:
         setAccumulator(_accumulator & argValue);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::EOR:
+    case Operation::EOR:
         setAccumulator(_accumulator ^ argValue);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::ORA:
+    case Operation::ORA:
         setAccumulator(_accumulator | argValue);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::BIT:
+    case Operation::BIT:
         setStatusFlag(StatusFlags::Zero, (_accumulator & argValue) == 0);
         setStatusFlag(StatusFlags::Overflow, argValue & 0x40);
         setStatusFlag(StatusFlags::Negative, argValue & 0x80);
         break;
 
-    case Opcodes::ADC:
+    case Operation::ADC:
         // sum = (A + M + C)
         tempValue16 = _accumulator + argValue + statusFlag(StatusFlags::Carry);
         // C = sum > 0xFF
@@ -552,7 +557,7 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         setAccumulator(tempValue8);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::SBC:
+    case Operation::SBC:
         // sum = (A + ~M + C)
         tempValue16 = _accumulator + (argValue ^ 0xff) + statusFlag(StatusFlags::Carry);
         // C = sum > 0xFF
@@ -563,21 +568,21 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         setAccumulator(tempValue8);
         setNZStatusFlags(_accumulator);
         break;
-    case Opcodes::CMP:
+    case Operation::CMP:
         // (A - M)
         tempValue16 = _accumulator - argValue;
         setStatusFlag(StatusFlags::Carry, tempValue16 <= 0xff);
         tempValue8 = tempValue16;
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::CPX:
+    case Operation::CPX:
         // (X - M)
         tempValue16 = _xregister - argValue;
         setStatusFlag(StatusFlags::Carry, tempValue16 <= 0xff);
         tempValue8 = tempValue16;
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::CPY:
+    case Operation::CPY:
         // (Y - M)
         tempValue16 = _yregister - argValue;
         setStatusFlag(StatusFlags::Carry, tempValue16 <= 0xff);
@@ -585,153 +590,153 @@ void ProcessorModel::executeNextInstruction(const Opcodes &opcode, const OpcodeO
         setNZStatusFlags(tempValue8);
         break;
 
-    case Opcodes::INC:
+    case Operation::INC:
         tempValue8 = argValue + 1;
         setMemoryByteAt(argAddress, tempValue8);
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::INX:
+    case Operation::INX:
         setXregister(_xregister + 1);
         setNZStatusFlags(_xregister);
         break;
-    case Opcodes::INY:
+    case Operation::INY:
         setYregister(_yregister + 1);
         setNZStatusFlags(_yregister);
         break;
-    case Opcodes::DEC:
+    case Operation::DEC:
         tempValue8 = argValue - 1;
         setMemoryByteAt(argAddress, tempValue8);
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::DEX:
+    case Operation::DEX:
         setXregister(_xregister - 1);
         setNZStatusFlags(_xregister);
         break;
-    case Opcodes::DEY:
+    case Operation::DEY:
         setYregister(_yregister - 1);
         setNZStatusFlags(_yregister);
         break;
 
-    case Opcodes::ASL:
-        origTempValue8 = tempValue8 = (operand.mode == AddressingMode::Accumulator) ? _accumulator : argValue;
+    case Operation::ASL:
+        origTempValue8 = tempValue8 = (mode == AddressingMode::Accumulator) ? _accumulator : argValue;
         tempValue8 <<= 1;
         setStatusFlag(StatusFlags::Carry, origTempValue8 & 0x80);
-        if (operand.mode == AddressingMode::Accumulator)
+        if (mode == AddressingMode::Accumulator)
             setAccumulator(tempValue8);
         else
             setMemoryByteAt(argAddress, tempValue8);
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::LSR:
-        origTempValue8 = tempValue8 = (operand.mode == AddressingMode::Accumulator) ? _accumulator : argValue;
+    case Operation::LSR:
+        origTempValue8 = tempValue8 = (mode == AddressingMode::Accumulator) ? _accumulator : argValue;
         tempValue8 >>= 1;
         setStatusFlag(StatusFlags::Carry, origTempValue8 & 0x01);
-        if (operand.mode == AddressingMode::Accumulator)
+        if (mode == AddressingMode::Accumulator)
             setAccumulator(tempValue8);
         else
             setMemoryByteAt(argAddress, tempValue8);
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::ROL:
-        origTempValue8 = tempValue8 = (operand.mode == AddressingMode::Accumulator) ? _accumulator : argValue;
+    case Operation::ROL:
+        origTempValue8 = tempValue8 = (mode == AddressingMode::Accumulator) ? _accumulator : argValue;
         tempValue8 <<= 1;
         tempValue8 |= statusFlag(StatusFlags::Carry);
         setStatusFlag(StatusFlags::Carry, origTempValue8 & 0x80);
-        if (operand.mode == AddressingMode::Accumulator)
+        if (mode == AddressingMode::Accumulator)
             setAccumulator(tempValue8);
         else
             setMemoryByteAt(argAddress, tempValue8);
         setNZStatusFlags(tempValue8);
         break;
-    case Opcodes::ROR:
-        origTempValue8 = tempValue8 = (operand.mode == AddressingMode::Accumulator) ? _accumulator : argValue;
+    case Operation::ROR:
+        origTempValue8 = tempValue8 = (mode == AddressingMode::Accumulator) ? _accumulator : argValue;
         tempValue8 >>= 1;
         tempValue8 |= (statusFlag(StatusFlags::Carry) << 7);
         setStatusFlag(StatusFlags::Carry, origTempValue8 & 0x01);
-        if (operand.mode == AddressingMode::Accumulator)
+        if (mode == AddressingMode::Accumulator)
             setAccumulator(tempValue8);
         else
             setMemoryByteAt(argAddress, tempValue8);
         setNZStatusFlags(tempValue8);
         break;
 
-    case Opcodes::JMP:
+    case Operation::JMP:
         jumpTo(argAddress);
         break;
-    case Opcodes::JSR:
+    case Operation::JSR:
         tempValue16 = _programCounter;
         pushToStack(static_cast<uint8_t>(tempValue16));
         pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
         jumpTo(argAddress);
         break;
-    case Opcodes::RTS:
+    case Operation::RTS:
         tempValue16 = pullFromStack() << 8;
         tempValue16 |= pullFromStack();
         jumpTo(tempValue16);
         break;
 
-    case Opcodes::BCC:
+    case Operation::BCC:
         if (!statusFlag(StatusFlags::Carry))
             jumpTo(argAddress);
         break;
-    case Opcodes::BCS:
+    case Operation::BCS:
         if (statusFlag(StatusFlags::Carry))
             jumpTo(argAddress);
         break;
-    case Opcodes::BEQ:
+    case Operation::BEQ:
         if (statusFlag(StatusFlags::Zero))
             jumpTo(argAddress);
         break;
-    case Opcodes::BMI:
+    case Operation::BMI:
         if (statusFlag(StatusFlags::Negative))
             jumpTo(argAddress);
-    case Opcodes::BNE:
+    case Operation::BNE:
         if (!statusFlag(StatusFlags::Zero))
             jumpTo(argAddress);
         break;
-    case Opcodes::BPL:
+    case Operation::BPL:
         if (!statusFlag(StatusFlags::Negative))
             jumpTo(argAddress);
         break;
-    case Opcodes::BVC:
+    case Operation::BVC:
         if (!statusFlag(StatusFlags::Overflow))
             jumpTo(argAddress);
         break;
-    case Opcodes::BVS:
+    case Operation::BVS:
         if (statusFlag(StatusFlags::Overflow))
             jumpTo(argAddress);
         break;
 
-    case Opcodes::CLC:
+    case Operation::CLC:
         clearStatusFlag(StatusFlags::Carry);
         break;
-    case Opcodes::CLV:
+    case Operation::CLV:
         clearStatusFlag(StatusFlags::Overflow);
         break;
-    case Opcodes::SEC:
+    case Operation::SEC:
         setStatusFlag(StatusFlags::Carry);
         break;
 
-    case Opcodes::BRK:
+    case Operation::BRK:
         tempValue16 = _programCounter;
         pushToStack(static_cast<uint8_t>(tempValue16));
         pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
         setStatusFlag(StatusFlags::Break);
         jumpTo(Assembly::__JSR_brk_handler);
         break;
-    case Opcodes::NOP:
+    case Operation::NOP:
         break;
 
     default:
-        throw ExecutionError(QString("Unimplemented opcode: %1").arg(Assembly::OpcodesValueToString(opcode)));
+        throw ExecutionError(QString("Unimplemented operation: %1").arg(Assembly::OperationValueToString(operation)));
     }
 
-    switch (opcode)
+    switch (operation)
     {
-    case Opcodes::STA: case Opcodes::STX: case Opcodes::STY:
-    case Opcodes::TXS: case Opcodes::PHA: case Opcodes::PHP:
-    case Opcodes::JMP: case Opcodes::JSR: case Opcodes::RTS:
-    case Opcodes::NOP:
+    case Operation::STA: case Operation::STX: case Operation::STY:
+    case Operation::TXS: case Operation::PHA: case Operation::PHP:
+    case Operation::JMP: case Operation::JSR: case Operation::RTS:
+    case Operation::NOP:
         break;
     default:
         emit statusFlagsChanged();
@@ -774,7 +779,7 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
 void ProcessorModel::jsr_brk_handler()
 {
     uint16_t address = pullFromStack() << 8 | pullFromStack();
-    const char *memoryAddress(_memory + address);
+    const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
     int len = std::strlen(memoryAddress);
     if (len > 255)
         len = 255;

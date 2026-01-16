@@ -9,11 +9,10 @@
 
 #include "assembly.h"
 
-using Opcodes = Assembly::Opcodes;
+using Operation = Assembly::Operation;
 using AddressingMode = Assembly::AddressingMode;
-using AddressingModeFlag = Assembly::AddressingModeFlag;
-using OpcodeOperand = Assembly::OpcodeOperand;
 using Instruction = Assembly::Instruction;
+using InstructionInfo = Assembly::InstructionInfo;
 using InternalJSRs = Assembly::InternalJSRs;
 
 
@@ -65,7 +64,7 @@ public:
     void setStatusFlag(uint8_t newFlagBit);
     void setStatusFlag(uint8_t newFlagBit, bool on);
 
-    char *memory();
+    uint8_t *memory();
     unsigned int memorySize() const;
     uint8_t memoryByteAt(uint16_t address) const;
     void setMemoryByteAt(uint16_t address, uint8_t value);
@@ -115,8 +114,8 @@ signals:
     void currentInstructionAddressChanged(uint16_t instructionAddress);
 
 private:
-    char _memoryData[64 * 1024];
-    char *_memory;
+    uint8_t _memoryData[64 * 1024];
+    uint8_t *_memory;
     MemoryModel *_memoryModel;
     const uint16_t _stackBottom = 0x0100;
     uint8_t _stackRegister;
@@ -135,8 +134,8 @@ private:
     void debugMessage(const QString &message) const;
     void executionErrorMessage(const QString &message) const;
     void runInstructions(RunMode runMode);
-    void runNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
-    void executeNextInstruction(const Opcodes &opcode, const OpcodeOperand &operand);
+    void runNextInstruction(const Instruction &instruction);
+    void executeNextInstruction(const Instruction &instruction);
     void setNZStatusFlags(uint8_t value);
     void jumpTo(uint16_t instructionAddress);
     void jsr_brk_handler();

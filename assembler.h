@@ -9,11 +9,11 @@
 
 #include "assembly.h"
 
-using Opcodes = Assembly::Opcodes;
+using Operation = Assembly::Operation;
 using AddressingMode = Assembly::AddressingMode;
 using AddressingModeFlag = Assembly::AddressingModeFlag;
-using OpcodeOperand = Assembly::OpcodeOperand;
 using Instruction = Assembly::Instruction;
+using InstructionInfo = Assembly::InstructionInfo;
 using InternalJSRs = Assembly::InternalJSRs;
 
 
@@ -65,8 +65,8 @@ public:
     const QStringList &codeIncludeDirectories() const;
     void setCodeIncludeDirectories(const QStringList &newCodeIncludeDirectories);
 
-    char *memory() const;
-    void setMemory(char *newMemory);
+    uint8_t *memory() const;
+    void setMemory(uint8_t *newMemory);
 
 signals:
     void sendMessageToConsole(const QString &message, Qt::GlobalColor colour = Qt::transparent) const;
@@ -97,7 +97,7 @@ private:
     CodeLineState currentLine;
     QString &currentToken /* = currentLine.currentToken */;
 
-    char *_memory;
+    uint8_t *_memory;
     Instruction *_instructions;
     uint16_t _locationCounter;
     const uint16_t _defaultLocationCounter = 0xC000;
@@ -118,7 +118,7 @@ private:
     void assignLabelValue(const QString &scopedLabel, int value);
     void cleanup();
     void assemblePass();
-    void assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof);
+    void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof);
     QString findIncludeFilePath(const QString &includeFilename);
     void startIncludeFile(const QString &includeFilename);
     void endIncludeFile();

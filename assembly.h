@@ -8,7 +8,7 @@ class Assembly : public QObject
 {
     Q_OBJECT
 public:
-    enum Opcodes : uint8_t
+    enum Operation : uint8_t
     {
         LDA, LDX, LDY, STA, STX, STY,
         TAX, TAY, TXA, TYA,
@@ -22,42 +22,42 @@ public:
         CLC, CLD, CLI, CLV, SEC, SED, SEI,
         BRK, NOP, RTI
     };
-    Q_ENUM(Opcodes)
+    Q_ENUM(Operation)
 
-    static const QList<Opcodes>& branchJumpOpcodes()
+    static const QList<Operation>& branchJumpOperations()
     {
-        static const QList<Opcodes> list =
+        static const QList<Operation> list =
         {
             BEQ, BNE, BMI, BPL, BCS, BCC, BVS, BVC,
             JMP, JSR
         };
         return list;
     }
-    static QMetaEnum OpcodesMetaEnum()
+    static QMetaEnum OperationsMetaEnum()
     {
-        return QMetaEnum::fromType<Opcodes>();
+        return QMetaEnum::fromType<Operation>();
     }
-    static Opcodes OpcodesKeyToValue(const char *key)
+    static Operation OperationKeyToValue(const char *key)
     {
-        return static_cast<Opcodes>(OpcodesMetaEnum().keyToValue(key));
+        return static_cast<Operation>(OperationsMetaEnum().keyToValue(key));
     }
-    static bool OpcodesValueIsValid(Opcodes value)
+    static bool OperationValueIsValid(Operation value)
     {
-        return value >= 0 && value < OpcodesMetaEnum().keyCount();
+        return value >= 0 && value < OperationsMetaEnum().keyCount();
     }
-    static const char *OpcodesValueToKey(Opcodes value)
+    static const char *OperationValueToKey(Operation value)
     {
-        return OpcodesMetaEnum().valueToKey(value);
+        return OperationsMetaEnum().valueToKey(value);
     }
-    static QString OpcodesValueToString(Opcodes value)
+    static QString OperationValueToString(Operation value)
     {
-        const char *key = OpcodesValueToKey(value);
+        const char *key = OperationValueToKey(value);
         return key ? QString(key) : QString::number(value, 16);
     }
 
     enum AddressingMode : uint8_t
     {
-        Implicit = 0,           // CLC | RTS
+        Implied = 0,            // CLC | RTS
         Accumulator = 1,        // LSR A | ROR A
         Immediate = 2,          // LDA #10 | LDX #<LABEL | LDY #>LABEL
         ZeroPage = 3,           // LDA $00 | ASL ANSWER
@@ -123,14 +123,14 @@ public:
     // Q_DECLARE_FLAGS(AddressingModeFlags, AddressingModeFlag)
     // Q_FLAG(AddressingModeFlags)
 
-    struct OpcodesInfo
+    struct OperationInfo
     {
-        Opcodes opcode;
+        Operation operation;
         AddressingModeFlag modes;
     };
 
-    static const OpcodesInfo &getOpcodeInfo(const Opcodes opcode);
-    static bool opcodeSupportsAddressingMode(const Opcodes opcode, AddressingMode mode);
+    static const OperationInfo &getOperationInfo(Operation operation);
+    static bool operationSupportsAddressingMode(Operation operation, AddressingMode mode);
 
     static const QStringList& directives()
     {
@@ -141,26 +141,40 @@ public:
         return list;
     }
 
-    struct __attribute__((packed)) OpcodeOperand
+    struct InstructionInfo
     {
-        AddressingMode mode;
-        uint16_t arg;
+        uint8_t opcodeByte;
+        uint8_t bytes;
+        uint8_t cycles;
+        Operation operation;
+        AddressingMode addrMode;
+
+        bool isValid() const { return bytes != 0; }
     };
+
+    static void initInstructionInfo();
+    static const InstructionInfo &getInstructionInfo(uint8_t opcodeByte) { return instructionsInfo[opcodeByte]; }
+    static const InstructionInfo *findInstructionInfo(Operation operation, AddressingMode addrMode);
 
     struct __attribute__((packed)) Instruction
     {
-        Opcodes opcode; OpcodeOperand operand;
-        Instruction(const Opcodes &_opcode, const OpcodeOperand &_operand)
+        uint8_t opcodeByte;
+        uint16_t operand;
+        Instruction(uint8_t _opcodeByte, uint16_t _operand)
         {
-            opcode = _opcode;
+            opcodeByte = _opcodeByte;
             operand = _operand;
         }
+
+        const InstructionInfo &getInstructionInfo() const { return instructionsInfo[opcodeByte]; }
     };
 
     enum InternalJSRs { __JSR_terminate = 0x0000, __JSR_brk_handler = 0xfffe, __JSR_outch = 0xfffc, __JSR_get_time = 0xfffa, __JSR_get_elapsed_time = 0xfff8, };
 
 private:
-    static OpcodesInfo opcodesInfo[];
+    static const OperationInfo operationsInfo[];
+    static const InstructionInfo _instructionsInfo[];
+    static InstructionInfo instructionsInfo[256];
 };
 
 

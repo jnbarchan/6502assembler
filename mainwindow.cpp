@@ -263,14 +263,17 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     {
         const Instruction *instruction = processorModel()->nextInstructionToExecute();
         if (instruction != nullptr)
-            if (instruction->opcode == Opcodes::JSR)
+        {
+            const InstructionInfo &instructionInfo(instruction->getInstructionInfo());
+            if (instructionInfo.operation == Operation::JSR)
             {
                 QString filename;
                 int lineNumber;
-                emulator()->mapInstructionAddressToFileLineNumber(instruction->operand.arg, filename, lineNumber);
+                emulator()->mapInstructionAddressToFileLineNumber(instruction->operand, filename, lineNumber);
                 if (!filename.isEmpty())
                     runMode = ProcessorModel::StepOver;
             }
+        }
     }
 
     bool stepOneStatementOnly = runMode == ProcessorModel::StepInto;

@@ -58,12 +58,12 @@ void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
     emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
 }
 
-char *Assembler::memory() const
+uint8_t *Assembler::memory() const
 {
     return _memory;
 }
 
-void Assembler::setMemory(char *newMemory)
+void Assembler::setMemory(uint8_t *newMemory)
 {
     _memory = newMemory;
 }
@@ -238,36 +238,50 @@ void Assembler::assemblePass()
 {
     setLocationCounter(_defaultLocationCounter);
     _instructionsCodeFileLineNumbers.clear();
-    Opcodes opcode;
-    OpcodeOperand operand;
-    bool hasOpcode, eof;
-    assembleNextStatement(opcode, operand, hasOpcode, eof);
+    Operation operation;
+    AddressingMode mode;
+    uint16_t arg;
+    bool hasOperation, eof;
+    assembleNextStatement(operation, mode, arg, hasOperation, eof);
     while (!eof)
     {
-        if (hasOpcode)
+        if (hasOperation)
         {
-            char *address = reinterpret_cast<char *>(_instructions) + _locationCounter;
-            Instruction *instruction = reinterpret_cast<Instruction *>(address);
-            Q_ASSERT(_locationCounter + sizeof(Instruction) <= 0x10000);
-            *instruction = Instruction(opcode, operand);
+            const InstructionInfo *instructionInfo(Assembly::findInstructionInfo(operation, mode));
+            if (instructionInfo == nullptr)
+                throw AssemblerError(QString("Operation does not support operand addressing mode: %1 %2")
+                                         .arg(Assembly::OperationValueToString(operation))
+                                         .arg(Assembly::AddressingModeValueToString(mode)));
+            uint8_t bytes = instructionInfo->bytes;
+            Q_ASSERT(_locationCounter + bytes <= 0x10000);
             int i = 0;
             while (i < _instructionsCodeFileLineNumbers.size() && _instructionsCodeFileLineNumbers.at(i)._locationCounter <= _locationCounter)
                 i++;
             _instructionsCodeFileLineNumbers.insert(i, CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
-            setLocationCounter(_locationCounter + sizeof(Instruction));
+            uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
+            Instruction *instruction = reinterpret_cast<Instruction *>(address);
+            *instruction = Instruction(instructionInfo->opcodeByte, arg);
+            address[0] = instructionInfo->opcodeByte;
+            if (bytes > 1)
+            {
+                address[1] = static_cast<uint8_t>(arg);
+                if (bytes > 2)
+                    address[2] = static_cast<uint8_t>(arg >> 8);
+            }
+            setLocationCounter(_locationCounter + bytes);
         }
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
-        assembleNextStatement(opcode, operand, hasOpcode, eof);
+        assembleNextStatement(operation, mode, arg, hasOperation, eof);
     }
 }
 
-void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, bool &hasOpcode, bool &eof)
+void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof)
 {
     //
     // ASSEMBLING PHASE
     //
 
-    hasOpcode = eof = false;
+    hasOperation = eof = false;
     currentToken.clear();
     if (!getNextLine())
     {
@@ -279,9 +293,9 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         return;
 
     QString mnemonic(currentToken);
-    opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
-    hasOpcode = Assembly::OpcodesValueIsValid(opcode);
-    if (!hasOpcode)
+    operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLocal8Bit());
+    hasOperation = Assembly::OperationValueIsValid(operation);
+    if (!hasOperation)
     {
         if (tokenIsLabel())
         {
@@ -321,8 +335,8 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 return;
 
             mnemonic = currentToken;
-            opcode = Assembly::OpcodesKeyToValue(mnemonic.toUpper().toLocal8Bit());
-            hasOpcode = Assembly::OpcodesValueIsValid(opcode);
+            operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLocal8Bit());
+            hasOperation = Assembly::OperationValueIsValid(operation);
         }
 
         if (tokenIsDirective())
@@ -333,7 +347,7 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
             {
                 do
                 {
-                    char *address = reinterpret_cast<char *>(_instructions) + _locationCounter;
+                    uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
                     getNextToken();
                     bool ok;
                     if (tokenIsString())
@@ -390,45 +404,45 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         }
     }
 
-    if (!hasOpcode)
-        throw AssemblerError(QString("Unrecognized opcode mnemonic: %1").arg(mnemonic));
+    if (!hasOperation)
+        throw AssemblerError(QString("Unrecognized operation mnemonic: %1").arg(mnemonic));
 
-    QString opcodeName(Assembly::OpcodesValueToString(opcode));
+    QString operationName(Assembly::OperationValueToString(operation));
     getNextToken();
     if (currentToken.isEmpty())
     {
-        operand.mode = AddressingMode::Implicit;
-        operand.arg = 0;
+        mode = AddressingMode::Implied;
+        arg = 0;
     }
     else if (currentToken == '#')
     {
-        operand.mode = AddressingMode::Immediate;
+        mode = AddressingMode::Immediate;
         getNextToken();
         bool ok;
         int value = getTokensExpressionValueAsInt(ok);
         if (!ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
         if (value < -128 || value > 255)
-            assemblerWarningMessage(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
-        operand.arg = value;
+            assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value, 2, 16, QChar('0')).arg(operationName));
+        arg = value;
     }
     else if (currentToken.toUpper() == "A")
     {
-        operand.mode = AddressingMode::Accumulator;
-        operand.arg = 0;
+        mode = AddressingMode::Accumulator;
+        arg = 0;
         getNextToken();
     }
     else if (tokenIsInt() || tokenIsLabel() || currentToken == "*" || currentToken == "(")
     {
         QString firstToken(currentToken);
         bool allowForIndirectAddressing = firstToken == "(";
-        const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
-        operand.mode = AddressingMode::Absolute;
-        if (opcodeInfo.modes & AddressingModeFlag::RelativeFlag)
-            operand.mode = AddressingMode::Relative;
+        const Assembly::OperationInfo &operationInfo(Assembly::getOperationInfo(operation));
+        mode = AddressingMode::Absolute;
+        if (operationInfo.modes & AddressingModeFlag::RelativeFlag)
+            mode = AddressingMode::Relative;
         else if (allowForIndirectAddressing)
-            if (opcodeInfo.modes & (AddressingModeFlag::IndirectFlag | AddressingModeFlag::IndexedIndirectXFlag | AddressingModeFlag::IndirectIndexedYFlag))
-                operand.mode = AddressingMode::Indirect;
+            if (operationInfo.modes & (AddressingModeFlag::IndirectFlag | AddressingModeFlag::IndexedIndirectXFlag | AddressingModeFlag::IndirectIndexedYFlag))
+                mode = AddressingMode::Indirect;
 
         bool ok;
         bool indirectAddressingMetCloseParen;
@@ -436,8 +450,8 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
         if (!ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
         if (value < -32768 || value > 65535)
-            assemblerWarningMessage(QString("Value out of range for opcode: $%1 %2").arg(value, 2, 16, QChar('0')).arg(opcodeName));
-        operand.arg = value;
+            assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value, 2, 16, QChar('0')).arg(operationName));
+        arg = value;
 
         if (!currentToken.isEmpty())
         {
@@ -447,14 +461,14 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 getNextToken();
                 if (currentToken.toUpper() == "X")
                 {
-                    operand.mode = AddressingMode::AbsoluteX;
+                    mode = AddressingMode::AbsoluteX;
                     recognised = true;
                     if (allowForIndirectAddressing)
                     {
                         if (!indirectAddressingMetCloseParen)
                         {
                             if (getNextToken() && currentToken == ")")
-                                operand.mode = AddressingMode::IndexedIndirectX;
+                                mode = AddressingMode::IndexedIndirectX;
                         }
                         else
                             recognised = false;
@@ -462,63 +476,63 @@ void Assembler::assembleNextStatement(Opcodes &opcode, OpcodeOperand &operand, b
                 }
                 else if (currentToken.toUpper() == "Y")
                 {
-                    operand.mode = AddressingMode::AbsoluteY;
+                    mode = AddressingMode::AbsoluteY;
                     recognised = true;
                     if (allowForIndirectAddressing)
                     {
                         if (indirectAddressingMetCloseParen)
-                            operand.mode = AddressingMode::IndirectIndexedY;
+                            mode = AddressingMode::IndirectIndexedY;
                         else
                             recognised = false;
                     }
                 }
             }
             if (!recognised)
-                throw AssemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
+                throw AssemblerError(QString("Unrecognized operand addressing mode for operation: %1 %2").arg(currentToken).arg(operationName));
         }
     }
     else
-        throw AssemblerError(QString("Unrecognized operand addressing mode for opcode: %1 %2").arg(currentToken).arg(opcodeName));
+        throw AssemblerError(QString("Unrecognized operand addressing mode for operation: %1 %2").arg(currentToken).arg(operationName));
 
-    bool zpArg = (operand.arg & 0xff00) == 0;
-    const Assembly::OpcodesInfo &opcodeInfo(Assembly::getOpcodeInfo(opcode));
-    switch (operand.mode)
+    bool zpArg = (arg & 0xff00) == 0;
+    const Assembly::OperationInfo &operationInfo(Assembly::getOperationInfo(operation));
+    switch (mode)
     {
     case AddressingMode::Absolute:
-        if (zpArg && (opcodeInfo.modes & AddressingModeFlag::ZeroPageFlag))
-            operand.mode = AddressingMode::ZeroPage;
+        if (zpArg && (operationInfo.modes & AddressingModeFlag::ZeroPageFlag))
+            mode = AddressingMode::ZeroPage;
         break;
     case AddressingMode::AbsoluteX:
-        if (zpArg && (opcodeInfo.modes & AddressingModeFlag::ZeroPageXFlag))
-            operand.mode = AddressingMode::ZeroPageX;
+        if (zpArg && (operationInfo.modes & AddressingModeFlag::ZeroPageXFlag))
+            mode = AddressingMode::ZeroPageX;
         break;
     case AddressingMode::AbsoluteY:
-        if (zpArg && (opcodeInfo.modes & AddressingModeFlag::ZeroPageYFlag))
-            operand.mode = AddressingMode::ZeroPageY;
+        if (zpArg && (operationInfo.modes & AddressingModeFlag::ZeroPageYFlag))
+            mode = AddressingMode::ZeroPageY;
         break;
     case AddressingMode::IndexedIndirectX:
     case AddressingMode::IndirectIndexedY:
         if (!zpArg)
-            throw AssemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(operand.mode)).arg(opcodeName));
+            throw AssemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(mode)).arg(operationName));
         break;
     case AddressingMode::Relative: {
-        int relative = operand.arg - _locationCounter;
+        int relative = arg - _locationCounter;
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
-                throw AssemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(opcodeName));
-        operand.arg = relative;
+                throw AssemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(operationName));
+        arg = relative;
         break;
     }
     default: break;
     }
 
     if (getNextToken())
-        throw AssemblerError(QString("Unexpected token at end of statement: %1 %2").arg(currentToken).arg(opcodeName));
+        throw AssemblerError(QString("Unexpected token at end of statement: %1 %2").arg(currentToken).arg(operationName));
 
-    if (!Assembly::opcodeSupportsAddressingMode(opcode, operand.mode))
-        throw AssemblerError(QString("Opcode does not support operand addressing mode: %1 %2")
-                         .arg(Assembly::OpcodesValueToString(opcode))
-                         .arg(Assembly::AddressingModeValueToString(operand.mode)));
+    if (!Assembly::operationSupportsAddressingMode(operation, mode))
+        throw AssemblerError(QString("Operation does not support operand addressing mode: %1 %2")
+                         .arg(Assembly::OperationValueToString(operation))
+                         .arg(Assembly::AddressingModeValueToString(mode)));
 }
 
 

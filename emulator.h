@@ -78,7 +78,7 @@ private slots:
 
 private:
     ProcessorModel *_processorModel;
-    char *_memory;
+    uint8_t *_memory;
     Instruction *_instructions;
     QList<uint16_t> _breakpoints;
 

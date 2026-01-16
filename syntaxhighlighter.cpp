@@ -23,16 +23,16 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     static const QRegularExpression labelDefinitionRegex("^\\s*(\\.?[a-z_][a-z_0-9]*):", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression labelBranchJumpRegex = []{
         QStringList list;
-        QMetaEnum me = Assembly::OpcodesMetaEnum();
-        for (Assembly::Opcodes opcode : Assembly::branchJumpOpcodes())
-            list.append(QRegularExpression::escape(me.valueToKey(opcode)));
+        QMetaEnum me = Assembly::OperationsMetaEnum();
+        for (Assembly::Operation operation : Assembly::branchJumpOperations())
+            list.append(QRegularExpression::escape(me.valueToKey(operation)));
         QString pattern = QStringLiteral("\\b(?:") + list.join('|') + QStringLiteral(")\\b");
         pattern += QStringLiteral("\\s+(\\.?[a-z_][a-z_0-9]*)");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
-    static const QRegularExpression opcodeRegex = []{
+    static const QRegularExpression operationRegex = []{
         QStringList list;
-        QMetaEnum me = Assembly::OpcodesMetaEnum();
+        QMetaEnum me = Assembly::OperationsMetaEnum();
         for (int i = 0; i < me.keyCount(); ++i)
             list.append(QRegularExpression::escape(me.valueToKey(i)));
         QString pattern = QStringLiteral("\\b(?:") + list.join('|') + QStringLiteral(")\\b");
@@ -59,9 +59,9 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     QTextCharFormat localLabelBranchJumpFormat;
     localLabelBranchJumpFormat.setForeground(localLabelDefinitionFormat.foreground());
 
-    QTextCharFormat opcodeFormat;
-    opcodeFormat.setFontWeight(QFont::Bold);
-    opcodeFormat.setForeground(Qt::blue);
+    QTextCharFormat operationFormat;
+    operationFormat.setFontWeight(QFont::Bold);
+    operationFormat.setForeground(Qt::blue);
 
     QTextCharFormat registerFormat;
     registerFormat.setForeground(Qt::darkGreen);
@@ -95,9 +95,9 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     if (match.hasMatch())
         setFormat(match.capturedStart(1), match.capturedLength(1), match.captured(1).at(0) == '.' ? localLabelBranchJumpFormat : labelBranchJumpFormat);
 
-    match = opcodeRegex.match(code);
+    match = operationRegex.match(code);
     if (match.hasMatch())
-        setFormat(match.capturedStart(), match.capturedLength(), opcodeFormat);
+        setFormat(match.capturedStart(), match.capturedLength(), operationFormat);
 
     QRegularExpressionMatchIterator it = registerRegex.globalMatch(code);
     while (it.hasNext())

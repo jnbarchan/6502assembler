@@ -3,6 +3,8 @@
 Emulator::Emulator(QObject *parent)
     : QObject{parent}
 {
+    Assembly::initInstructionInfo();
+
     _processorModel = new ProcessorModel(this);
     _memory = _processorModel->memory();
     _instructions = _processorModel->instructions();
