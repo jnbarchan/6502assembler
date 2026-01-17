@@ -147,6 +147,7 @@ private:
     void jsr_outch();
     void jsr_get_time();
     void jsr_get_elapsed_time();
+    void jsr_clear_elapsed_time();
 };
 
 

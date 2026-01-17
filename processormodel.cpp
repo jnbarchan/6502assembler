@@ -796,6 +796,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_get_time(); break;
     case InternalJSRs::__JSR_get_elapsed_time:
         jsr_get_elapsed_time(); break;
+    case InternalJSRs::__JSR_clear_elapsed_time:
+        jsr_clear_elapsed_time(); break;
     default:
         internal = false; break;
     }
@@ -832,6 +834,11 @@ void ProcessorModel::jsr_get_elapsed_time()
     uint16_t milliseconds = static_cast<uint16_t>(elapsedTimer.elapsed());
     setAccumulator(static_cast<uint8_t>(milliseconds));
     setXregister(static_cast<uint8_t>(milliseconds >> 8));
+}
+
+void ProcessorModel::jsr_clear_elapsed_time()
+{
+    elapsedTimer.restart();
 }
 
 
