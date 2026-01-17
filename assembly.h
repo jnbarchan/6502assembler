@@ -23,6 +23,8 @@ public:
         BRK, NOP, RTI
     };
     Q_ENUM(Operation)
+    static constexpr int TotalOperations = RTI + 1;
+    static_assert(TotalOperations == 56);
 
     static const QList<Operation>& branchJumpOperations()
     {
@@ -93,7 +95,7 @@ public:
 
     enum AddressingModeFlag : uint16_t
     {
-        ImplicitFlag = 0x0001,
+        ImpliedFlag = 0x0001,
         AccumulatorFlag = 0x0002,
         ImmediateFlag = 0x0004,
         ZeroPageFlag = 0x0008,
@@ -106,30 +108,18 @@ public:
         IndirectFlag = 0x0400,
         IndexedIndirectXFlag = 0x0800,
         IndirectIndexedYFlag = 0x1000,
-
-        AbsIndFlags = (AbsoluteFlag|IndirectFlag),
-        AccZPXAbsXFlags = (AccumulatorFlag|ZeroPageFlag|ZeroPageXFlag|AbsoluteFlag|AbsoluteXFlag),
-        ImmZPXAbsXYIndXYFlags = (ImmediateFlag|ZeroPageFlag|ZeroPageXFlag|AbsoluteFlag|AbsoluteXFlag|AbsoluteYFlag|IndexedIndirectXFlag|IndirectIndexedYFlag),
-        ImmZPYAbsYFlags = (ImmediateFlag|ZeroPageFlag|ZeroPageYFlag|AbsoluteFlag|AbsoluteYFlag),
-        ImmZPYAbsXFlags = (ImmediateFlag|ZeroPageFlag|ZeroPageXFlag|AbsoluteFlag|AbsoluteXFlag),
-        ImmZPAbsFlags = (ImmediateFlag|ZeroPageFlag|AbsoluteFlag),
-        ZPXAbsXYIndXYFlags = (ZeroPageFlag|ZeroPageXFlag|AbsoluteFlag|AbsoluteXFlag|AbsoluteYFlag|IndexedIndirectXFlag|IndirectIndexedYFlag),
-        ZPYAbsFlags = (ZeroPageFlag|ZeroPageYFlag|AbsoluteFlag),
-        ZPXAbsFlags = (ZeroPageFlag|ZeroPageXFlag|AbsoluteFlag),
-        ZPXAbsXFlags = (ZeroPageFlag|ZeroPageXFlag|AbsoluteFlag|AbsoluteXFlag),
-        ZPAbsFlags = (ZeroPageFlag|AbsoluteFlag),
     };
     Q_FLAG(AddressingModeFlag)
-    // Q_DECLARE_FLAGS(AddressingModeFlags, AddressingModeFlag)
-    // Q_FLAG(AddressingModeFlags)
+    Q_DECLARE_FLAGS(AddressingModeFlags, AddressingModeFlag)
+    Q_FLAG(AddressingModeFlags)
 
-    struct OperationInfo
+    struct OperationMode
     {
         Operation operation;
-        AddressingModeFlag modes;
+        AddressingModeFlags modes;
     };
 
-    static const OperationInfo &getOperationInfo(Operation operation);
+    static const OperationMode &getOperationMode(Operation operation);
     static bool operationSupportsAddressingMode(Operation operation, AddressingMode mode);
 
     static const QStringList& directives()
@@ -151,6 +141,7 @@ public:
 
         bool isValid() const { return bytes != 0; }
     };
+    static constexpr int TotalInstructions = 256;
 
     static void initInstructionInfo();
     static const InstructionInfo &getInstructionInfo(uint8_t opcodeByte) { return instructionsInfo[opcodeByte]; }
@@ -172,9 +163,9 @@ public:
     enum InternalJSRs { __JSR_terminate = 0x0000, __JSR_brk_handler = 0xfffe, __JSR_outch = 0xfffc, __JSR_get_time = 0xfffa, __JSR_get_elapsed_time = 0xfff8, };
 
 private:
-    static const OperationInfo operationsInfo[];
+    static OperationMode operationsModes[TotalOperations];
     static const InstructionInfo _instructionsInfo[];
-    static InstructionInfo instructionsInfo[256];
+    static InstructionInfo instructionsInfo[TotalInstructions];
 };
 
 

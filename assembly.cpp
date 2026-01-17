@@ -1,79 +1,21 @@
 #include "assembly.h"
 
 //
-// Assembler Class
+// Assembly Class
 //
 
-const Assembly::OperationInfo Assembly::operationsInfo[]
-{
-    { LDA, ImmZPXAbsXYIndXYFlags },
-    { LDX, ImmZPYAbsYFlags },
-    { LDY, ImmZPYAbsXFlags },
-    { STA, ZPXAbsXYIndXYFlags },
-    { STX, ZPYAbsFlags },
-    { STY, ZPXAbsFlags },
-    { TAX, ImplicitFlag },
-    { TAY, ImplicitFlag },
-    { TXA, ImplicitFlag },
-    { TYA, ImplicitFlag },
-    { TSX, ImplicitFlag },
-    { TXS, ImplicitFlag },
-    { PHA, ImplicitFlag },
-    { PHP, ImplicitFlag },
-    { PLA, ImplicitFlag },
-    { PLP, ImplicitFlag },
-    { AND, ImmZPXAbsXYIndXYFlags },
-    { EOR, ImmZPXAbsXYIndXYFlags },
-    { ORA, ImmZPXAbsXYIndXYFlags },
-    { BIT, ZPAbsFlags },
-    { ADC, ImmZPXAbsXYIndXYFlags },
-    { SBC, ImmZPXAbsXYIndXYFlags },
-    { CMP, ImmZPXAbsXYIndXYFlags },
-    { CPX, ImmZPAbsFlags },
-    { CPY, ImmZPAbsFlags },
-    { INC, ZPXAbsXFlags },
-    { INX, ImplicitFlag },
-    { INY, ImplicitFlag },
-    { DEC, ZPXAbsXFlags },
-    { DEX, ImplicitFlag },
-    { DEY, ImplicitFlag },
-    { ASL, AccZPXAbsXFlags },
-    { LSR, AccZPXAbsXFlags },
-    { ROL, AccZPXAbsXFlags },
-    { ROR, AccZPXAbsXFlags },
-    { JMP, AbsIndFlags },
-    { JSR, AbsoluteFlag },
-    { RTS, ImplicitFlag },
-    { BCC, RelativeFlag },
-    { BCS, RelativeFlag },
-    { BEQ, RelativeFlag },
-    { BMI, RelativeFlag },
-    { BNE, RelativeFlag },
-    { BPL, RelativeFlag },
-    { BVC, RelativeFlag },
-    { BVS, RelativeFlag },
-    { CLC, ImplicitFlag },
-    { CLD, ImplicitFlag },
-    { CLI, ImplicitFlag },
-    { CLV, ImplicitFlag },
-    { SEC, ImplicitFlag },
-    { SED, ImplicitFlag },
-    { SEI, ImplicitFlag },
-    { BRK, ImplicitFlag },
-    { NOP, ImplicitFlag },
-    { RTI, ImplicitFlag }
-};
+Assembly::OperationMode Assembly::operationsModes[TotalOperations];
 
-/*static*/ const Assembly::OperationInfo &Assembly::getOperationInfo(Operation operation)
+/*static*/ const Assembly::OperationMode &Assembly::getOperationMode(Operation operation)
 {
-    Q_ASSERT(operation >= 0 && operation < sizeof(operationsInfo) / sizeof(operationsInfo[0]));
-    return operationsInfo[operation];
+    Q_ASSERT(operation >= 0 && operation < TotalOperations);
+    return operationsModes[operation];
 }
 
 /*static*/ bool Assembly::operationSupportsAddressingMode(Operation operation, AddressingMode mode)
 {
-    const OperationInfo &operationInfo(getOperationInfo(operation));
-    return operationInfo.modes & (1 << mode);
+    const OperationMode &operationMode(getOperationMode(operation));
+    return operationMode.modes.testFlag(AddressingModeFlag(1 << mode));
 }
 
 const Assembly::InstructionInfo Assembly::_instructionsInfo[]
@@ -261,11 +203,14 @@ const Assembly::InstructionInfo Assembly::_instructionsInfo[]
     { 0x98, 1, 2, TYA, Implied },
 };
 
-Assembly::InstructionInfo Assembly::instructionsInfo[256];
+Assembly::InstructionInfo Assembly::instructionsInfo[TotalInstructions];
 
 
 /*static*/ void Assembly::initInstructionInfo()
 {
+    for (int i = 0; i < TotalOperations; i++)
+        operationsModes[i].modes = AddressingModeFlags(0);
+
     for (int i = 0; i < sizeof(_instructionsInfo) / sizeof(_instructionsInfo[0]); i++)
     {
         const InstructionInfo &info(_instructionsInfo[i]);
@@ -282,22 +227,26 @@ Assembly::InstructionInfo Assembly::instructionsInfo[256];
 
         Q_ASSERT(!instructionsInfo[info.opcodeByte].isValid());
         instructionsInfo[info.opcodeByte] = info;
+
+        Q_ASSERT(info.operation < TotalOperations);
+        operationsModes[info.operation].modes.setFlag(AddressingModeFlag(1 << info.addrMode));
     }
     QMetaEnum me = OperationsMetaEnum();
     for (int i = 0; i < me.keyCount(); i++)
     {
         Operation value = static_cast<Operation>(me.value(i));
         bool found = false;
-        for (int j = 0; j < sizeof(instructionsInfo) / sizeof(instructionsInfo[0]) && !found; j++)
+        for (int j = 0; j < TotalInstructions && !found; j++)
             found = instructionsInfo[j].operation == value;
         Q_ASSERT(found);
     }
-
+    for (int i = 0; i < TotalOperations; i++)
+        Q_ASSERT(operationsModes[i].modes != AddressingModeFlags(0));
 }
 
 const Assembly::InstructionInfo *Assembly::findInstructionInfo(Operation operation, AddressingMode addrMode)
 {
-    for (int i = 0; i < sizeof(instructionsInfo)/ sizeof(instructionsInfo[0]); i++)
+    for (int i = 0; i < TotalInstructions; i++)
         if (instructionsInfo[i].operation == operation && instructionsInfo[i].addrMode == addrMode)
             return &instructionsInfo[i];
     return nullptr;

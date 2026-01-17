@@ -436,12 +436,12 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
     {
         QString firstToken(currentToken);
         bool allowForIndirectAddressing = firstToken == "(";
-        const Assembly::OperationInfo &operationInfo(Assembly::getOperationInfo(operation));
+        const Assembly::OperationMode &operationMode(Assembly::getOperationMode(operation));
         mode = AddressingMode::Absolute;
-        if (operationInfo.modes & AddressingModeFlag::RelativeFlag)
+        if (operationMode.modes.testFlag(AddressingModeFlag::RelativeFlag))
             mode = AddressingMode::Relative;
         else if (allowForIndirectAddressing)
-            if (operationInfo.modes & (AddressingModeFlag::IndirectFlag | AddressingModeFlag::IndexedIndirectXFlag | AddressingModeFlag::IndirectIndexedYFlag))
+            if (operationMode.modes.testAnyFlags({AddressingModeFlag::IndirectFlag, AddressingModeFlag::IndexedIndirectXFlag, AddressingModeFlag::IndirectIndexedYFlag}))
                 mode = AddressingMode::Indirect;
 
         bool ok;
@@ -495,19 +495,19 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         throw AssemblerError(QString("Unrecognized operand addressing mode for operation: %1 %2").arg(currentToken).arg(operationName));
 
     bool zpArg = (arg & 0xff00) == 0;
-    const Assembly::OperationInfo &operationInfo(Assembly::getOperationInfo(operation));
+    const Assembly::OperationMode &operationMode(Assembly::getOperationMode(operation));
     switch (mode)
     {
     case AddressingMode::Absolute:
-        if (zpArg && (operationInfo.modes & AddressingModeFlag::ZeroPageFlag))
+        if (zpArg && operationMode.modes.testFlag(AddressingModeFlag::ZeroPageFlag))
             mode = AddressingMode::ZeroPage;
         break;
     case AddressingMode::AbsoluteX:
-        if (zpArg && (operationInfo.modes & AddressingModeFlag::ZeroPageXFlag))
+        if (zpArg && operationMode.modes.testFlag(AddressingModeFlag::ZeroPageXFlag))
             mode = AddressingMode::ZeroPageX;
         break;
     case AddressingMode::AbsoluteY:
-        if (zpArg && (operationInfo.modes & AddressingModeFlag::ZeroPageYFlag))
+        if (zpArg && operationMode.modes.testFlag(AddressingModeFlag::ZeroPageYFlag))
             mode = AddressingMode::ZeroPageY;
         break;
     case AddressingMode::IndexedIndirectX:
@@ -730,6 +730,16 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
         { Divide, 50, "/", },
     };
     static_assert(OpenParen == 0, "Operators::OpenParen must have a value of 0");
+    struct LookupOperator
+    {
+        static int find(const QString &_operator)
+        {
+            for (int i = 0; i < sizeof(operatorsInfo) / sizeof(operatorsInfo[0]); i++)
+                if (operatorsInfo[i].string == _operator)
+                    return i;
+            return -1;
+        }
+    };
     QStack<int> operatorStack;
     QStack<int> valueStack;
 
@@ -764,10 +774,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
         }
         else
         {
-            QString _operator(currentToken);
-            for (int i = 0; i < sizeof(operatorsInfo) / sizeof(operatorsInfo[0]) && foundOperator < 0; i++)
-                if (operatorsInfo[i].string == _operator)
-                    foundOperator = i;
+            foundOperator = LookupOperator::find(currentToken);
             if (foundOperator < 0)
                 endOfExpression = true;
             else if (operatorsInfo[foundOperator]._operator != CloseParen)
