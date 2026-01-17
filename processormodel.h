@@ -35,7 +35,7 @@ public:
     };
     static_assert(Carry == 0x01, "StatusFlags::Carry must have a value of 0x01");
     Q_FLAG(StatusFlags)
-    enum RunMode { Run, StepInto, StepOver, StepOut, Continue };
+    enum RunMode { NotRunning, TurboRun, Run, StepInto, StepOver, StepOut, Continue };
     Q_ENUM(RunMode)
 
     explicit ProcessorModel(QObject *parent = nullptr);
@@ -79,6 +79,8 @@ public:
     const QList<uint16_t> *breakpoints() const;
     void setBreakpoints(const QList<uint16_t> *newBreakpoints);
 
+    bool suppressSignalsForSpeed() const;
+
     bool isRunning() const;
     void setIsRunning(bool newIsRunning);
     bool stopRun() const;
@@ -93,6 +95,7 @@ public slots:
     void restart();
     void endRun();
     void stop();
+    void turboRun();
     void run();
     void continueRun();
     void stepInto();
@@ -127,10 +130,12 @@ private:
     const QList<uint16_t> *_breakpoints;
 
     bool _startNewRun, _stopRun, _isRunning;
+    RunMode _currentRunMode;
 
     QElapsedTimer elapsedTimer;
 
     void resetModel();
+    void setCurrentRunMode(RunMode newCurrentRunMode);
     void debugMessage(const QString &message) const;
     void executionErrorMessage(const QString &message) const;
     void runInstructions(RunMode runMode);

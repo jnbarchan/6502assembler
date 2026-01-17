@@ -76,6 +76,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::openFile);
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
     connect(ui->actionSaveAs, &QAction::triggered, this, &MainWindow::saveFileAs);
+    connect(ui->actionTurboRun, &QAction::triggered, this, &MainWindow::turboRun);
     connect(ui->actionRun, &QAction::triggered, this, &MainWindow::run);
     connect(ui->actionStepInto, &QAction::triggered, this, &MainWindow::stepInto);
     connect(ui->actionStepOver, &QAction::triggered, this, &MainWindow::stepOver);
@@ -84,6 +85,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
 
+    ui->actionTurboRun->setIcon(ui->btnTurboRun->icon());
+    ui->btnTurboRun->setDefaultAction(ui->actionTurboRun);
     ui->actionRun->setIcon(ui->btnRun->icon());
     ui->btnRun->setDefaultAction(ui->actionRun);
     ui->actionStepInto->setIcon(ui->btnStepInto->icon());
@@ -233,7 +236,7 @@ void MainWindow::setRunStopButton(bool run)
 
 void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 {
-    bool run = runMode == ProcessorModel::Run;
+    bool run = runMode == ProcessorModel::Run || runMode == ProcessorModel::TurboRun;
     if (processorModel()->isRunning())
     {
         if (run)
@@ -251,7 +254,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         assembler()->setCode(codeStream);
         assembler()->assemble();
         processorModel()->memoryModel()->notifyAllDataChanged();
-        if (assembler()->needsAssembling())
+        if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
             return;
         processorModel()->setStartNewRun(true);
         processorModel()->setProgramCounter(emulator()->runStartAddress());
@@ -284,6 +287,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
     switch (runMode)
     {
+    case ProcessorModel::NotRunning: break;
+    case ProcessorModel::TurboRun: processorModel()->turboRun(); break;
     case ProcessorModel::Run: processorModel()->run(); break;
     case ProcessorModel::StepInto: processorModel()->stepInto(); break;
     case ProcessorModel::StepOver: processorModel()->stepOver(); break;
@@ -452,6 +457,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     registerChanged(nullptr, 0);
 
     setHaveDoneReset(true);
+}
+
+void MainWindow::turboRun()
+{
+    assembleAndRun(ProcessorModel::TurboRun);
 }
 
 /*slot*/ void MainWindow::run()

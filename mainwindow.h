@@ -53,6 +53,7 @@ private slots:
     void sendCharToConsole(char ch);
     void modelReset();
     void reset();
+    void turboRun();
     void run();
     void continueRun();
     void stepInto();

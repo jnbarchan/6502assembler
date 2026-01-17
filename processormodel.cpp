@@ -31,7 +31,8 @@ uint8_t ProcessorModel::accumulator() const
 void ProcessorModel::setAccumulator(uint8_t newAccumulator)
 {
     _accumulator = newAccumulator;
-    emit accumulatorChanged();
+    if (!suppressSignalsForSpeed())
+        emit accumulatorChanged();
 }
 
 uint8_t ProcessorModel::xregister() const
@@ -42,7 +43,8 @@ uint8_t ProcessorModel::xregister() const
 void ProcessorModel::setXregister(uint8_t newXregister)
 {
     _xregister = newXregister;
-    emit xregisterChanged();
+    if (!suppressSignalsForSpeed())
+        emit xregisterChanged();
 }
 
 uint8_t ProcessorModel::yregister() const
@@ -53,7 +55,8 @@ uint8_t ProcessorModel::yregister() const
 void ProcessorModel::setYregister(uint8_t newYregister)
 {
     _yregister = newYregister;
-    emit yregisterChanged();
+    if (!suppressSignalsForSpeed())
+        emit yregisterChanged();
 }
 
 uint8_t ProcessorModel::stackRegister() const
@@ -64,7 +67,8 @@ uint8_t ProcessorModel::stackRegister() const
 void ProcessorModel::setStackRegister(uint8_t newStackRegister)
 {
     _stackRegister = newStackRegister;
-    emit stackRegisterChanged();
+    if (!suppressSignalsForSpeed())
+        emit stackRegisterChanged();
 }
 
 uint8_t ProcessorModel::pullFromStack()
@@ -92,7 +96,6 @@ uint8_t ProcessorModel::statusFlags() const
 void ProcessorModel::setStatusFlags(uint8_t newStatusFlags)
 {
     _statusFlags = newStatusFlags;
-    // emit statusFlagsChanged();
 }
 
 uint8_t ProcessorModel::statusFlag(uint8_t flagBit) const
@@ -103,13 +106,11 @@ uint8_t ProcessorModel::statusFlag(uint8_t flagBit) const
 void ProcessorModel::clearStatusFlag(uint8_t newFlagBit)
 {
     _statusFlags &= ~newFlagBit;
-    // emit statusFlagsChanged();
 }
 
 void ProcessorModel::setStatusFlag(uint8_t newFlagBit)
 {
     _statusFlags |= newFlagBit;
-    // emit statusFlagsChanged();
 }
 
 void ProcessorModel::setStatusFlag(uint8_t newFlagBit, bool on)
@@ -138,7 +139,8 @@ uint8_t ProcessorModel::memoryByteAt(uint16_t address) const
 void ProcessorModel::setMemoryByteAt(uint16_t address, uint8_t value)
 {
     _memory[address] = value;
-    emit memoryChanged(address);
+    if (!suppressSignalsForSpeed())
+        emit memoryChanged(address);
 }
 
 uint16_t ProcessorModel::memoryWordAt(uint16_t address) const
@@ -164,8 +166,11 @@ uint16_t ProcessorModel::programCounter() const
 void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
 {
     _programCounter = newProgramCounter;
-    emit programCounterChanged();
-    emit currentInstructionAddressChanged(_programCounter);
+    if (!suppressSignalsForSpeed())
+    {
+        emit programCounterChanged();
+        emit currentInstructionAddressChanged(_programCounter);
+    }
 }
 
 const QList<uint16_t> *ProcessorModel::breakpoints() const
@@ -187,6 +192,17 @@ void ProcessorModel::resetModel()
     _yregister = 15;
     emit modelReset();
     _memoryModel->clearLastMemoryChanged();
+}
+
+
+void ProcessorModel::setCurrentRunMode(RunMode newCurrentRunMode)
+{
+    _currentRunMode = newCurrentRunMode;
+}
+
+bool ProcessorModel::suppressSignalsForSpeed() const
+{
+    return _currentRunMode == TurboRun;
 }
 
 
@@ -271,6 +287,11 @@ void ProcessorModel::executionErrorMessage(const QString &message) const
     setStopRun(true);
 }
 
+/*slot*/ void ProcessorModel::turboRun()
+{
+    runInstructions(TurboRun);
+}
+
 /*slot*/ void ProcessorModel::run()
 {
     runInstructions(Run);
@@ -301,12 +322,13 @@ void ProcessorModel::runInstructions(RunMode runMode)
 {
     if (_isRunning)
         return;
+    Q_ASSERT(runMode != NotRunning);
 
     try
     {
         bool startedNewRun = false;
         bool step = runMode == StepInto || runMode == StepOut || runMode == StepOver;
-        if (runMode == Run || startNewRun() || stopRun())
+        if (runMode == Run || runMode == TurboRun || startNewRun() || stopRun())
         {
             restart();
             elapsedTimer.start();
@@ -319,6 +341,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         }
         if (stopRun())
             return;
+        setCurrentRunMode(runMode);
 
         int count = 0;
         const int processEventsEverySoOften = 1000;
@@ -328,7 +351,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         int stopAtInstructionAddress = -1;
         bool keepGoing = true;
         if (startedNewRun)
-            if (_breakpoints->contains(_programCounter))
+            if (runMode != TurboRun && _breakpoints->contains(_programCounter))
                 keepGoing = false;
         while (!stopRun() && keepGoing)
         {
@@ -353,11 +376,14 @@ void ProcessorModel::runInstructions(RunMode runMode)
             }
 
             runNextInstruction(instruction);
+            count++;
+
+            if (runMode == TurboRun)
+                continue;
 
             if (_programCounter == stopAtInstructionAddress || _breakpoints->contains(_programCounter))
                 keepGoing = false;
 
-            count++;
             if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
                 QCoreApplication::processEvents();//TEMPORARY
         }
@@ -368,6 +394,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         executionErrorMessage(QString(e.what()));
     }
 
+    setCurrentRunMode(NotRunning);
     setIsRunning(false);
 }
 
@@ -739,7 +766,8 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case Operation::NOP:
         break;
     default:
-        emit statusFlagsChanged();
+        if (!suppressSignalsForSpeed())
+            emit statusFlagsChanged();
         break;
     }
 }
@@ -876,7 +904,8 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     if (lastMemoryChangedAddress >= 0)
     {
         QModelIndex ix = addressToIndex(lastMemoryChangedAddress);
-        emit dataChanged(ix, ix, { Qt::ForegroundRole });
+        if (!processorModel->suppressSignalsForSpeed())
+            emit dataChanged(ix, ix, { Qt::ForegroundRole });
         lastMemoryChangedAddress = -1;
     }
 }
@@ -887,7 +916,8 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
         clearLastMemoryChanged();
     lastMemoryChangedAddress = address;
     QModelIndex ix = addressToIndex(address);
-    emit dataChanged(ix, ix, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });
+    if (!processorModel->suppressSignalsForSpeed())
+        emit dataChanged(ix, ix, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });
 }
 
 

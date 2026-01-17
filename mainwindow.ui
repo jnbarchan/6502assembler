@@ -527,6 +527,26 @@
     <item>
      <layout class="QHBoxLayout" name="bottomLayout">
       <item>
+       <widget class="QToolButton" name="btnTurboRun">
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Turbo</string>
+        </property>
+        <property name="icon">
+         <iconset theme="media-skip-forward">
+          <normaloff>.</normaloff>.</iconset>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QToolButton" name="btnRun">
         <property name="minimumSize">
          <size>
@@ -667,6 +687,7 @@
     <addaction name="actionSave"/>
     <addaction name="actionSaveAs"/>
     <addaction name="separator"/>
+    <addaction name="actionTurboRun"/>
     <addaction name="actionRun"/>
     <addaction name="actionStepInto"/>
     <addaction name="actionStepOver"/>
@@ -727,6 +748,11 @@
   <action name="actionContinue">
    <property name="text">
     <string>Continue</string>
+   </property>
+  </action>
+  <action name="actionTurboRun">
+   <property name="text">
+    <string>Turbo</string>
    </property>
   </action>
  </widget>
