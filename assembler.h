@@ -117,13 +117,17 @@ private:
     QString scopedLabelName(const QString &label) const;
     void assignLabelValue(const QString &scopedLabel, int value);
     void cleanup();
+    void addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln);
     void assemblePass();
     void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof);
+    void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation);
+    void assembleDirective();
     QString findIncludeFilePath(const QString &includeFilename);
     void startIncludeFile(const QString &includeFilename);
     void endIncludeFile();
     void closeIncludeFile();
     bool getNextLine();
+    QString peekNextToken(bool wantOperator = false);
     bool getNextToken(bool wantOperator = false);
     int getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing = false, bool *indirectAddressingMetCloseParen = nullptr);
     bool tokenIsDirective() const;

@@ -459,7 +459,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     setHaveDoneReset(true);
 }
 
-void MainWindow::turboRun()
+/*slot*/ void MainWindow::turboRun()
 {
     assembleAndRun(ProcessorModel::TurboRun);
 }

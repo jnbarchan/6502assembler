@@ -113,7 +113,6 @@ int Assembler::codeLabelValue(const QString &key) const
     return _codeLabels.value(key, -1);
 }
 
-
 void Assembler::setCodeLabelValue(const QString &key, int value)
 {
     _codeLabels[key] = value;
@@ -200,6 +199,14 @@ void Assembler::cleanup()
     setAssembleState(AssembleState::NotStarted);
 }
 
+void Assembler::addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln)
+{
+    int i = 0;
+    while (i < _instructionsCodeFileLineNumbers.size() && _instructionsCodeFileLineNumbers.at(i)._locationCounter <= cfln._locationCounter)
+        i++;
+    _instructionsCodeFileLineNumbers.insert(i, cfln);
+}
+
 
 void Assembler::restart(bool assemblePass2 /*= false*/)
 {
@@ -255,10 +262,7 @@ void Assembler::assemblePass()
                                          .arg(Assembly::AddressingModeValueToString(mode)));
             uint8_t bytes = instructionInfo->bytes;
             Q_ASSERT(_locationCounter + bytes <= 0x10000);
-            int i = 0;
-            while (i < _instructionsCodeFileLineNumbers.size() && _instructionsCodeFileLineNumbers.at(i)._locationCounter <= _locationCounter)
-                i++;
-            _instructionsCodeFileLineNumbers.insert(i, CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
+            addInstructionsCodeFileLineNumber(CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
             uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
             Instruction *instruction = reinterpret_cast<Instruction *>(address);
             *instruction = Instruction(instructionInfo->opcodeByte, arg);
@@ -289,6 +293,19 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         eof = true;
         return;
     }
+    assembleNextStatement(operation, mode, arg, hasOperation);
+    if (!currentToken.isEmpty())
+        throw AssemblerError(QString("Unexpected token at end of statement: %1").arg(currentToken));
+}
+
+void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation)
+{
+    //
+    // ASSEMBLING PHASE
+    //
+
+    hasOperation = false;
+    currentToken.clear();
     bool blankLine = !getNextToken();
     if (blankLine)
         return;
@@ -302,10 +319,19 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         {
             QString label(currentToken);
 
-            bool more = getNextToken();
-
-            if (currentToken == '=')
+            bool isCodeLabel = true;
+            QString nextToken = peekNextToken();
+            if (_codeLabelRequiresColon)
             {
+                if (nextToken == ":")
+                    getNextToken();
+                else
+                    isCodeLabel = false;
+            }
+
+            if (nextToken == "=")
+            {
+                getNextToken();
                 getNextToken();
                 bool ok;
                 int value = getTokensExpressionValueAsInt(ok);
@@ -314,26 +340,12 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
                 assignLabelValue(scopedLabelName(label), value);
                 return;
             }
-            else
+            else if (isCodeLabel)
             {
-                bool isCodeLabel = true;
-                if (_codeLabelRequiresColon)
-                {
-                    if (currentToken == ':')
-                        more = getNextToken();
-                    else
-                    {
-                        isCodeLabel = false;
-                        more = true;
-                        currentToken = label;
-                    }
-                }
-                if (isCodeLabel)
-                    assignLabelValue(scopedLabelName(label), _locationCounter);
-            }
-
-            if (!more)
+                assignLabelValue(scopedLabelName(label), _locationCounter);
+                getNextToken();
                 return;
+            }
 
             mnemonic = currentToken;
             operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLocal8Bit());
@@ -342,66 +354,8 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
 
         if (tokenIsDirective())
         {
-            QString directive(currentToken);
-
-            if (directive == ".byte")
-            {
-                do
-                {
-                    uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
-                    getNextToken();
-                    bool ok;
-                    if (tokenIsString())
-                    {
-                        QString strValue = tokenToString(&ok);
-                        if (!ok)
-                            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                        int len = strValue.length();
-                        std::memcpy(address, strValue.toUtf8().constData(), len);
-                        setLocationCounter(_locationCounter + len);
-                        getNextToken();
-                    }
-                    else
-                    {
-                        int intValue = getTokensExpressionValueAsInt(ok);
-                        if (!ok)
-                            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                        *address = intValue & 0xff;
-                        setLocationCounter(_locationCounter + 1);
-                    }
-                } while (currentToken == ",");
-                return;
-            }
-            else if (directive == ".include")
-            {
-                getNextToken();
-                bool ok;
-                QString value = tokenToString(&ok);
-                if (!ok)
-                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                startIncludeFile(value);
-                return;
-            }
-            else if (directive == ".break")
-            {
-                if (!_breakpoints->contains(_locationCounter))
-                    _breakpoints->append(_locationCounter);
-                return;
-            }
-            else if (directive == ".org")
-            {
-                getNextToken();
-                bool ok;
-                int value = getTokensExpressionValueAsInt(ok);
-                if (!ok)
-                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                if (value < 0 || value > 0xffff)
-                    assemblerWarningMessage(QString("Value out of range for directive: $%1 %2").arg(value, 2, 16, QChar('0')).arg(directive));
-                setLocationCounter(value);
-                return;
-            }
-            else
-                throw AssemblerError(QString("Unimplemented directive: %1").arg(directive));
+            assembleDirective();
+            return;
         }
     }
 
@@ -410,10 +364,12 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
 
     QString operationName(Assembly::OperationValueToString(operation));
     getNextToken();
+    bool recognised = false;
     if (currentToken.isEmpty())
     {
         mode = AddressingMode::Implied;
         arg = 0;
+        recognised = true;
     }
     else if (currentToken == '#')
     {
@@ -426,12 +382,14 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         if (value < -128 || value > 255)
             assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value, 2, 16, QChar('0')).arg(operationName));
         arg = value;
+        recognised = true;
     }
     else if (currentToken.toUpper() == "A")
     {
         mode = AddressingMode::Accumulator;
         arg = 0;
         getNextToken();
+        recognised = true;
     }
     else if (tokenIsInt() || tokenIsLabel() || currentToken == "*" || currentToken == "(")
     {
@@ -454,9 +412,10 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value, 2, 16, QChar('0')).arg(operationName));
         arg = value;
 
-        if (!currentToken.isEmpty())
+        if (currentToken.isEmpty())
+            recognised = true;
+        else
         {
-            bool recognised = false;
             if (currentToken == ",")
             {
                 getNextToken();
@@ -488,11 +447,11 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
                     }
                 }
             }
-            if (!recognised)
-                throw AssemblerError(QString("Unrecognized operand addressing mode for operation: %1 %2").arg(currentToken).arg(operationName));
+            if (recognised)
+                getNextToken();
         }
     }
-    else
+    if (!recognised)
         throw AssemblerError(QString("Unrecognized operand addressing mode for operation: %1 %2").arg(currentToken).arg(operationName));
 
     bool zpArg = (arg & 0xff00) == 0;
@@ -527,13 +486,75 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
     default: break;
     }
 
-    if (getNextToken())
-        throw AssemblerError(QString("Unexpected token at end of statement: %1 %2").arg(currentToken).arg(operationName));
-
     if (!Assembly::operationSupportsAddressingMode(operation, mode))
         throw AssemblerError(QString("Operation does not support operand addressing mode: %1 %2")
                          .arg(Assembly::OperationValueToString(operation))
                          .arg(Assembly::AddressingModeValueToString(mode)));
+}
+
+void Assembler::assembleDirective()
+{
+    QString directive(currentToken);
+
+    if (directive == ".byte")
+    {
+        do
+        {
+            uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
+            getNextToken();
+            bool ok;
+            if (tokenIsString())
+            {
+                QString strValue = tokenToString(&ok);
+                if (!ok)
+                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+                int len = strValue.length();
+                std::memcpy(address, strValue.toUtf8().constData(), len);
+                setLocationCounter(_locationCounter + len);
+                getNextToken();
+            }
+            else
+            {
+                int intValue = getTokensExpressionValueAsInt(ok);
+                if (!ok)
+                    throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+                *address = intValue & 0xff;
+                setLocationCounter(_locationCounter + 1);
+            }
+        } while (currentToken == ",");
+    }
+    else if (directive == ".include")
+    {
+        getNextToken();
+        bool ok;
+        QString value = tokenToString(&ok);
+        if (!ok)
+            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+        getNextToken();
+        if (!currentToken.isEmpty())
+            throw AssemblerError(QString("Unexpected token at end of statement: %1").arg(currentToken));
+        startIncludeFile(value);
+        return;
+    }
+    else if (directive == ".break")
+    {
+        if (!_breakpoints->contains(_locationCounter))
+            _breakpoints->append(_locationCounter);
+        getNextToken();
+    }
+    else if (directive == ".org")
+    {
+        getNextToken();
+        bool ok;
+        int value = getTokensExpressionValueAsInt(ok);
+        if (!ok)
+            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+        if (value < 0 || value > 0xffff)
+            assemblerWarningMessage(QString("Value out of range for directive: $%1 %2").arg(value, 2, 16, QChar('0')).arg(directive));
+        setLocationCounter(value);
+    }
+    else
+        throw AssemblerError(QString("Unimplemented directive: %1").arg(directive));
 }
 
 
@@ -589,6 +610,7 @@ void Assembler::startIncludeFile(const QString &includeFilename)
     currentFile.file = file;
     currentFile.stream = new QTextStream(file);
     currentFile.lines = QStringList();
+    currentToken.clear();
 }
 
 void Assembler::endIncludeFile()
@@ -637,6 +659,20 @@ bool Assembler::getNextLine()
     currentLine.line = currentFile.lines.at(currentFile.lineNumber);
     currentLine.lineStream.setString(&currentLine.line, QIODeviceBase::ReadOnly);
     return true;
+}
+
+QString Assembler::peekNextToken(bool wantOperator /*= false*/)
+{
+    QString savedToken(currentToken);
+    QTextStream &currentLineStream(currentLine.lineStream);
+    qint64 savedPos(currentLineStream.pos());
+
+    getNextToken(wantOperator);
+    QString nextToken(currentToken);
+
+    currentLineStream.seek(savedPos);
+    currentToken = savedToken;
+    return nextToken;
 }
 
 bool Assembler::getNextToken(bool wantOperator /*= false*/)
