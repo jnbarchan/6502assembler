@@ -9,9 +9,6 @@ divisor = $72
 quotient = $74
 remainder = $76
 
-jsr _outnum_test
-rts
-
 _outnum_test:
     lda #$ef
     sta dividend

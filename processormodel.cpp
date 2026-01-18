@@ -439,7 +439,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         _argValue = operand;
         break;
     case AddressingMode::Relative:
-        _argAddress = _programCounter + static_cast<int8_t>(operand);
+        _argAddress = _programCounter + 2 + static_cast<int8_t>(operand);
         break;
     case AddressingMode::Absolute:
     case AddressingMode::AbsoluteX:
@@ -468,7 +468,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         else if (mode == AddressingMode::IndexedIndirectX)
             _argAddress = memoryZPWordAt(_argAddress + _xregister);
         else if (mode == AddressingMode::IndirectIndexedY)
-            _argAddress = memoryWordAt(_argAddress) + _yregister;
+            _argAddress = memoryZPWordAt(_argAddress) + _yregister;
         switch (operation)
         {
         case Operation::STA: case Operation::STX: case Operation::STY:
@@ -717,6 +717,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case Operation::BMI:
         if (statusFlag(StatusFlags::Negative))
             jumpTo(argAddress);
+        break;
     case Operation::BNE:
         if (!statusFlag(StatusFlags::Zero))
             jumpTo(argAddress);
@@ -798,6 +799,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_get_elapsed_time(); break;
     case InternalJSRs::__JSR_clear_elapsed_time:
         jsr_clear_elapsed_time(); break;
+    case InternalJSRs::__JSR_process_events:
+        jsr_process_events(); break;
     default:
         internal = false; break;
     }
@@ -839,6 +842,11 @@ void ProcessorModel::jsr_get_elapsed_time()
 void ProcessorModel::jsr_clear_elapsed_time()
 {
     elapsedTimer.restart();
+}
+
+void ProcessorModel::jsr_process_events()
+{
+    QCoreApplication::processEvents();
 }
 
 

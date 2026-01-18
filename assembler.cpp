@@ -194,6 +194,7 @@ void Assembler::cleanup()
     _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
     _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
     _codeLabels["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
+    _codeLabels["__process_events"] = InternalJSRs::__JSR_process_events;
     _currentCodeLabelScope = "";
     currentToken.clear();
     setAssembleState(AssembleState::NotStarted);
@@ -476,7 +477,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             throw AssemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(mode)).arg(operationName));
         break;
     case AddressingMode::Relative: {
-        int relative = arg - _locationCounter;
+        int relative = arg - _locationCounter - 2;
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
                 throw AssemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(operationName));
