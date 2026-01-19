@@ -38,9 +38,9 @@ run_primes:
     sta primes_counter
     sta primes_counter+1
     ; primes_ptr = &primes
-    lda #primes & $ff
+    lda #<primes
     sta primes_ptr
-    lda #primes >> 8
+    lda #>primes
     sta primes_ptr+1
 .next_primes_count:
     ; if primes_counter == primes_count goto .no_more_primes
@@ -82,10 +82,10 @@ run_primes:
     
     ; primes_count++, test for finished
     lda primes_count+1
-    cmp #max_primes >> 8
+    cmp #>max_primes
     bne .try_next_num
     lda primes_count
-    cmp #max_primes & $ff
+    cmp #<max_primes
     beq .finished
     
 .try_next_num:

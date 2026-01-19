@@ -345,9 +345,10 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             {
                 assignLabelValue(scopedLabelName(label), _locationCounter);
                 getNextToken();
-                return;
             }
 
+            if (currentToken.isEmpty())
+                return;
             mnemonic = currentToken;
             operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLocal8Bit());
             hasOperation = Assembly::OperationValueIsValid(operation);
@@ -698,7 +699,7 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     currentToken.append(firstChar);
     if (firstChar.isPunct() || firstChar.isSymbol())
         if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.'
-              || (!wantOperator && (firstChar == '-' || firstChar == '*'))
+              || (!wantOperator && (firstChar == '-' || firstChar == '*' || firstChar == '<' || firstChar == '>'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
             return true;
@@ -752,21 +753,24 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
 
 int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing /*= false*/, bool *indirectAddressingMetCloseParen /*= nullptr*/)
 {
-    enum Operators { OpenParen, CloseParen, BitOr, BitAnd, ShiftLeft, ShiftRight, Plus, Minus, Multiply, Divide, };
-    struct OperatorInfo { Operators _operator; int precedence; QString string; };
+    enum Operators { NotAnOperator = -1, OpenParen, CloseParen, BitOr, BitAnd, ShiftLeft, ShiftRight, Plus, Minus, Multiply, Divide, UnaryLow, UnaryHigh, };
+    struct OperatorInfo { Operators _operator; bool isUnary; int precedence; QString string; };
     static const OperatorInfo operatorsInfo[]
     {
-        { OpenParen, 0, "(", },
-        { CloseParen, 0, ")", },
-        { BitOr, 10, "|", },
-        { BitAnd, 20, "&", },
-        { ShiftLeft, 30, "<<", },
-        { ShiftRight, 30, ">>", },
-        { Plus, 40, "+", },
-        { Minus, 40, "-", },
-        { Multiply, 50, "*", },
-        { Divide, 50, "/", },
+        { OpenParen, false, 0, "(", },
+        { CloseParen, false, 0, ")", },
+        { BitOr, false, 10, "|", },
+        { BitAnd, false, 20, "&", },
+        { ShiftLeft, false, 30, "<<", },
+        { ShiftRight, false, 30, ">>", },
+        { Plus, false, 40, "+", },
+        { Minus, false, 40, "-", },
+        { Multiply, false, 50, "*", },
+        { Divide, false, 50, "/", },
+        { UnaryLow, true, 100, "<", },
+        { UnaryHigh, true, 100, ">", },
     };
+    static_assert(NotAnOperator == -1, "Operators::NotAnOperator must have a value of -1");
     static_assert(OpenParen == 0, "Operators::OpenParen must have a value of 0");
     struct LookupOperator
     {
@@ -792,47 +796,66 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     bool endOfExpression = false;
     do
     {
-        int foundOperator = -1;
+        int indexOperator = LookupOperator::find(currentToken);
+        Operators _operator = indexOperator >= 0 ? operatorsInfo[indexOperator]._operator : NotAnOperator;
+
         if (currentToken.isEmpty())
             endOfExpression = true;
         else if (currentToken == "," && allowForIndirectAddressing)
             endOfExpression = true;
         else if (!wantOperator)
         {
-            if (currentToken == "(")
-                operatorStack.push(OpenParen);
+            if (indexOperator >= 0 && operatorsInfo[indexOperator].isUnary)
+            {
+            }
             else
             {
-                value = tokenValueAsInt(&ok);
-                if (!ok)
-                    return -1;
-                valueStack.push(value);
-                wantOperator = true;
+                if (_operator == OpenParen)
+                    operatorStack.push(OpenParen);
+                else
+                {
+                    value = tokenValueAsInt(&ok);
+                    if (!ok)
+                        return -1;
+                    valueStack.push(value);
+                    wantOperator = true;
+                }
+                indexOperator = -1;
+                _operator = NotAnOperator;
             }
         }
         else
         {
-            foundOperator = LookupOperator::find(currentToken);
-            if (foundOperator < 0)
+            if (indexOperator < 0)
                 endOfExpression = true;
-            else if (operatorsInfo[foundOperator]._operator != CloseParen)
+            else if (_operator != CloseParen)
                 wantOperator = false;
-       }
+        }
 
-       if (foundOperator >= 0 || endOfExpression)
+       if (indexOperator >= 0 || endOfExpression)
        {
-            while (!operatorStack.isEmpty() && operatorsInfo[operatorStack.top()]._operator != OpenParen
-                   && (endOfExpression || operatorsInfo[foundOperator]._operator == CloseParen || operatorsInfo[operatorStack.top()].precedence >= operatorsInfo[foundOperator].precedence))
+            while (!operatorStack.isEmpty()
+                   && operatorsInfo[operatorStack.top()]._operator != OpenParen
+                   && (endOfExpression
+                      || _operator == CloseParen
+                      || operatorsInfo[operatorStack.top()].precedence >= operatorsInfo[indexOperator].precedence))
             {
-                if (operatorStack.size() < 1 || valueStack.size() < 2)
+                if (operatorStack.size() < 1)
                 {
                    ok = false;
                    return -1;
                 }
                 int opIndex = operatorStack.pop();
+                Operators _operator = operatorsInfo[opIndex]._operator;
+                bool isUnary = operatorsInfo[opIndex].isUnary;
+                if (valueStack.size() < (isUnary ? 1 : 2))
+                {
+                    ok = false;
+                    return -1;
+                }
                 int valRight = valueStack.pop();
-                int valLeft = valueStack.pop();
-                switch (operatorsInfo[opIndex]._operator)
+                int valLeft = isUnary ? -1 : valueStack.pop();
+                switch (_operator)
                 {
                 case BitOr:         value = valLeft | valRight; break;
                 case BitAnd:        value = valLeft & valRight; break;
@@ -850,14 +873,16 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                     }
                     value = valLeft / valRight;
                     break;
+                case UnaryLow:      value = static_cast<uint8_t>(valRight); break;
+                case UnaryHigh:      value = static_cast<uint8_t>(valRight >> 8); break;
                 default: Q_ASSERT(false); break;
                 }
                 valueStack.push(value);
             }
 
-            if (foundOperator >= 0)
+            if (indexOperator >= 0)
             {
-                if (operatorsInfo[foundOperator]._operator == CloseParen)
+                if (_operator == CloseParen)
                 {
                     if (operatorStack.isEmpty() || operatorsInfo[operatorStack.top()]._operator != OpenParen)
                     {
@@ -874,11 +899,11 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                         }
                 }
                 else
-                    operatorStack.push(foundOperator);
+                    operatorStack.push(indexOperator);
             }
         }
 
-       if (!endOfExpression)
+        if (!endOfExpression)
             getNextToken(wantOperator);
 
     } while (!endOfExpression);
@@ -886,11 +911,13 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     ok = false;
     if (valueStack.size() != 1)
         return -1;
+
     if (allowForIndirectAddressing)
         if (currentToken == "," && operatorStack.size() == 1 && operatorsInfo[operatorStack.top()]._operator == OpenParen)
             operatorStack.pop();
     if (!operatorStack.isEmpty())
         return -1;
+
     ok = true;
     return value;
 }
