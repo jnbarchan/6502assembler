@@ -1,4 +1,5 @@
 pad = $0400
+_outstr_inline_zp = $86
 
 _outstr_test:
     lda #'A'
@@ -19,6 +20,12 @@ _outstr_test:
     jsr __outch
     ldx #2
     jsr _outstr_X
+    lda #10
+    jsr __outch
+    
+    jsr _outstr_inline
+    .byte "Goodbye", 10, 0
+    lda #$88
     rts  ; _outstr_test
 
 _outstr:
@@ -29,6 +36,30 @@ _outstr_X:
     beq .done
     jsr __outch
     inx
-    jmp .loop
+    bne .loop
 .done:
     rts  ; _outstr
+    
+_outstr_inline:
+    pla
+    sta _outstr_inline_zp+1
+    pla
+    sta _outstr_inline_zp
+    ldy #0
+.loop:
+    lda (_outstr_inline_zp),Y
+    beq .done
+    jsr __outch
+    iny
+    bne .loop
+.done:
+    iny
+    tya
+    clc
+    adc _outstr_inline_zp
+    sta _outstr_inline_zp
+    lda #0
+    adc _outstr_inline_zp+1
+    sta _outstr_inline_zp+1
+    jmp (_outstr_inline_zp)
+    rts  ; _outstr_inline
