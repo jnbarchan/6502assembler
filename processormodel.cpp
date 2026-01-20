@@ -816,7 +816,7 @@ void ProcessorModel::jsr_brk_handler()
     int len = std::strlen(memoryAddress);
     if (len > 255)
         len = 255;
-    QString message(QString::fromUtf8(memoryAddress, len));
+    QString message(QString::fromLatin1(memoryAddress, len));
     sendMessageToConsole(message);
 }
 

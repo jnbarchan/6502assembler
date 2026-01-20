@@ -312,7 +312,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         return;
 
     QString mnemonic(currentToken);
-    operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLocal8Bit());
+    operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLatin1());
     hasOperation = Assembly::OperationValueIsValid(operation);
     if (!hasOperation)
     {
@@ -350,7 +350,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             if (currentToken.isEmpty())
                 return;
             mnemonic = currentToken;
-            operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLocal8Bit());
+            operation = Assembly::OperationKeyToValue(mnemonic.toUpper().toLatin1());
             hasOperation = Assembly::OperationValueIsValid(operation);
         }
 
@@ -511,7 +511,7 @@ void Assembler::assembleDirective()
                 if (!ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
                 int len = strValue.length();
-                std::memcpy(address, strValue.toUtf8().constData(), len);
+                std::memcpy(address, strValue.toLatin1().constData(), len);
                 setLocationCounter(_locationCounter + len);
                 getNextToken();
             }
@@ -680,14 +680,19 @@ QString Assembler::peekNextToken(bool wantOperator /*= false*/)
 bool Assembler::getNextToken(bool wantOperator /*= false*/)
 {
     currentToken.clear();
-    QChar firstChar, nextChar;
+    char firstChar, nextChar;
 
     QTextStream &currentLineStream(currentLine.lineStream);
-    currentLineStream >> firstChar;
-    while (firstChar.isSpace())
-        currentLineStream >> firstChar;
+    auto readChar = [&]() -> char {
+        char c = '\0';
+        currentLineStream >> c;
+        return (currentLineStream.status() == QTextStream::Ok) ? c : '\0';
+    };
+    do
+        firstChar = readChar();
+    while (std::isspace(firstChar));
 
-    if (firstChar.isNull())
+    if (firstChar == '\0')
         return false;
     if (firstChar == ';')
     {
@@ -697,37 +702,37 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     }
 
     currentToken.append(firstChar);
-    if (firstChar.isPunct() || firstChar.isSymbol())
+    if (std::ispunct(firstChar) || firstChar == '_')
         if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.'
               || (!wantOperator && (firstChar == '-' || firstChar == '*' || firstChar == '<' || firstChar == '>'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
             return true;
-    currentLineStream >> nextChar;
+    nextChar = readChar();
     if (firstChar == '\'')
     {
-        if (!nextChar.isNull())
+        if (nextChar != '\0')
         {
             currentToken.append(nextChar);
-            currentLineStream >> nextChar;
+            nextChar = readChar();
             if (nextChar == '\'')
             {
                 currentToken.append(nextChar);
-                currentLineStream >> nextChar;
+                nextChar = readChar();
             }
         }
     }
     else if (firstChar == '\"')
     {
-        while (!(nextChar.isNull() || nextChar == '\"'))
+        while (!(nextChar == '\0' || nextChar == '\"'))
         {
             currentToken.append(nextChar);
-            currentLineStream >> nextChar;
+            nextChar = readChar();
         }
         if (nextChar == '\"')
         {
             currentToken.append(nextChar);
-            currentLineStream >> nextChar;
+            nextChar = readChar();
         }
     }
     else if (firstChar == '<' || firstChar == '>')
@@ -735,18 +740,18 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
         if (nextChar == firstChar)
         {
             currentToken.append(nextChar);
-            currentLineStream >> nextChar;
+            nextChar = readChar();
         }
     }
     else
     {
-        while (!(nextChar.isNull() || nextChar.isSpace() || (nextChar.isPunct() && nextChar != '_') || nextChar.isSymbol()))
+        while (std::isalnum(nextChar) || nextChar == '_')
         {
             currentToken.append(nextChar);
-            currentLineStream >> nextChar;
+            nextChar = readChar();
         }
     }
-    if (!nextChar.isNull())
+    if (nextChar != '\0')
         currentLineStream.seek(currentLineStream.pos() - 1);
     return true;
 }
@@ -933,16 +938,16 @@ bool Assembler::tokenIsLabel() const
 {
     if (currentToken.size() == 0)
         return false;
-    QChar ch = currentToken.at(0);
-    if (!(ch == '.' || ch == '_' || ch.isLetter()))
+    char ch = currentToken.at(0).toLatin1();
+    if (!(ch == '.' || ch == '_' || std::isalpha(ch)))
         return false;
     if (ch == '.')
         if (tokenIsDirective())
             return false;
     for (int i = 1; i < currentToken.size(); i++)
     {
-        ch = currentToken.at(i);
-        if (!(ch == '_' || ch.isLetter() || ch.isDigit()))
+        ch = currentToken.at(i).toLatin1();
+        if (!(ch == '_' || std::isalnum(ch)))
             return false;
     }
     return true;
@@ -950,8 +955,8 @@ bool Assembler::tokenIsLabel() const
 
 bool Assembler::tokenIsInt() const
 {
-    QChar firstChar = currentToken.size() > 0 ? currentToken.at(0) : QChar();
-    return firstChar == '%' || firstChar == '$' || firstChar.isDigit() || firstChar == '-' || firstChar == '\'';
+    char firstChar = currentToken.size() > 0 ? currentToken.at(0).toLatin1() : '\0';
+    return firstChar == '%' || firstChar == '$' || std::isdigit(firstChar) || firstChar == '-' || firstChar == '\'';
 }
 
 int Assembler::tokenToInt(bool *ok) const
@@ -959,21 +964,21 @@ int Assembler::tokenToInt(bool *ok) const
     bool _ok;
     if (ok == nullptr)
         ok = &_ok;
-    QChar firstChar = currentToken.size() > 0 ? currentToken.at(0) : QChar();
+    char firstChar = currentToken.size() > 0 ? currentToken.at(0).toLatin1() : '\0';
     if (firstChar == '%')
         return currentToken.mid(1).toInt(ok, 2);
     else if (firstChar == '$')
         return currentToken.mid(1).toInt(ok, 16);
-    else if (firstChar.isDigit() || firstChar == '-')
+    else if (std::isdigit(firstChar) || firstChar == '-')
         return currentToken.toInt(ok, 10);
     else if (firstChar == '\'')
     {
-        QChar nextChar = currentToken.size() > 1 ? currentToken.at(1) : QChar();
-        QChar nextChar2 = currentToken.size() > 2 ? currentToken.at(2) : QChar();
+        char nextChar = currentToken.size() > 1 ? currentToken.at(1).toLatin1() : '\0';
+        char nextChar2 = currentToken.size() > 2 ? currentToken.at(2).toLatin1() : '\0';
         if (nextChar2 == '\'')
         {
             *ok = true;
-            return nextChar.toLatin1();
+            return nextChar;
         }
     }
     *ok = false;

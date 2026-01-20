@@ -180,7 +180,7 @@ void MainWindow::saveToFile(QString fileName)
 {
     QFile file(fileName);
     if (!file.open(QFile::WriteOnly | QFile::Text)
-        || file.write(ui->codeEditor->toPlainText().toUtf8()) < 0)
+        || file.write(ui->codeEditor->toPlainText().toLatin1()) < 0)
     {
         debugMessage(QString("%1: %2").arg(fileName).arg(file.errorString()));
         return;
@@ -248,7 +248,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         saveToFile(scratchFileName());
         reset();
         codeBytes.clear();
-        codeBytes.append(ui->codeEditor->toPlainText().toUtf8());
+        codeBytes.append(ui->codeEditor->toPlainText().toLatin1());
         delete codeStream;
         codeStream = new QTextStream(codeBytes);
         assembler()->setCode(codeStream);
