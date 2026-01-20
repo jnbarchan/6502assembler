@@ -1,7 +1,5 @@
 
-operand1 = $70
-operand2 = $72
-result = $74
+.include "common.inc"
 
 _mul16_test:
     lda #$ff

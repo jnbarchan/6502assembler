@@ -4,13 +4,10 @@
 ; Returns: A = next random byte
 ; -------------------------------------------------------
 
-;;        .org $8000        ; example start address
-
 ;; RND8_STATE: .byte $55      ; initial seed (non-zero)
 
-_RND8_STATE = $0500
-_RND16_STATE_LOW = $0502
-_RND16_STATE_HIGH = $0503
+.include "common.inc"
+
 
 _RND_TEST:
     lda #$55      ; initial seed (non-zero)

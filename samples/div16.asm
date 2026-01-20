@@ -1,7 +1,4 @@
-dividend = $70
-divisor = $72
-quotient = $74
-remainder = $76
+.include "common.inc"
 
 _div16_test:
     lda #0

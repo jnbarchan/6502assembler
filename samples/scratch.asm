@@ -1,3 +1,5 @@
+.include "common.inc"
+
 ldx #'Z'
 letters:
 txa
@@ -21,15 +23,15 @@ sta mem,x
 
 ;bcc labx4
 
-zp = $70
-zp2 = $74
+zp = ZP_USER_0
+zp2 = ZP_USER_0+4
 lda #$00
-sta $70
-sta $74
+sta zp
+sta zp2
 lda #$10
-sta $71
+sta zp+1
 lda #$20
-sta $75
+sta zp2+1
 lda #44
 ldy #1
 sta (zp),Y

@@ -377,7 +377,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (!checkSaveFile())
         return;
     QString defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? SAMPLES_RELATIVE_PATH : QString();
-    QString fileName = QFileDialog::getOpenFileName(this, "Open File", defaultDir, "*.asm");
+    QString fileName = QFileDialog::getOpenFileName(this, "Open File", defaultDir, "*.asm *.inc");
     if (fileName.isEmpty())
         return;
     openFromFile(fileName);
@@ -394,7 +394,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 /*slot*/ void MainWindow::saveFileAs()
 {
     QString defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? SAMPLES_RELATIVE_PATH : QString();
-    QString fileName = QFileDialog::getSaveFileName(this, "Save File As", defaultDir, "*.asm");
+    QString fileName = QFileDialog::getSaveFileName(this, "Save File As", defaultDir, "*.asm *.inc");
     if (fileName.isEmpty())
         return;
     QFileInfo fileInfo(fileName);

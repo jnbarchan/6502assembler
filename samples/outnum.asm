@@ -1,13 +1,5 @@
 
-pad = $0400
-pad_top = $100-1
-
-x_save = $80
-
-dividend = $70
-divisor = $72
-quotient = $74
-remainder = $76
+.include "common.inc"
 
 _outnum_test:
     lda #$ef
@@ -42,14 +34,14 @@ _padnum:
     sta divisor+1
 
     lda #0
-    ldx #pad_top
-    sta pad,X
+    ldx #PAD_SIZE-1
+    sta PAD,X
     dex
-    stx x_save
+    stx ZP_X_SAVE
 
     jsr .next_digit
 
-    ldx x_save
+    ldx ZP_X_SAVE
     inx
     rts  ; _padnum
 
@@ -59,10 +51,10 @@ _padnum:
     lda remainder
     clc
     adc #'0'
-    ldx x_save
-    sta pad,X
+    ldx ZP_X_SAVE
+    sta PAD,X
     dex
-    stx x_save
+    stx ZP_X_SAVE
 
     lda quotient
     ora quotient+1
@@ -87,8 +79,8 @@ _outnum4hex:
     jmp _outstr_X  ; _outnum4hex   
 _padnum4hex:
     lda #0
-    ldx #pad_top
-    sta pad,X
+    ldx #PAD_SIZE-1
+    sta PAD,X
     dex
 
     jsr .digits
@@ -127,7 +119,7 @@ _padnum4hex:
     clc
     adc #'a'-10
 .done:
-    sta pad,X
+    sta PAD,X
     dex
     rts  ; .hex_digit
 

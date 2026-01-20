@@ -1,19 +1,19 @@
-pad = $0400
-_outstr_inline_zp = $86
+.include "common.inc"
+_outstr_inline_zp = ZP_TMP
 
 _outstr_test:
     lda #'A'
-    sta pad
+    sta PAD
     clc
     adc #1
-    sta pad+1
+    sta PAD+1
     adc #1
-    sta pad+2
+    sta PAD+2
     adc #1
-    sta pad+3
+    sta PAD+3
 
     lda #0
-    sta pad+4
+    sta PAD+4
 
     jsr _outstr
     lda #10
@@ -32,7 +32,7 @@ _outstr:
     ldx #0
 _outstr_X:
 .loop:
-    lda pad,X
+    lda PAD,X
     beq .done
     jsr __outch
     inx
@@ -61,5 +61,4 @@ _outstr_inline:
     lda #0
     adc _outstr_inline_zp+1
     sta _outstr_inline_zp+1
-    jmp (_outstr_inline_zp)
-    rts  ; _outstr_inline
+    jmp (_outstr_inline_zp)  ; _outstr_inline

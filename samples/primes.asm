@@ -1,20 +1,13 @@
 ; primes.asm
 ; calculate prime numbers
 
-operand1 = $70
-operand2 = $72
-result = $74
+.include "common.inc"
 
-dividend = $70
-divisor = $72
-quotient = $74
-remainder = $76
+nextnum = ZP_USER_0
+primes_counter = ZP_USER_0+2
+primes_ptr = ZP_USER_0+4
 
-primes_counter = $66
-primes_ptr = $68
-
-nextnum = $90
-primes_count = $1000
+primes_count = MEM_USER_0
 primes = primes_count+2
 
 max_primes = 100
