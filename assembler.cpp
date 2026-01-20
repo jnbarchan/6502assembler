@@ -753,8 +753,8 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
 
 int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing /*= false*/, bool *indirectAddressingMetCloseParen /*= nullptr*/)
 {
-    enum Operators { NotAnOperator = -1, OpenParen, CloseParen, BitOr, BitAnd, ShiftLeft, ShiftRight, Plus, Minus, Multiply, Divide, UnaryLow, UnaryHigh, };
-    struct OperatorInfo { Operators _operator; bool isUnary; int precedence; QString string; };
+    enum Operator { NotAnOperator = -1, OpenParen, CloseParen, BitOr, BitAnd, ShiftLeft, ShiftRight, Plus, Minus, Multiply, Divide, UnaryLow, UnaryHigh, };
+    struct OperatorInfo { Operator _operator; bool isUnary; int precedence; QString string; };
     static const OperatorInfo operatorsInfo[]
     {
         { OpenParen, false, 0, "(", },
@@ -774,15 +774,18 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     static_assert(OpenParen == 0, "Operators::OpenParen must have a value of 0");
     struct LookupOperator
     {
-        static int find(const QString &_operator)
+        static Operator find(const QString &_operator)
         {
             for (int i = 0; i < sizeof(operatorsInfo) / sizeof(operatorsInfo[0]); i++)
                 if (operatorsInfo[i].string == _operator)
-                    return i;
-            return -1;
+                {
+                    Q_ASSERT(operatorsInfo[i]._operator == i);
+                    return static_cast<Operator>(i);
+                }
+            return NotAnOperator;
         }
     };
-    QStack<int> operatorStack;
+    QStack<Operator> operatorStack;
     QStack<int> valueStack;
 
     QString firstToken(currentToken);
@@ -796,8 +799,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
     bool endOfExpression = false;
     do
     {
-        int indexOperator = LookupOperator::find(currentToken);
-        Operators _operator = indexOperator >= 0 ? operatorsInfo[indexOperator]._operator : NotAnOperator;
+        Operator _operator = LookupOperator::find(currentToken);
 
         if (currentToken.isEmpty())
             endOfExpression = true;
@@ -805,7 +807,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
             endOfExpression = true;
         else if (!wantOperator)
         {
-            if (indexOperator >= 0 && operatorsInfo[indexOperator].isUnary)
+            if (_operator != NotAnOperator && operatorsInfo[_operator].isUnary)
             {
             }
             else
@@ -820,34 +822,32 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                     valueStack.push(value);
                     wantOperator = true;
                 }
-                indexOperator = -1;
                 _operator = NotAnOperator;
             }
         }
         else
         {
-            if (indexOperator < 0)
+            if (_operator == NotAnOperator)
                 endOfExpression = true;
             else if (_operator != CloseParen)
                 wantOperator = false;
         }
 
-       if (indexOperator >= 0 || endOfExpression)
+       if (_operator != NotAnOperator || endOfExpression)
        {
             while (!operatorStack.isEmpty()
                    && operatorsInfo[operatorStack.top()]._operator != OpenParen
                    && (endOfExpression
                       || _operator == CloseParen
-                      || operatorsInfo[operatorStack.top()].precedence >= operatorsInfo[indexOperator].precedence))
+                      || operatorsInfo[operatorStack.top()].precedence >= operatorsInfo[_operator].precedence))
             {
                 if (operatorStack.size() < 1)
                 {
                    ok = false;
                    return -1;
                 }
-                int opIndex = operatorStack.pop();
-                Operators _operator = operatorsInfo[opIndex]._operator;
-                bool isUnary = operatorsInfo[opIndex].isUnary;
+                Operator _operator2 = operatorStack.pop();
+                bool isUnary = operatorsInfo[_operator2].isUnary;
                 if (valueStack.size() < (isUnary ? 1 : 2))
                 {
                     ok = false;
@@ -855,7 +855,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                 }
                 int valRight = valueStack.pop();
                 int valLeft = isUnary ? -1 : valueStack.pop();
-                switch (_operator)
+                switch (_operator2)
                 {
                 case BitOr:         value = valLeft | valRight; break;
                 case BitAnd:        value = valLeft & valRight; break;
@@ -880,7 +880,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                 valueStack.push(value);
             }
 
-            if (indexOperator >= 0)
+            if (_operator != NotAnOperator)
             {
                 if (_operator == CloseParen)
                 {
@@ -899,7 +899,7 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                         }
                 }
                 else
-                    operatorStack.push(indexOperator);
+                    operatorStack.push(_operator);
             }
         }
 
