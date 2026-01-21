@@ -47,11 +47,15 @@ MainWindow::MainWindow(QWidget *parent)
     modelReset();
 
     connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
+    connect(processorModel(), &ProcessorModel::currentInstructionAddressChanged, this, &MainWindow::currentInstructionAddressChanged, queuedChangedSignalsConnectionType);
 
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
-    connect(processorModel(), &ProcessorModel::currentInstructionAddressChanged, this, &MainWindow::currentInstructionAddressChanged, queuedChangedSignalsConnectionType);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
+    connect(ui->codeEditor, &CodeEditor::lineNumberClicked, this, &MainWindow::codeEditorLineNumberClicked);
+
+    codeEditorLineInfoProvider = new CodeEditorLineInfoProvider();
+    ui->codeEditor->setLineInfoProvider(codeEditorLineInfoProvider);
 
     syntaxHighlighter = new SyntaxHighlighter(ui->codeEditor->document());
 
@@ -490,6 +494,13 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 }
 
 
+/*slot*/ void MainWindow::codeEditorLineNumberClicked(int blockNumber)
+{
+    blockNumber = emulator()->toggleBreakpoint("", blockNumber);
+    ui->codeEditor->lineNumberAreaBreakpointUpdated(blockNumber);
+}
+
+
 /*slot*/ void MainWindow::currentCodeLineNumberChanged(const QString &filename, int lineNumber)
 {
     if (emulator()->queueChangedSignals())
@@ -583,3 +594,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     }
 }
 
+
+ILineInfoProvider::BreakpointInfo CodeEditorLineInfoProvider::findBreakpointInfo(int blockNumber) const
+{
+    int instructionAddress = g_emulator->findBreakpoint("", blockNumber);/*TEMPORARY*/
+    ILineInfoProvider::BreakpointInfo bpInfo;
+    bpInfo.instructionAddress = instructionAddress >= 0 ? instructionAddress : 0;
+    return bpInfo;
+}

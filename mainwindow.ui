@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
+    <width>865</width>
     <height>779</height>
    </rect>
   </property>
@@ -30,7 +30,7 @@
       <item>
        <widget class="QFrame" name="rhsFrame">
         <property name="sizePolicy">
-         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
@@ -180,6 +180,18 @@
          </item>
          <item row="1" column="0" colspan="2">
           <widget class="MemoryView" name="tvMemory">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>370</width>
+             <height>0</height>
+            </size>
+           </property>
            <property name="font">
             <font>
              <family>Monospace</family>
@@ -550,7 +562,7 @@
        <widget class="QToolButton" name="btnRun">
         <property name="minimumSize">
          <size>
-          <width>60</width>
+          <width>80</width>
           <height>30</height>
          </size>
         </property>
@@ -675,7 +687,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>865</width>
      <height>23</height>
     </rect>
    </property>

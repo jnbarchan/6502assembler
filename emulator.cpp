@@ -33,15 +33,60 @@ void Emulator::mapInstructionAddressToFileLineNumber(uint16_t instructionAddress
     filename.clear();
     lineNumber = -1;
     const QList<Assembler::CodeFileLineNumber> &codeFileLineNumbers(_assembler->instructionsCodeFileLineNumbers());
-    for (int index = 0; index < codeFileLineNumbers.size(); index++)
-        if (codeFileLineNumbers.at(index)._locationCounter >= instructionAddress)
+    for (const Assembler::CodeFileLineNumber &cfln : codeFileLineNumbers)
+        if (cfln._locationCounter >= instructionAddress)
         {
-            filename = codeFileLineNumbers.at(index)._codeFilename;
-            lineNumber = codeFileLineNumbers.at(index)._currentCodeLineNumber;
+            filename = cfln._codeFilename;
+            lineNumber = cfln._currentCodeLineNumber;
             return;
         }
     lineNumber = 1000;/*TEMPORARY*/
 }
+
+int Emulator::mapFileLineNumberToInstructionAddress(const QString &filename, int lineNumber, bool exact /*= false*/) const
+{
+    const QList<Assembler::CodeFileLineNumber> &codeFileLineNumbers(_assembler->instructionsCodeFileLineNumbers());
+    for (const Assembler::CodeFileLineNumber &cfln : codeFileLineNumbers)
+        if (cfln._codeFilename == filename)
+            if (exact ? cfln._currentCodeLineNumber == lineNumber : cfln._currentCodeLineNumber >= lineNumber)
+                return cfln._locationCounter;
+    return -1;
+}
+
+int Emulator::findBreakpointIndex(uint16_t instructionAddress) const
+{
+    int i = 0;
+    while (i < _breakpoints.size() && _breakpoints.at(i) < instructionAddress)
+        i++;
+    return i;
+}
+
+int Emulator::findBreakpoint(const QString &filename, int lineNumber) const
+{
+    int instructionAddress = mapFileLineNumberToInstructionAddress(filename, lineNumber, true);
+    if (instructionAddress < 0)
+        return -1;
+    int i = findBreakpointIndex(instructionAddress);
+    return i < _breakpoints.size() ? instructionAddress : -1;
+}
+
+int Emulator::toggleBreakpoint(const QString &filename, int lineNumber)
+{
+    int instructionAddress = mapFileLineNumberToInstructionAddress(filename, lineNumber);
+    if (instructionAddress < 0)
+        return -1;
+    int i = findBreakpointIndex(instructionAddress);
+    if (i < _breakpoints.size() && _breakpoints.at(i) == instructionAddress)
+        _breakpoints.removeAt(i);
+    else
+        _breakpoints.insert(i, instructionAddress);
+    QString newFilename;
+    int newLineNumber;
+    mapInstructionAddressToFileLineNumber(instructionAddress, newFilename, newLineNumber);
+    Q_ASSERT(newFilename == filename);
+    return newFilename == filename ? newLineNumber : -1;
+}
+
 
 bool Emulator::queueChangedSignals() const
 {

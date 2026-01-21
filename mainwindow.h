@@ -6,6 +6,7 @@
 #include <QSpinBox>
 #include <QMainWindow>
 
+#include "codeeditor.h"
 #include "emulator.h"
 
 using QueuedChangeSignal = Emulator::QueuedChangeSignal;
@@ -18,6 +19,7 @@ QT_END_NAMESPACE
 
 class MemoryViewItemDelegate;
 class SyntaxHighlighter;
+class CodeEditorLineInfoProvider;
 
 class MainWindow : public QMainWindow
 {
@@ -59,6 +61,7 @@ private slots:
     void stepInto();
     void stepOver();
     void stepOut();
+    void codeEditorLineNumberClicked(int blockNumber);
     void currentCodeLineNumberChanged(const QString &filename, int lineNumber);
     void currentInstructionAddressChanged(uint16_t instructionAddress);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
@@ -75,6 +78,7 @@ private:
     MemoryViewItemDelegate *tvMemoryViewItemDelegate;
     QModelIndex _lastMemoryModelDataChangedIndex;
     SyntaxHighlighter *syntaxHighlighter;
+    CodeEditorLineInfoProvider *codeEditorLineInfoProvider;
 
     void updateWindowTitle();
     QString scratchFileName() const;
@@ -84,6 +88,12 @@ private:
     void scrollToLastMemoryModelDataChangedIndex() const;
     void setRunStopButton(bool run);
     void assembleAndRun(ProcessorModel::RunMode runMode);
+};
+
+
+class CodeEditorLineInfoProvider : public ILineInfoProvider
+{
+    ILineInfoProvider::BreakpointInfo findBreakpointInfo(int blockNumber) const override;
 };
 
 #endif // MAINWINDOW_H

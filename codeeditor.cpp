@@ -1,10 +1,27 @@
+#include <QPainter>
 #include <QTextBlock>
 
 #include "codeeditor.h"
 
+//
+// CodeEditor Class
+//
+
 CodeEditor::CodeEditor(QWidget *parent)
     : QPlainTextEdit{parent}
 {
+    lineNumberArea = new LineNumberArea(this);
+    lineInfoProvider = nullptr;
+
+    connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
+    connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
+
+    updateLineNumberAreaWidth(0);
+}
+
+void CodeEditor::setLineInfoProvider(const ILineInfoProvider *provider)
+{
+    lineInfoProvider = provider;
 }
 
 void CodeEditor::moveCursorToEnd()
@@ -93,3 +110,95 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
     }
     QPlainTextEdit::keyPressEvent(e);
 }
+
+
+int CodeEditor::lineNumberAreaWidth()
+{
+    int digits = 1;
+    int max = qMax(1, blockCount());
+    while (max >= 10)
+    {
+        max /= 10;
+        ++digits;
+    }
+    int space = 15 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits + 10;
+    return space;
+}
+
+/*slot*/ void CodeEditor::updateLineNumberAreaWidth(int newBlockCount)
+{
+    Q_UNUSED(newBlockCount);
+    setViewportMargins(lineNumberAreaWidth(), 0, 0, 0);
+}
+
+/*slot*/ void CodeEditor::updateLineNumberArea(const QRect &rect, int dy)
+{
+    if (dy)
+        lineNumberArea->scroll(0, dy);
+    else
+        lineNumberArea->update(0, rect.y(), lineNumberArea->width(), rect.height());
+    if (rect.contains(viewport()->rect()))
+        updateLineNumberAreaWidth(0);
+}
+
+/*slot*/ void CodeEditor::lineNumberAreaBreakpointUpdated(int blockNumber)
+{
+    QTextBlock block = document()->findBlockByNumber(blockNumber);
+    if (!block.isValid())
+        return;
+    int top = blockBoundingGeometry(block).top() + contentOffset().y();
+    int height = blockBoundingRect(block).height();
+    QRect rect(0, top - 5, lineNumberAreaWidth(), height + 10);
+    lineNumberArea->update(rect);
+}
+
+void CodeEditor::resizeEvent(QResizeEvent *e) /*override*/
+{
+    QPlainTextEdit::resizeEvent(e);
+
+    QRect cr = contentsRect();
+    lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), lineNumberAreaWidth(), cr.height()));
+}
+
+void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
+{
+    QPainter painter(lineNumberArea);
+    painter.fillRect(event->rect(), QColor(Qt::lightGray).lighter(120));
+
+    QTextBlock block = firstVisibleBlock();
+    int blockNumber = block.blockNumber();
+    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+    int bottom = top + qRound(blockBoundingRect(block).height());
+
+    while (block.isValid() && top <= event->rect().bottom())
+    {
+        if (block.isVisible() && bottom >= event->rect().top())
+        {
+            QString number = QString::number(blockNumber + 1);
+            painter.setPen(Qt::black);
+            painter.drawText(10, top, lineNumberArea->width() - 20, fontMetrics().height(),
+                             Qt::AlignRight, number);
+            if (lineInfoProvider != nullptr)
+            {
+                ILineInfoProvider::BreakpointInfo breakpointInfo = lineInfoProvider->findBreakpointInfo(blockNumber);
+                if (breakpointInfo.instructionAddress > 0)
+                {
+                    painter.setBrush(Qt::darkRed);
+                    painter.drawEllipse(2, top + 2, 10, 10);
+                }
+            }
+        }
+
+        block = block.next();
+        top = bottom;
+        bottom = top + qRound(blockBoundingRect(block).height());
+        ++blockNumber;
+    }
+}
+
+void CodeEditor::lineNumberAreaMousePressEvent(QMouseEvent *event)
+{
+    QTextCursor cursor = cursorForPosition(event->pos());
+    emit lineNumberClicked(cursor.blockNumber());
+}
+
