@@ -18,6 +18,8 @@ ProcessorModel::ProcessorModel(QObject *parent)
     _memoryModel = new MemoryModel(this);
     resetModel();
     _instructions = reinterpret_cast<Instruction *>(_memoryData);
+    _programCounter = 0;
+    _currentRunMode = NotRunning;
     _startNewRun = true;
     _stopRun = true;
     _isRunning = false;
@@ -240,6 +242,8 @@ bool ProcessorModel::startNewRun() const
 void ProcessorModel::setStartNewRun(bool newStartNewRun)
 {
     _startNewRun = newStartNewRun;
+    if (_startNewRun)
+        setCurrentRunMode(NotRunning);
 }
 
 const Instruction *ProcessorModel::nextInstructionToExecute() const
@@ -290,6 +294,8 @@ void ProcessorModel::executionErrorMessage(const QString &message) const
 /*slot*/ void ProcessorModel::turboRun()
 {
     runInstructions(TurboRun);
+    emit modelReset();
+    emit currentInstructionAddressChanged(_programCounter);
 }
 
 /*slot*/ void ProcessorModel::run()
@@ -340,7 +346,10 @@ void ProcessorModel::runInstructions(RunMode runMode)
             pushToStack(static_cast<uint8_t>(Assembly::__JSR_terminate >> 8));
         }
         if (stopRun())
+        {
+            setCurrentRunMode(NotRunning);
             return;
+        }
         setCurrentRunMode(runMode);
 
         int count = 0;

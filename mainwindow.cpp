@@ -34,6 +34,7 @@ MainWindow::MainWindow(QWidget *parent)
     Qt::ConnectionType queuedChangedSignalsConnectionType(Qt::DirectConnection);
 
     connect(emulator(), &Emulator::processQueuedChangedSignal, this, &MainWindow::processQueuedChangedSignal);
+    connect(emulator(), &Emulator::breakpointChanged, this, &MainWindow::breakpointChanged);
 
     connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
@@ -54,7 +55,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
     connect(ui->codeEditor, &CodeEditor::lineNumberClicked, this, &MainWindow::codeEditorLineNumberClicked);
 
-    codeEditorLineInfoProvider = new CodeEditorLineInfoProvider();
+    codeEditorLineInfoProvider = new CodeEditorLineInfoProvider(emulator());
     ui->codeEditor->setLineInfoProvider(codeEditorLineInfoProvider);
 
     syntaxHighlighter = new SyntaxHighlighter(ui->codeEditor->document());
@@ -113,6 +114,7 @@ MainWindow::~MainWindow()
     delete ui;
 
     delete codeStream;
+    delete codeEditorLineInfoProvider;
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) /*override*/
@@ -256,7 +258,9 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         delete codeStream;
         codeStream = new QTextStream(codeBytes);
         assembler()->setCode(codeStream);
+
         assembler()->assemble();
+
         processorModel()->memoryModel()->notifyAllDataChanged();
         if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
             return;
@@ -374,6 +378,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
     setHaveDoneReset(false);
     ui->codeEditor->unhighlightCurrentBlock();
+    emulator()->clearBreakpoints();
 }
 
 /*slot*/ void MainWindow::openFile()
@@ -496,8 +501,22 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::codeEditorLineNumberClicked(int blockNumber)
 {
-    blockNumber = emulator()->toggleBreakpoint("", blockNumber);
+    emulator()->toggleBreakpoint("", blockNumber);
     ui->codeEditor->lineNumberAreaBreakpointUpdated(blockNumber);
+}
+
+/*slot*/ void MainWindow::breakpointChanged(int instructionAddress)
+{
+    if (instructionAddress < 0)
+        ui->codeEditor->lineNumberAreaBreakpointUpdated(-1);
+    else
+    {
+        QString filename;
+        int lineNumber;
+        emulator()->mapInstructionAddressToFileLineNumber(instructionAddress, filename, lineNumber);
+        if (filename.isEmpty())
+            ui->codeEditor->lineNumberAreaBreakpointUpdated(lineNumber);
+    }
 }
 
 
@@ -533,7 +552,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     int lineNumber;
     emulator()->mapInstructionAddressToFileLineNumber(instructionAddress, filename, lineNumber);
     if (filename.isEmpty())
-        currentCodeLineNumberChanged(filename, lineNumber);
+        currentCodeLineNumberChanged(filename, lineNumber >= 0 ? lineNumber : ui->codeEditor->blockCount());
 }
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles /*= QList<int>()*/)
@@ -597,7 +616,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 ILineInfoProvider::BreakpointInfo CodeEditorLineInfoProvider::findBreakpointInfo(int blockNumber) const
 {
-    int instructionAddress = g_emulator->findBreakpoint("", blockNumber);/*TEMPORARY*/
+    int instructionAddress = emulator()->findBreakpoint("", blockNumber);
     ILineInfoProvider::BreakpointInfo bpInfo;
     bpInfo.instructionAddress = instructionAddress >= 0 ? instructionAddress : 0;
     return bpInfo;

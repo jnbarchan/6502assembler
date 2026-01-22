@@ -143,6 +143,11 @@ int CodeEditor::lineNumberAreaWidth()
 
 /*slot*/ void CodeEditor::lineNumberAreaBreakpointUpdated(int blockNumber)
 {
+    if (blockNumber < 0)
+    {
+        lineNumberArea->update();
+        return;
+    }
     QTextBlock block = document()->findBlockByNumber(blockNumber);
     if (!block.isValid())
         return;

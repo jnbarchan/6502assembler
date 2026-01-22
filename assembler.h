@@ -17,11 +17,15 @@ using InstructionInfo = Assembly::InstructionInfo;
 using InternalJSRs = Assembly::InternalJSRs;
 
 
+class IAssemblerBreakpointProvider;
+
 class Assembler : public QObject
 {
     Q_OBJECT
 public:
     explicit Assembler(QObject *parent = nullptr);
+
+    void setAssemblerBreakpointProvider(IAssemblerBreakpointProvider *provider);
 
     struct CodeFileLineNumber
     {
@@ -50,9 +54,6 @@ public:
     void setCurrentCodeLineNumber(int newCurrentCodeLineNumber);
     uint16_t locationCounter() const;
     void setLocationCounter(uint16_t newLocationCounter);
-
-    QList<uint16_t> *breakpoints() const;
-    void setBreakpoints(QList<uint16_t> *newBreakpoints);
 
     int codeLabelValue(const QString &key) const;
     void setCodeLabelValue(const QString &key, int value);
@@ -102,7 +103,7 @@ private:
     uint16_t _locationCounter;
     const uint16_t _defaultLocationCounter = 0xC000;
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
-    QList<uint16_t> *_breakpoints;
+    IAssemblerBreakpointProvider *assemblerBreakpointProvider;
 
     QMap<QString, int> _codeLabels;
     QString _currentCodeLabelScope;
@@ -144,6 +145,15 @@ class AssemblerError : public std::runtime_error
 {
 public:
     AssemblerError(const QString &msg);
+};
+
+
+class IAssemblerBreakpointProvider
+{
+public:
+    virtual ~IAssemblerBreakpointProvider() = default;
+    virtual void clearBreakpoints() = 0;
+    virtual void addBreakpoint(uint16_t instructionAddress) = 0;
 };
 
 #endif // ASSEMBLER_H

@@ -23,6 +23,12 @@ Assembler::Assembler(QObject *parent)
     codeFileStateStack.clear();
     _codeIncludeDirectories.clear();
     _assembleState = AssembleState::NotStarted;
+    assemblerBreakpointProvider = nullptr;
+}
+
+void Assembler::setAssemblerBreakpointProvider(IAssemblerBreakpointProvider *provider)
+{
+    assemblerBreakpointProvider = provider;
 }
 
 Assembler::AssembleState Assembler::assembleState() const
@@ -96,16 +102,6 @@ uint16_t Assembler::locationCounter() const
 void Assembler::setLocationCounter(uint16_t newLocationCounter)
 {
     _locationCounter = newLocationCounter;
-}
-
-QList<uint16_t> *Assembler::breakpoints() const
-{
-    return _breakpoints;
-}
-
-void Assembler::setBreakpoints(QList<uint16_t> *newBreakpoints)
-{
-    _breakpoints = newBreakpoints;
 }
 
 int Assembler::codeLabelValue(const QString &key) const
@@ -186,7 +182,7 @@ void Assembler::cleanup()
     currentFile.file = nullptr;
     currentFile.stream->seek(0);
     currentFile.lines.clear();
-    _breakpoints->clear();
+    assemblerBreakpointProvider->clearBreakpoints();
     _codeLabels.clear();
     _codeLabels["__terminate"] = InternalJSRs::__JSR_terminate;
     _codeLabels["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
@@ -279,6 +275,8 @@ void Assembler::assemblePass()
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
         assembleNextStatement(operation, mode, arg, hasOperation, eof);
     }
+    for (int i = 1; i < _instructionsCodeFileLineNumbers.size(); i++)
+        Q_ASSERT(_instructionsCodeFileLineNumbers.at(i)._locationCounter > _instructionsCodeFileLineNumbers.at(i - 1)._locationCounter);
 }
 
 void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof)
@@ -540,8 +538,7 @@ void Assembler::assembleDirective()
     }
     else if (directive == ".break")
     {
-        if (!_breakpoints->contains(_locationCounter))
-            _breakpoints->append(_locationCounter);
+        assemblerBreakpointProvider->addBreakpoint(_locationCounter);
         getNextToken();
     }
     else if (directive == ".org")

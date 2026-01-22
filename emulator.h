@@ -12,6 +12,8 @@
 class Emulator;
 extern Emulator *g_emulator;
 
+class AssemblerBreakpointProvider;
+
 class Emulator : public QObject
 {
     Q_OBJECT
@@ -26,7 +28,13 @@ public:
     void mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const;
     int mapFileLineNumberToInstructionAddress(const QString &filename, int lineNumber, bool exact = false) const;
     int findBreakpoint(const QString &filename, int lineNumber) const;
-    int toggleBreakpoint(const QString &filename, int lineNumber);
+    void toggleBreakpoint(const QString &filename, int lineNumber);
+    void clearBreakpoints();
+    void addAssemblerBreakpoint(uint16_t instructionAddress);
+    void clearAssemblerBreakpoints();
+
+signals:
+    void breakpointChanged(int instructionAddress);
 
 private:
     int findBreakpointIndex(uint16_t instructionAddress) const;
@@ -90,11 +98,25 @@ private:
     QList<uint16_t> _breakpoints;
 
     Assembler *_assembler;
+    AssemblerBreakpointProvider *assemblerBreakpointProvider;
 
     bool _queueChangedSignals;
     typedef QQueue<QueuedChangeSignal> ChangedSignalsQueue;
     ChangedSignalsQueue _changedSignalsQueue;
     QTimer pendingSignalsTimer;
+};
+
+
+class AssemblerBreakpointProvider : public IAssemblerBreakpointProvider
+{
+public:
+    AssemblerBreakpointProvider(Emulator *emulator) : _emulator(emulator) {}
+
+private:
+    Emulator *_emulator;
+    Emulator *emulator() const { return _emulator; }
+    void clearBreakpoints() override;
+    void addBreakpoint(uint16_t instructionAddress) override;
 };
 
 #endif // EMULATOR_H
