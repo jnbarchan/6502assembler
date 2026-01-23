@@ -4,6 +4,9 @@
 #include <QMetaEnum>
 #include <QObject>
 
+//
+// Assembly Class
+//
 class Assembly : public QObject
 {
     Q_OBJECT

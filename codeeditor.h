@@ -7,6 +7,9 @@
 class LineNumberArea;
 class ILineInfoProvider;
 
+//
+// CodeEditor Class
+//
 class CodeEditor : public QPlainTextEdit
 {
     Q_OBJECT
@@ -49,6 +52,9 @@ public slots:
 };
 
 
+//
+// LineNumberArea Class
+//
 class LineNumberArea : public QWidget
 {
 public:
@@ -84,6 +90,9 @@ private:
 };
 
 
+//
+// ILineInfoProvider Class
+//
 class ILineInfoProvider
 {
 public:

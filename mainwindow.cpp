@@ -14,6 +14,10 @@ Emulator *g_emulator;
 ProcessorModel *processorModel();
 
 
+//
+// MainWindow Class
+//
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -613,6 +617,10 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     }
 }
 
+
+//
+// CodeEditorLineInfoProvider Class
+//
 
 ILineInfoProvider::BreakpointInfo CodeEditorLineInfoProvider::findBreakpointInfo(int blockNumber) const
 {

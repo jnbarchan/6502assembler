@@ -3,6 +3,10 @@
 #include "assembly.h"
 #include "syntaxhighlighter.h"
 
+//
+// SyntaxHighlighter Class
+//
+
 SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
     : QSyntaxHighlighter(parent)
 {

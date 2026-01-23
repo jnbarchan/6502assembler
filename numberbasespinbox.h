@@ -3,6 +3,9 @@
 
 #include <QSpinBox>
 
+//
+// NumberBaseSpinBox Class
+//
 class NumberBaseSpinBox : public QSpinBox
 {
     Q_OBJECT

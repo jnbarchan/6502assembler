@@ -1,10 +1,18 @@
 #include "memoryview.h"
 
+//
+// MemoryView Class
+//
+
 MemoryView::MemoryView(QWidget *parent /*= nullptr*/)
     : QTableView{parent}
 {
 }
 
+
+//
+// MemoryViewItemDelegate Class
+//
 
 MemoryViewItemDelegate::MemoryViewItemDelegate(QObject *parent) : QStyledItemDelegate(parent)
 {

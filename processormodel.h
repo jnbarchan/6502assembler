@@ -17,7 +17,11 @@ using InternalJSRs = Assembly::InternalJSRs;
 
 
 class MemoryModel;
+class IProcessorBreakpointProvider;
 
+//
+// ProcessorModel Class
+//
 class ProcessorModel : public QObject
 {
     Q_OBJECT
@@ -39,6 +43,8 @@ public:
     Q_ENUM(RunMode)
 
     explicit ProcessorModel(QObject *parent = nullptr);
+
+    void setProcessorBreakpointProvider(IProcessorBreakpointProvider *provider);
 
     MemoryModel *memoryModel() { return _memoryModel; }
 
@@ -75,9 +81,6 @@ public:
 
     uint16_t programCounter() const;
     void setProgramCounter(uint16_t newProgramCounter);
-
-    const QList<uint16_t> *breakpoints() const;
-    void setBreakpoints(const QList<uint16_t> *newBreakpoints);
 
     bool suppressSignalsForSpeed() const;
 
@@ -127,7 +130,7 @@ private:
 
     Instruction *_instructions;
     uint16_t _programCounter;
-    const QList<uint16_t> *_breakpoints;
+    const IProcessorBreakpointProvider *processorBreakpointProvider;
 
     bool _startNewRun, _stopRun, _isRunning;
     RunMode _currentRunMode;
@@ -152,6 +155,9 @@ private:
 };
 
 
+//
+// MemoryModel Class
+//
 class MemoryModel : public QAbstractTableModel
 {
     Q_OBJECT
@@ -181,9 +187,24 @@ private slots:
 };
 
 
+//
+// ExecutionError Class
+//
 class ExecutionError : public std::runtime_error
 {
 public:
     ExecutionError(const QString &msg);
 };
+
+
+//
+// IProcessorBreakpointProvider Class
+//
+class IProcessorBreakpointProvider
+{
+public:
+    virtual ~IProcessorBreakpointProvider() = default;
+    virtual bool breakpointAt(uint16_t instructionAddress) const = 0;
+};
+
 #endif // PROCESSORMODEL_H

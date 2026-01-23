@@ -19,6 +19,9 @@ using InternalJSRs = Assembly::InternalJSRs;
 
 class IAssemblerBreakpointProvider;
 
+//
+// Assembler Class
+//
 class Assembler : public QObject
 {
     Q_OBJECT
@@ -141,6 +144,9 @@ private:
 };
 
 
+//
+// AssemblerError Class
+//
 class AssemblerError : public std::runtime_error
 {
 public:
@@ -148,6 +154,9 @@ public:
 };
 
 
+//
+// IAssemblerBreakpointProvider Class
+//
 class IAssemblerBreakpointProvider
 {
 public:

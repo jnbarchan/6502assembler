@@ -21,6 +21,9 @@ class MemoryViewItemDelegate;
 class SyntaxHighlighter;
 class CodeEditorLineInfoProvider;
 
+//
+// MainWindow Class
+//
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -92,6 +95,9 @@ private:
 };
 
 
+//
+// CodeEditorLineInfoProvider Class
+//
 class CodeEditorLineInfoProvider : public ILineInfoProvider
 {
 public:

@@ -2,6 +2,9 @@
 
 using CodeFileLineNumber = Assembler::CodeFileLineNumber;
 
+//
+// Emulator Class
+//
 Emulator::Emulator(QObject *parent)
     : QObject{parent}
 {
@@ -10,7 +13,8 @@ Emulator::Emulator(QObject *parent)
     _processorModel = new ProcessorModel(this);
     _memory = _processorModel->memory();
     _instructions = _processorModel->instructions();
-    _processorModel->setBreakpoints(&_breakpoints);
+    processorBreakpointProvider = new ProcessorBreakpointProvider(this);
+    _processorModel->setProcessorBreakpointProvider(processorBreakpointProvider);
 
     _assembler = new Assembler(this);
     _assembler->setMemory(_memory);
@@ -122,6 +126,11 @@ void Emulator::clearAssemblerBreakpoints()
     clearBreakpoints();
 }
 
+bool Emulator::breakpointAt(uint16_t instructionAddress)
+{
+    return _breakpoints.contains(instructionAddress);
+}
+
 
 bool Emulator::queueChangedSignals() const
 {
@@ -201,12 +210,24 @@ void Emulator::enqueueQueuedChangedSignal(const QueuedChangeSignal &sig)
 }
 
 
-void AssemblerBreakpointProvider::clearBreakpoints()
+//
+// AssemblerBreakpointProvider Class
+//
+void AssemblerBreakpointProvider::clearBreakpoints() /*override*/
 {
     _emulator->clearAssemblerBreakpoints();
 }
 
-void AssemblerBreakpointProvider::addBreakpoint(uint16_t instructionAddress)
+void AssemblerBreakpointProvider::addBreakpoint(uint16_t instructionAddress) /*override*/
 {
     _emulator->addAssemblerBreakpoint(instructionAddress);
+}
+
+
+//
+// ProcessorBreakpointProvider Class
+//
+bool ProcessorBreakpointProvider::breakpointAt(uint16_t instructionAddress) const /*override*/
+{
+    return _emulator->breakpointAt(instructionAddress);
 }

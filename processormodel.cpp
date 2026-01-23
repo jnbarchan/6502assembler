@@ -18,11 +18,17 @@ ProcessorModel::ProcessorModel(QObject *parent)
     _memoryModel = new MemoryModel(this);
     resetModel();
     _instructions = reinterpret_cast<Instruction *>(_memoryData);
+    processorBreakpointProvider = nullptr;
     _programCounter = 0;
     _currentRunMode = NotRunning;
     _startNewRun = true;
     _stopRun = true;
     _isRunning = false;
+}
+
+void ProcessorModel::setProcessorBreakpointProvider(IProcessorBreakpointProvider *provider)
+{
+    processorBreakpointProvider = provider;
 }
 
 uint8_t ProcessorModel::accumulator() const
@@ -173,16 +179,6 @@ void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
         emit programCounterChanged();
         emit currentInstructionAddressChanged(_programCounter);
     }
-}
-
-const QList<uint16_t> *ProcessorModel::breakpoints() const
-{
-    return _breakpoints;
-}
-
-void ProcessorModel::setBreakpoints(const QList<uint16_t> *newBreakpoints)
-{
-    _breakpoints = newBreakpoints;
 }
 
 void ProcessorModel::resetModel()
@@ -360,7 +356,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         int stopAtInstructionAddress = -1;
         bool keepGoing = true;
         if (startedNewRun)
-            if (runMode != TurboRun && _breakpoints->contains(_programCounter))
+            if (runMode != TurboRun && processorBreakpointProvider->breakpointAt(_programCounter))
                 keepGoing = false;
         while (!stopRun() && keepGoing)
         {
@@ -390,7 +386,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
             if (runMode == TurboRun)
                 continue;
 
-            if (_programCounter == stopAtInstructionAddress || _breakpoints->contains(_programCounter))
+            if (_programCounter == stopAtInstructionAddress || processorBreakpointProvider->breakpointAt(_programCounter))
                 keepGoing = false;
 
             if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)

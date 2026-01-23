@@ -4,6 +4,9 @@
 #include <QStyledItemDelegate>
 #include <QTableView>
 
+//
+// MemoryView Class
+//
 class MemoryView : public QTableView
 {
     Q_OBJECT
@@ -12,6 +15,9 @@ public:
 };
 
 
+//
+// MemoryViewItemDelegate Class
+//
 class MemoryViewItemDelegate : public QStyledItemDelegate
 {
 public:

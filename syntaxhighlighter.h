@@ -3,6 +3,9 @@
 
 #include <QSyntaxHighlighter>
 
+//
+// SyntaxHighlighter Class
+//
 class SyntaxHighlighter : public QSyntaxHighlighter
 {
     Q_OBJECT

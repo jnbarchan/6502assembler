@@ -1,5 +1,9 @@
 #include "numberbasespinbox.h"
 
+//
+// NumberBaseSpinBox Class
+//
+
 NumberBaseSpinBox::NumberBaseSpinBox(QWidget *parent)
     : QSpinBox{parent}
 {

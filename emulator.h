@@ -14,6 +14,9 @@ extern Emulator *g_emulator;
 
 class AssemblerBreakpointProvider;
 
+//
+// Emulator Class
+//
 class Emulator : public QObject
 {
     Q_OBJECT
@@ -32,6 +35,7 @@ public:
     void clearBreakpoints();
     void addAssemblerBreakpoint(uint16_t instructionAddress);
     void clearAssemblerBreakpoints();
+    bool breakpointAt(uint16_t instructionAddress);
 
 signals:
     void breakpointChanged(int instructionAddress);
@@ -96,6 +100,7 @@ private:
     uint8_t *_memory;
     Instruction *_instructions;
     QList<uint16_t> _breakpoints;
+    IProcessorBreakpointProvider *processorBreakpointProvider;
 
     Assembler *_assembler;
     AssemblerBreakpointProvider *assemblerBreakpointProvider;
@@ -107,6 +112,9 @@ private:
 };
 
 
+//
+// AssemblerBreakpointProvider Class
+//
 class AssemblerBreakpointProvider : public IAssemblerBreakpointProvider
 {
 public:
@@ -117,6 +125,21 @@ private:
     Emulator *emulator() const { return _emulator; }
     void clearBreakpoints() override;
     void addBreakpoint(uint16_t instructionAddress) override;
+};
+
+
+//
+// ProcessorBreakpointProvider Class
+//
+class ProcessorBreakpointProvider : public IProcessorBreakpointProvider
+{
+public:
+    ProcessorBreakpointProvider(Emulator *emulator) : _emulator(emulator) {}
+
+private:
+    Emulator *_emulator;
+    Emulator *emulator() const { return _emulator; }
+    bool breakpointAt(uint16_t instructionAddress) const override;
 };
 
 #endif // EMULATOR_H
