@@ -30,6 +30,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     g_emulator = new Emulator(this);
 
+    ui->teConsole->installEventFilter(this);
+
     assembler()->setCodeIncludeDirectories({ SAMPLES_RELATIVE_PATH });
     connect(assembler(), &Assembler::sendMessageToConsole, this, &MainWindow::sendMessageToConsole);
     connect(assembler(), &Assembler::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
@@ -42,6 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
+    connect(processorModel(), &ProcessorModel::requestCharFromConsole, this, &MainWindow::requestCharFromConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this]() { registerChanged(ui->spnProgramCounter, processorModel()->programCounter()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, queuedChangedSignalsConnectionType);
@@ -125,9 +128,28 @@ void MainWindow::closeEvent(QCloseEvent *event) /*override*/
 {
     saveToFile(scratchFileName());
     if (!checkSaveFile())
+    {
         event->ignore();
-    else
-        QMainWindow::closeEvent(event);
+        return;
+    }
+
+    processorModel()->stop();
+    QMainWindow::closeEvent(event);
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == ui->teConsole && event->type() == QEvent::KeyPress)
+    {
+        auto *ke = static_cast<QKeyEvent *>(event);
+        const QString text = ke->text();
+        if (!text.isEmpty())
+        {
+            emit processorModel()->receivedCharFromConsole(text.at(0).toLatin1());
+            return true;
+        }
+    }
+    return QObject::eventFilter(obj, event);
 }
 
 
@@ -443,6 +465,10 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     cursor.movePosition(QTextCursor::End);
     cursor.insertText(QString(ch));
     ui->teConsole->setTextCursor(cursor);
+}
+
+/*slot*/ void MainWindow::requestCharFromConsole()
+{
 }
 
 /*slot*/ void MainWindow::modelReset()

@@ -34,6 +34,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
     Emulator *emulator() const { return g_emulator; }
@@ -56,6 +57,7 @@ private slots:
     void saveFileAs();
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
     void sendCharToConsole(char ch);
+    void requestCharFromConsole();
     void modelReset();
     void reset();
     void turboRun();

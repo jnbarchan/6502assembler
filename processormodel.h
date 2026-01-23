@@ -108,6 +108,8 @@ public slots:
 signals:
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent) const;
     void sendCharToConsole(char ch) const;
+    void requestCharFromConsole();
+    void receivedCharFromConsole(char ch);
     void modelReset();
     void stopRunChanged();
     void accumulatorChanged();
@@ -152,6 +154,7 @@ private:
     void jsr_get_elapsed_time();
     void jsr_clear_elapsed_time();
     void jsr_process_events();
+    void jsr_inch();
 };
 
 

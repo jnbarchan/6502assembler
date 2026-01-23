@@ -806,11 +806,17 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_clear_elapsed_time(); break;
     case InternalJSRs::__JSR_process_events:
         jsr_process_events(); break;
+    case InternalJSRs::__JSR_inch:
+        jsr_inch(); break;
     default:
         internal = false; break;
     }
     if (internal)
+    {
         instructionAddress = (pullFromStack() << 8) | pullFromStack();
+        if (!suppressSignalsForSpeed())
+            emit statusFlagsChanged();
+    }
     setProgramCounter(instructionAddress);
 }
 
@@ -835,6 +841,7 @@ void ProcessorModel::jsr_get_time()
     uint16_t milliseconds = static_cast<uint16_t>(QDateTime::currentMSecsSinceEpoch());
     setAccumulator(static_cast<uint8_t>(milliseconds));
     setXregister(static_cast<uint8_t>(milliseconds >> 8));
+    setNZStatusFlags(_xregister);
 }
 
 void ProcessorModel::jsr_get_elapsed_time()
@@ -842,6 +849,7 @@ void ProcessorModel::jsr_get_elapsed_time()
     uint16_t milliseconds = static_cast<uint16_t>(elapsedTimer.elapsed());
     setAccumulator(static_cast<uint8_t>(milliseconds));
     setXregister(static_cast<uint8_t>(milliseconds >> 8));
+    setNZStatusFlags(_xregister);
 }
 
 void ProcessorModel::jsr_clear_elapsed_time()
@@ -852,6 +860,22 @@ void ProcessorModel::jsr_clear_elapsed_time()
 void ProcessorModel::jsr_process_events()
 {
     QCoreApplication::processEvents();
+}
+
+void ProcessorModel::jsr_inch()
+{
+    char result = '\0';
+    QEventLoop loop;
+    QObject::connect(this, &ProcessorModel::receivedCharFromConsole,
+                     &loop, [&](char ch) { result = ch; loop.quit(); });
+    QObject::connect(this, &ProcessorModel::stopRunChanged,
+                     &loop, [&]() { result = '\0'; loop.quit(); });
+    emit requestCharFromConsole();
+    loop.exec();
+    if (result == '\003' || result == '\033')  // Ctrl-C or Escape
+        setStopRun(true);
+    setAccumulator(result);
+    setNZStatusFlags(_accumulator);
 }
 
 

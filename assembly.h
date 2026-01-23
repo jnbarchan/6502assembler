@@ -164,7 +164,8 @@ public:
     };
 
     enum InternalJSRs { __JSR_terminate = 0x0000, __JSR_brk_handler = 0xfffe, __JSR_outch = 0xfffc, __JSR_get_time = 0xfffa,
-                        __JSR_get_elapsed_time = 0xfff8, __JSR_clear_elapsed_time = 0xfff6, __JSR_process_events = 0xfff4 };
+                        __JSR_get_elapsed_time = 0xfff8, __JSR_clear_elapsed_time = 0xfff6, __JSR_process_events = 0xfff4,
+                        __JSR_inch = 0xfff2, };
 
 private:
     static OperationMode operationsModes[TotalOperations];

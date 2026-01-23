@@ -191,6 +191,7 @@ void Assembler::cleanup()
     _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
     _codeLabels["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
     _codeLabels["__process_events"] = InternalJSRs::__JSR_process_events;
+    _codeLabels["__inch"] = InternalJSRs::__JSR_inch;
     _currentCodeLabelScope = "";
     currentToken.clear();
     setAssembleState(AssembleState::NotStarted);
