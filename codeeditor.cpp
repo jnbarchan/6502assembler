@@ -11,6 +11,7 @@ CodeEditor::CodeEditor(QWidget *parent)
     : QPlainTextEdit{parent}
 {
     lineNumberArea = new LineNumberArea(this);
+    lineNumberArea->setCursor(Qt::PointingHandCursor);
     lineInfoProvider = nullptr;
 
     connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
@@ -53,10 +54,10 @@ void CodeEditor::unhighlightCurrentBlock()
 
 void CodeEditor::handleReturnKey()
 {
-    QTextCursor c = textCursor();
+    QTextCursor tc = textCursor();
 
     // Get the current block (line)
-    QTextBlock block = c.block();
+    QTextBlock block = tc.block();
     QString text = block.text();
 
     // Extract leading whitespace
@@ -67,13 +68,16 @@ void CodeEditor::handleReturnKey()
         else
             break;
 
-    c.beginEditBlock();
+    tc.beginEditBlock();
     // Insert newline + indent
-    c.insertBlock();
-    c.insertText(indent);
-    c.endEditBlock();
+    tc.insertBlock();
+    tc.insertText(indent);
+    QChar ch;
+    while ((ch = document()->characterAt(tc.position())) == ' ' || ch == '\t')
+        tc.deleteChar();
+    tc.endEditBlock();
 
-    setTextCursor(c);
+    setTextCursor(tc);
 }
 
 void CodeEditor::handleShiftDeleteKey()
