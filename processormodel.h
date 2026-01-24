@@ -155,8 +155,9 @@ private:
     void jsr_get_elapsed_time();
     void jsr_clear_elapsed_time();
     void jsr_process_events();
-    void jsr_inch(int timeout = -1);
+    void jsr_inch(int timeout = -1, bool justWait = false);
     void jsr_inkey();
+    void jsr_wait();
 };
 
 

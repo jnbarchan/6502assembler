@@ -811,6 +811,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_inch(); break;
     case InternalJSRs::__JSR_inkey:
         jsr_inkey(); break;
+    case InternalJSRs::__JSR_wait:
+        jsr_wait(); break;
     default:
         internal = false; break;
     }
@@ -865,12 +867,13 @@ void ProcessorModel::jsr_process_events()
     QCoreApplication::processEvents();
 }
 
-void ProcessorModel::jsr_inch(int timeout /*= -1*/)
+void ProcessorModel::jsr_inch(int timeout /*= -1*/, bool justWait /*= false*/)
 {
     char result = '\0';
     QEventLoop loop;
-    QObject::connect(this, &ProcessorModel::receivedCharFromConsole,
-                     &loop, [&](char ch) { result = ch; loop.quit(); });
+    if (!justWait)
+        QObject::connect(this, &ProcessorModel::receivedCharFromConsole,
+                         &loop, [&](char ch) { result = ch; loop.quit(); });
     QObject::connect(this, &ProcessorModel::stopRunChanged,
                      &loop, [&]() { result = '\0'; loop.quit(); });
     QTimer timer;
@@ -895,6 +898,12 @@ void ProcessorModel::jsr_inkey()
 {
     uint16_t timeout = _accumulator | (_xregister << 8);
     jsr_inch(timeout);
+}
+
+void ProcessorModel::jsr_wait()
+{
+    uint16_t timeout = _accumulator | (_xregister << 8);
+    jsr_inch(timeout, true);
 }
 
 

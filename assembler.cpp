@@ -200,6 +200,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels["__process_events"] = InternalJSRs::__JSR_process_events;
     _codeLabels["__inch"] = InternalJSRs::__JSR_inch;
     _codeLabels["__inkey"] = InternalJSRs::__JSR_inkey;
+    _codeLabels["__wait"] = InternalJSRs::__JSR_wait;
     setAssembleState(AssembleState::NotStarted);
 }
 

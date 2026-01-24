@@ -27,10 +27,20 @@ _instr_test:
     .byte "You typed: ", 0
     pla
     jsr __outch
-    jmp .done
+    jmp .no_timeout
 .timeout:
     jsr _outstr_inline
     .byte "Timed out", 0
+.no_timeout:
+    lda #10
+    jsr __outch
+    jsr _outstr_inline
+    .byte "Now just wait for 5 seconds, can Stop: ", 0
+    ldx #>500
+    lda #<500
+    jsr __wait
+    jsr _outstr_inline
+    .byte "Done wait", 0
 .done:
     lda #10
     jsr __outch

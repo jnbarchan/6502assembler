@@ -477,12 +477,14 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     cursor.movePosition(QTextCursor::End);
     ui->teConsole->setTextCursor(cursor);
     ui->teConsole->setCursorWidth(8);
+    ui->teConsole->viewport()->update(); // Force refresh
     ui->teConsole->setFocus();
 }
 
 /*slot*/ void MainWindow::endRequestCharFromConsole()
 {
     ui->teConsole->setCursorWidth(1);
+    ui->teConsole->viewport()->update(); // Force refresh
 }
 
 /*slot*/ void MainWindow::modelReset()
