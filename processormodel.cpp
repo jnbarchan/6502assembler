@@ -1,7 +1,8 @@
 #include <QBrush>
-#include <QDateTime>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDebug>
+#include <QTimer>
 
 #include "processormodel.h"
 
@@ -524,19 +525,19 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
 
     case Operation::TAX:
         setXregister(_accumulator);
-        setNZStatusFlags(_accumulator);
+        setNZStatusFlags(_xregister);
         break;
     case Operation::TAY:
         setYregister(_accumulator);
-        setNZStatusFlags(_accumulator);
+        setNZStatusFlags(_yregister);
         break;
     case Operation::TXA:
         setAccumulator(_xregister);
-        setNZStatusFlags(_xregister);
+        setNZStatusFlags(_accumulator);
         break;
     case Operation::TYA:
         setAccumulator(_yregister);
-        setNZStatusFlags(_yregister);
+        setNZStatusFlags(_accumulator);
         break;
 
     case Operation::TSX:
@@ -554,7 +555,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         break;
     case Operation::PLA:
         setAccumulator(pullFromStack());
-        setNZStatusFlags(_xregister);
+        setNZStatusFlags(_accumulator);
         break;
     case Operation::PLP:
         setStatusFlags(pullFromStack());
@@ -808,6 +809,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_process_events(); break;
     case InternalJSRs::__JSR_inch:
         jsr_inch(); break;
+    case InternalJSRs::__JSR_inkey:
+        jsr_inkey(); break;
     default:
         internal = false; break;
     }
@@ -862,7 +865,7 @@ void ProcessorModel::jsr_process_events()
     QCoreApplication::processEvents();
 }
 
-void ProcessorModel::jsr_inch()
+void ProcessorModel::jsr_inch(int timeout /*= -1*/)
 {
     char result = '\0';
     QEventLoop loop;
@@ -870,12 +873,28 @@ void ProcessorModel::jsr_inch()
                      &loop, [&](char ch) { result = ch; loop.quit(); });
     QObject::connect(this, &ProcessorModel::stopRunChanged,
                      &loop, [&]() { result = '\0'; loop.quit(); });
+    QTimer timer;
+    if (timeout >= 0)
+    {
+        QObject::connect(&timer, &QTimer::timeout,
+                         &loop, [&]() { result = '\0'; loop.quit(); });
+        timer.setSingleShot(true);
+        timer.start(timeout * 10);
+    }
     emit requestCharFromConsole();
     loop.exec();
+    timer.stop();
+    emit endRequestCharFromConsole();
     if (result == '\003' || result == '\033')  // Ctrl-C or Escape
         setStopRun(true);
     setAccumulator(result);
     setNZStatusFlags(_accumulator);
+}
+
+void ProcessorModel::jsr_inkey()
+{
+    uint16_t timeout = _accumulator | (_xregister << 8);
+    jsr_inch(timeout);
 }
 
 

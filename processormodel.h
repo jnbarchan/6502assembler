@@ -109,6 +109,7 @@ signals:
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent) const;
     void sendCharToConsole(char ch) const;
     void requestCharFromConsole();
+    void endRequestCharFromConsole();
     void receivedCharFromConsole(char ch);
     void modelReset();
     void stopRunChanged();
@@ -154,7 +155,8 @@ private:
     void jsr_get_elapsed_time();
     void jsr_clear_elapsed_time();
     void jsr_process_events();
-    void jsr_inch();
+    void jsr_inch(int timeout = -1);
+    void jsr_inkey();
 };
 
 

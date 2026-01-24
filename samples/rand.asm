@@ -1,3 +1,5 @@
+; rand.asm
+
 ; -------------------------------------------------------
 ; 8-bit LFSR PRNG for 6502
 ; RND_STATE: holds current state (seed with any non-zero value)

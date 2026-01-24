@@ -1,3 +1,4 @@
+; innum.asm
 
 .include "common.inc"
 
@@ -5,6 +6,14 @@ _innum_test:
     jsr _outstr_inline
     .byte "Type a number, terminate by 'Enter': ", 0
     jsr _innum
+    lda PAD,X
+    beq .all_chars_num
+    jsr _outstr_inline
+    .byte "Stopped parsing number at: ", 0
+    jsr _outstr_X
+    lda #10
+    jsr __outch
+.all_chars_num:
     lda result
     sta dividend
     lda result+1

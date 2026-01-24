@@ -45,6 +45,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::requestCharFromConsole, this, &MainWindow::requestCharFromConsole, processorModelConnectionType);
+    connect(processorModel(), &ProcessorModel::endRequestCharFromConsole, this, &MainWindow::endRequestCharFromConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this]() { registerChanged(ui->spnProgramCounter, processorModel()->programCounter()); }, queuedChangedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, queuedChangedSignalsConnectionType);
@@ -472,6 +473,16 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::requestCharFromConsole()
 {
+    QTextCursor cursor(ui->teConsole->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    ui->teConsole->setTextCursor(cursor);
+    ui->teConsole->setCursorWidth(8);
+    ui->teConsole->setFocus();
+}
+
+/*slot*/ void MainWindow::endRequestCharFromConsole()
+{
+    ui->teConsole->setCursorWidth(1);
 }
 
 /*slot*/ void MainWindow::modelReset()

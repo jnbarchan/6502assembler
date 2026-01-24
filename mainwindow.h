@@ -58,6 +58,7 @@ private slots:
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
     void sendCharToConsole(char ch);
     void requestCharFromConsole();
+    void endRequestCharFromConsole();
     void modelReset();
     void reset();
     void turboRun();
