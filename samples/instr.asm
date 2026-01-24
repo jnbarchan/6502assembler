@@ -16,6 +16,14 @@ _instr:
 .next_char:
     jsr __inch
     beq .done
+    cmp #8
+    bne .not_backspace
+    cpx #0
+    beq .next_char
+    dex
+    jsr __outch
+    jmp .next_char
+.not_backspace:
     jsr __outch
     cmp #13
     beq .done

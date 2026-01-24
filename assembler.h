@@ -91,6 +91,7 @@ private:
     CodeFileState currentFile;
     QStack<CodeFileState> codeFileStateStack;
     QStringList _codeIncludeDirectories;
+    QStringList _includedFilePaths;
 
     struct CodeLineState
     {
@@ -120,7 +121,7 @@ private:
     void assemblerErrorMessage(const QString &message) const;
     QString scopedLabelName(const QString &label) const;
     void assignLabelValue(const QString &scopedLabel, int value);
-    void cleanup();
+    void cleanup(bool assemblePass2 = false);
     void addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln);
     void assemblePass();
     void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof);

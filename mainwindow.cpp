@@ -463,7 +463,10 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 {
     QTextCursor cursor(ui->teConsole->textCursor());
     cursor.movePosition(QTextCursor::End);
-    cursor.insertText(QString(ch));
+    if (ch == '\010')  // backspace
+        cursor.deletePreviousChar();
+    else
+        cursor.insertText(QString(ch));
     ui->teConsole->setTextCursor(cursor);
 }
 

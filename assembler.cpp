@@ -22,6 +22,7 @@ Assembler::Assembler(QObject *parent)
     currentFile.lines.clear();
     codeFileStateStack.clear();
     _codeIncludeDirectories.clear();
+    _includedFilePaths.clear();
     _assembleState = AssembleState::NotStarted;
     assemblerBreakpointProvider = nullptr;
 }
@@ -167,7 +168,7 @@ void Assembler::assignLabelValue(const QString &scopedLabel, int value)
         _currentCodeLabelScope = scopedLabel;
 }
 
-void Assembler::cleanup()
+void Assembler::cleanup(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(currentFile.stream);
 
@@ -178,10 +179,16 @@ void Assembler::cleanup()
         currentFile.stream = state.stream;
         Q_ASSERT(currentFile.stream);
     }
+    _includedFilePaths.clear();
     currentFile.filename.clear();
     currentFile.file = nullptr;
     currentFile.stream->seek(0);
     currentFile.lines.clear();
+    _currentCodeLabelScope = "";
+    currentToken.clear();
+    if (assemblePass2)
+        return;
+
     assemblerBreakpointProvider->clearBreakpoints();
     _codeLabels.clear();
     _codeLabels["__terminate"] = InternalJSRs::__JSR_terminate;
@@ -192,8 +199,6 @@ void Assembler::cleanup()
     _codeLabels["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
     _codeLabels["__process_events"] = InternalJSRs::__JSR_process_events;
     _codeLabels["__inch"] = InternalJSRs::__JSR_inch;
-    _currentCodeLabelScope = "";
-    currentToken.clear();
     setAssembleState(AssembleState::NotStarted);
 }
 
@@ -210,11 +215,8 @@ void Assembler::restart(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(currentFile.stream);
 
-    if (!assemblePass2)
-        cleanup();
+    cleanup(assemblePass2);
 
-    _currentCodeLabelScope = "";
-    currentToken.clear();
     setCurrentCodeLineNumber(0);
     setLocationCounter(_defaultLocationCounter);
 }
@@ -593,6 +595,8 @@ QString Assembler::findIncludeFilePath(const QString &includeFilename)
 void Assembler::startIncludeFile(const QString &includeFilename)
 {
     QString includeFilePath = findIncludeFilePath(includeFilename);
+    if (_includedFilePaths.contains(includeFilePath))
+        return;
     QFile *file = new QFile(includeFilePath);
     if (!file->open(QFile::ReadOnly | QFile::Text))
     {
@@ -600,6 +604,7 @@ void Assembler::startIncludeFile(const QString &includeFilename)
         delete file;
         throw AssemblerError(QString("Could not include file: %1: %2").arg(includeFilePath).arg(errorString));
     }
+    _includedFilePaths.append(includeFilePath);
 
     CodeFileState state(currentFile);
 
