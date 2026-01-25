@@ -1,4 +1,3 @@
-#include <QBrush>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
@@ -25,6 +24,12 @@ ProcessorModel::ProcessorModel(QObject *parent)
     _startNewRun = true;
     _stopRun = true;
     _isRunning = false;
+}
+
+ProcessorModel::~ProcessorModel()
+{
+    if (userFile.isOpen())
+        userFile.close();
 }
 
 void ProcessorModel::setProcessorBreakpointProvider(IProcessorBreakpointProvider *provider)
@@ -270,6 +275,8 @@ void ProcessorModel::executionErrorMessage(const QString &message) const
     if (_isRunning)
         return;
 
+    if (userFile.isOpen())
+        userFile.close();
     resetModel();
     setStopRun(false);
     setStartNewRun(true);
@@ -285,6 +292,8 @@ void ProcessorModel::executionErrorMessage(const QString &message) const
 
 /*slot*/ void ProcessorModel::stop()
 {
+    if (userFile.isOpen())
+        userFile.close();
     setStopRun(true);
 }
 
@@ -396,7 +405,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
     }
     catch (const ExecutionError &e)
     {
-        setStopRun(true);
+        stop();
         executionErrorMessage(QString(e.what()));
     }
 
@@ -791,11 +800,11 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
     switch (instructionAddress)
     {
     case InternalJSRs::__JSR_terminate:
-        setStopRun(true);
+        stop();
         return;
     case InternalJSRs::__JSR_brk_handler:
         jsr_brk_handler();
-        setStopRun(true);
+        stop();
         return;
     case InternalJSRs::__JSR_outch:
         jsr_outch(); break;
@@ -813,6 +822,14 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_inkey(); break;
     case InternalJSRs::__JSR_wait:
         jsr_wait(); break;
+    case InternalJSRs::__JSR_open_file:
+        jsr_open_file(); break;
+    case InternalJSRs::__JSR_close_file:
+        jsr_close_file(); break;
+    case InternalJSRs::__JSR_rewind_file:
+        jsr_rewind_file(); break;
+    case InternalJSRs::__JSR_read_file:
+        jsr_read_file(); break;
     default:
         internal = false; break;
     }
@@ -889,7 +906,7 @@ void ProcessorModel::jsr_inch(int timeout /*= -1*/, bool justWait /*= false*/)
     timer.stop();
     emit endRequestCharFromConsole();
     if (result == '\003' || result == '\033')  // Ctrl-C or Escape
-        setStopRun(true);
+        stop();
     setAccumulator(result);
     setNZStatusFlags(_accumulator);
 }
@@ -904,6 +921,57 @@ void ProcessorModel::jsr_wait()
 {
     uint16_t timeout = _accumulator | (_xregister << 8);
     jsr_inch(timeout, true);
+}
+
+void ProcessorModel::jsr_open_file()
+{
+    uint16_t address = _accumulator | (_xregister << 8);
+    bool goodName = false;
+    char filename[256];
+    for (int i = 0; i < sizeof(filename) - 1; i++)
+    {
+        char ch = memoryByteAt(address + i);
+        filename[i] = ch;
+        if (ch == '\0')
+            goodName = true;
+        if (!std::isprint(ch))
+            break;
+    }
+    if (!goodName)
+        throw ExecutionError("Bad filename");
+    if (userFile.isOpen())
+        throw ExecutionError("File already open");
+    userFile.setFileName(filename);
+    if (!userFile.open(QIODeviceBase::ReadOnly | QIODeviceBase::Text))
+        throw ExecutionError(userFile.errorString());
+}
+
+void ProcessorModel::jsr_close_file()
+{
+    if (userFile.isOpen())
+        userFile.close();
+}
+
+void ProcessorModel::jsr_rewind_file()
+{
+    if (userFile.isOpen())
+        userFile.seek(0);
+}
+
+void ProcessorModel::jsr_read_file()
+{
+    bool success = false;
+    if (userFile.isOpen())
+    {
+        char ch;
+        if (userFile.getChar(&ch))
+        {
+            setAccumulator(ch);
+            setNZStatusFlags(_accumulator);
+            success = true;
+        }
+    }
+    setStatusFlag(StatusFlags::Carry, !success);
 }
 
 

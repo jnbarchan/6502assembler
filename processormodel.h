@@ -4,6 +4,7 @@
 #include <QAbstractItemModel>
 #include <QBrush>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QMetaEnum>
 #include <QObject>
 
@@ -43,6 +44,7 @@ public:
     Q_ENUM(RunMode)
 
     explicit ProcessorModel(QObject *parent = nullptr);
+    ~ProcessorModel();
 
     void setProcessorBreakpointProvider(IProcessorBreakpointProvider *provider);
 
@@ -138,6 +140,7 @@ private:
     bool _startNewRun, _stopRun, _isRunning;
     RunMode _currentRunMode;
 
+    QFile userFile;
     QElapsedTimer elapsedTimer;
 
     void resetModel();
@@ -158,6 +161,10 @@ private:
     void jsr_inch(int timeout = -1, bool justWait = false);
     void jsr_inkey();
     void jsr_wait();
+    void jsr_open_file();
+    void jsr_close_file();
+    void jsr_rewind_file();
+    void jsr_read_file();
 };
 
 

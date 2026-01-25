@@ -1,8 +1,6 @@
 #include <QDebug>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
-#include <QStack>
 
 #include "assembler.h"
 
@@ -201,6 +199,10 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels["__inch"] = InternalJSRs::__JSR_inch;
     _codeLabels["__inkey"] = InternalJSRs::__JSR_inkey;
     _codeLabels["__wait"] = InternalJSRs::__JSR_wait;
+    _codeLabels["__open_file"] = InternalJSRs::__JSR_open_file;
+    _codeLabels["__close_file"] = InternalJSRs::__JSR_close_file;
+    _codeLabels["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
+    _codeLabels["__read_file"] = InternalJSRs::__JSR_read_file;
     setAssembleState(AssembleState::NotStarted);
 }
 
