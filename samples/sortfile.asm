@@ -21,7 +21,8 @@ test_sortfile:
     
 .read_this_line:
     jsr read_into_this_line
-    bcs .done_file
+    cpx #0
+    beq .done_file
   
     jsr cmp_this_line_to_last_line
     bcc .read_this_line
@@ -38,7 +39,10 @@ test_sortfile:
     cmp #$ff
     beq .done_sort
     jsr copy_next_line_to_last_line
-    jsr _outstr
+    ;jsr _outstr
+    lda #<last_line
+    ldx #>last_line
+    jsr __outstr_fast
     ;jsr __process_events
     jmp .rewind_file
 
@@ -56,7 +60,7 @@ read_into_this_line:
     ldx #0
 .read_char:
     jsr __read_file
-    bcs .return
+    bcs .done_this_line
     sta this_line,X
     inx
     cmp #10
@@ -66,7 +70,6 @@ read_into_this_line:
 .done_this_line:
     lda #0
     sta this_line,X
-    clc
 .return:
     rts  ; read_into_this_line
 

@@ -43,6 +43,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(emulator(), &Emulator::breakpointChanged, this, &MainWindow::breakpointChanged);
 
     connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
+    connect(processorModel(), &ProcessorModel::sendStringToConsole, this, &MainWindow::sendStringToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::requestCharFromConsole, this, &MainWindow::requestCharFromConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::endRequestCharFromConsole, this, &MainWindow::endRequestCharFromConsole, processorModelConnectionType);
@@ -457,6 +458,14 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (colour != Qt::transparent)
         cursor.setCharFormat(savedFormat);
     cursor.insertBlock();
+    ui->teConsole->setTextCursor(cursor);
+}
+
+/*slot*/ void MainWindow::sendStringToConsole(const QString &str)
+{
+    QTextCursor cursor(ui->teConsole->textCursor());
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertText(str);
     ui->teConsole->setTextCursor(cursor);
 }
 

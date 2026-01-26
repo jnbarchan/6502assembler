@@ -203,6 +203,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels["__close_file"] = InternalJSRs::__JSR_close_file;
     _codeLabels["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
     _codeLabels["__read_file"] = InternalJSRs::__JSR_read_file;
+    _codeLabels["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
     setAssembleState(AssembleState::NotStarted);
 }
 

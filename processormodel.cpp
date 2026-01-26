@@ -830,6 +830,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_rewind_file(); break;
     case InternalJSRs::__JSR_read_file:
         jsr_read_file(); break;
+    case InternalJSRs::__JSR_outstr_fast:
+        jsr_outstr_fast(); break;
     default:
         internal = false; break;
     }
@@ -972,6 +974,14 @@ void ProcessorModel::jsr_read_file()
         }
     }
     setStatusFlag(StatusFlags::Carry, !success);
+}
+
+void ProcessorModel::jsr_outstr_fast()
+{
+    uint16_t address = _accumulator | (_xregister << 8);
+    const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
+    QString str(QString::fromLatin1(memoryAddress));
+    emit sendStringToConsole(str);
 }
 
 

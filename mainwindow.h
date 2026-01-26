@@ -56,6 +56,7 @@ private slots:
     void saveFile();
     void saveFileAs();
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
+    void sendStringToConsole(const QString &str);
     void sendCharToConsole(char ch);
     void requestCharFromConsole();
     void endRequestCharFromConsole();

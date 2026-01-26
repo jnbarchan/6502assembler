@@ -109,6 +109,7 @@ public slots:
 
 signals:
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent) const;
+    void sendStringToConsole(const QString &str) const;
     void sendCharToConsole(char ch) const;
     void requestCharFromConsole();
     void endRequestCharFromConsole();
@@ -165,6 +166,7 @@ private:
     void jsr_close_file();
     void jsr_rewind_file();
     void jsr_read_file();
+    void jsr_outstr_fast();
 };
 
 
