@@ -1006,7 +1006,7 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     return 16;
 }
 
-/*virtual*/ QVariant MemoryModel::data(const QModelIndex &index, int role) const /*override*/
+/*virtual*/ QVariant MemoryModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole*/) const /*override*/
 {
     if (!index.isValid())
         return QVariant();
@@ -1028,7 +1028,7 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     return QVariant();
 }
 
-/*virtual*/ QVariant MemoryModel::headerData(int section, Qt::Orientation orientation, int role) const /*override*/
+/*virtual*/ QVariant MemoryModel::headerData(int section, Qt::Orientation orientation, int role /*= Qt::DisplayRole*/) const /*override*/
 {
     if (role == Qt::TextAlignmentRole)
         return Qt::AlignCenter;
@@ -1053,9 +1053,9 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
 {
     if (lastMemoryChangedAddress >= 0)
     {
-        QModelIndex ix = addressToIndex(lastMemoryChangedAddress);
+        QModelIndex index = addressToIndex(lastMemoryChangedAddress);
         if (!processorModel->suppressSignalsForSpeed())
-            emit dataChanged(ix, ix, { Qt::ForegroundRole });
+            emit dataChanged(index, index, { Qt::ForegroundRole });
         lastMemoryChangedAddress = -1;
     }
 }
@@ -1065,11 +1065,10 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     if (lastMemoryChangedAddress != address)
         clearLastMemoryChanged();
     lastMemoryChangedAddress = address;
-    QModelIndex ix = addressToIndex(address);
+    QModelIndex index = addressToIndex(address);
     if (!processorModel->suppressSignalsForSpeed())
-        emit dataChanged(ix, ix, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });
+        emit dataChanged(index, index, { Qt::DisplayRole, Qt::EditRole, Qt::ForegroundRole });
 }
-
 
 
 //

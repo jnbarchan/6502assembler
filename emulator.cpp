@@ -26,6 +26,12 @@ Emulator::Emulator(QObject *parent)
     connect(&pendingSignalsTimer, &QTimer::timeout, this, &Emulator::processQueuedChangedSignals);
 }
 
+Emulator::~Emulator()
+{
+    delete processorBreakpointProvider;
+    delete assemblerBreakpointProvider;
+}
+
 const uint16_t Emulator::runStartAddress() const
 {
     int value;
@@ -230,4 +236,160 @@ void AssemblerBreakpointProvider::addBreakpoint(uint16_t instructionAddress) /*o
 bool ProcessorBreakpointProvider::breakpointAt(uint16_t instructionAddress) const /*override*/
 {
     return _emulator->breakpointAt(instructionAddress);
+}
+
+
+//
+// WatchModel Class
+//
+WatchModel::WatchModel(MemoryModel *memoryModel, Emulator *emulator)
+    : QAbstractTableModel(memoryModel),
+    memoryModel(memoryModel),
+    emulator(emulator)
+{
+    Q_ASSERT(memoryModel);
+    Q_ASSERT(emulator);
+    watchInfos.resize(_rowCount);
+    connect(memoryModel, &MemoryModel::dataChanged, this, &WatchModel::memoryModelDataChanged);
+}
+
+int WatchModel::rowCount(const QModelIndex &parent) const /*override*/
+{
+    return _rowCount;
+}
+
+int WatchModel::columnCount(const QModelIndex &parent) const /*override*/
+{
+    return 4;
+}
+
+QVariant WatchModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole*/) const /*override*/
+{
+    if (!index.isValid())
+        return QVariant();
+    uint16_t memoryAddress = watchInfos.at(index.row()).memoryAddress;
+    QModelIndex memoryIndex;
+    if (index.column() >= 2)
+        memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
+    switch (role)
+    {
+    case Qt::TextAlignmentRole:
+        return QVariant((index.column() == 0 ? Qt::AlignLeft : Qt::AlignCenter) | Qt::AlignVCenter);
+    case Qt::DisplayRole:
+    case Qt::EditRole: {
+        uint16_t address = watchInfos.at(index.row()).memoryAddress;
+        switch (index.column())
+        {
+        case 0: return watchInfos.at(index.row()).symbol;
+        case 1: return address;
+        default: return memoryModel->data(memoryIndex, role);
+        }
+        break;
+    }
+    case Qt::ForegroundRole:
+        if (index.column() >= 2)
+            return memoryModel->data(memoryIndex, role);
+        break;
+    default:
+        break;
+    }
+    return QVariant();
+}
+
+QVariant WatchModel::headerData(int section, Qt::Orientation orientation, int role /*= Qt::DisplayRole*/) const /*override*/
+{
+    const QStringList columnNames{ "symbol", "address", "(addr)", "(addr+1)" };
+
+    if (orientation == Qt::Orientation::Horizontal)
+    {
+        if (section < 0 || section >= columnNames.size())
+            return QVariant();
+        if (role == Qt::DisplayRole)
+            return columnNames.at(section);
+    }
+    return QVariant();
+}
+
+bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int role /*= Qt::EditRole*/) /*override*/
+{
+    if (!index.isValid())
+        return false;
+    if (index.column() >= 2)
+        return false;
+    if (role == Qt::DisplayRole || role == Qt::EditRole)
+    {
+        if (index.column() == 0)
+        {
+            QString label(value.toString());
+            if (watchInfos[index.row()].symbol != label)
+            {
+                watchInfos[index.row()].symbol = label;
+                emit dataChanged(index, index, { role });
+            }
+            QModelIndex addressIndex(index.siblingAtColumn(1));
+            if (!label.isEmpty())
+                setData(addressIndex, emulator->assembler()->codeLabelValue(label));
+            return true;
+        }
+        else if (index.column() == 1)
+        {
+            int address = value.toInt();
+            if (watchInfos[index.row()].memoryAddress != address)
+            {
+                watchInfos[index.row()].memoryAddress = address;
+                emit dataChanged(index, index.siblingAtColumn(columnCount() - 1), { role });
+            }
+            QModelIndex labelIndex(index.siblingAtColumn(0));
+            QString label(labelIndex.data().toString());
+            if (!label.isEmpty() && emulator->assembler()->codeLabelValue(label) != address)
+                setData(labelIndex, QString());
+            return true;
+        }
+    }
+    return false;
+}
+
+Qt::ItemFlags WatchModel::flags(const QModelIndex &index) const
+{
+    Qt::ItemFlags f(QAbstractTableModel::flags(index));
+    if (index.column() < 2)
+        f |= Qt::ItemFlag::ItemIsEditable;
+    return f;
+}
+
+void WatchModel::recalculateAllSymbols()
+{
+    for (int row = 0; row < rowCount(); row++)
+        setData(index(row, 0), index(row, 0).data(Qt::EditRole));
+}
+
+/*slot*/ void WatchModel::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles /*= QList<int>()*/)
+{
+    if (emulator->queueChangedSignals())
+        return;
+    if (!(roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole) || roles.contains(Qt::ForegroundRole)))
+        return;
+    uint16_t lowAddress(memoryModel->indexToAddress(topLeft)), highAddress(memoryModel->indexToAddress(bottomRight));
+    if (lowAddress == 0 && highAddress == 0xffff)
+    {
+        emit dataChanged(index(0, 2), index(rowCount() - 1, 3), roles);
+        return;
+    }
+    for (int i = 0; i < rowCount(); i++)
+    {
+        const WatchInfo &watchInfo(watchInfos.at(i));
+        if (!watchInfo.inUse())
+            continue;
+        QModelIndex thisTopLeft, thisBottomRight;
+        if (watchInfo.memoryAddress >= lowAddress && watchInfo.memoryAddress <= highAddress)
+            thisTopLeft = thisBottomRight = index(i, 2);
+        if (watchInfo.memoryAddress + 1 >= lowAddress && watchInfo.memoryAddress + 1 <= highAddress)
+        {
+            thisBottomRight = index(i, 3);
+            if (!thisTopLeft.isValid())
+                thisTopLeft = thisBottomRight;
+        }
+        if (thisTopLeft.isValid() && thisBottomRight.isValid())
+            emit dataChanged(thisTopLeft, thisBottomRight, roles);
+    }
 }

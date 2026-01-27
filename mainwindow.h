@@ -18,6 +18,7 @@ class MainWindow;
 QT_END_NAMESPACE
 
 class MemoryViewItemDelegate;
+class WatchViewItemDelegate;
 class SyntaxHighlighter;
 class CodeEditorLineInfoProvider;
 
@@ -85,8 +86,10 @@ private:
     QString _currentFileNameToSave;
     MemoryViewItemDelegate *tvMemoryViewItemDelegate;
     QModelIndex _lastMemoryModelDataChangedIndex;
+    WatchViewItemDelegate *tvWatchViewItemDelegate;
     SyntaxHighlighter *syntaxHighlighter;
     CodeEditorLineInfoProvider *codeEditorLineInfoProvider;
+    WatchModel *watchModel;
 
     void updateWindowTitle();
     QString scratchFileName() const;

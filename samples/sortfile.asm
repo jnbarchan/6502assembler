@@ -18,6 +18,8 @@ test_sortfile:
     jsr __rewind_file
     lda #$ff
     sta next_line
+    lda #0
+    sta next_line+1
     
 .read_this_line:
     jsr read_into_this_line

@@ -22,6 +22,7 @@ class Emulator : public QObject
     Q_OBJECT
 public:
     explicit Emulator(QObject *parent = nullptr);
+    ~Emulator();
 
     ProcessorModel *processorModel() const { return _processorModel; };
 
@@ -140,6 +141,47 @@ private:
     Emulator *_emulator;
     Emulator *emulator() const { return _emulator; }
     bool breakpointAt(uint16_t instructionAddress) const override;
+};
+
+
+//
+// WatchModel Class
+//
+class WatchModel : public QAbstractTableModel
+{
+    Q_OBJECT
+
+    // QAbstractItemModel interface
+public:
+    WatchModel(MemoryModel *memoryModel, Emulator *emulator);
+
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override;
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override;
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
+    bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override;
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
+
+    void recalculateAllSymbols();
+
+private:
+    struct WatchInfo
+    {
+        QString symbol;
+        uint16_t memoryAddress;
+        uint8_t value0, value1;
+
+        WatchInfo() { symbol = QString(); memoryAddress = 0; value0 = value1 = 0; }
+        bool inUse() const { return memoryAddress != 0; }
+    };
+
+    static constexpr int _rowCount = 4;
+    MemoryModel *memoryModel;
+    Emulator *emulator;
+    QList<WatchInfo> watchInfos;
+
+public slots:
+    void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
 };
 
 #endif // EMULATOR_H

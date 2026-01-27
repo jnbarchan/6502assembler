@@ -29,7 +29,10 @@ public:
     int integerBase() const;
     void setIntegerBase(int newIntegerBase);
 
-    virtual QString displayText(const QVariant &value, const QLocale &locale) const override;
+    void setOptionTextForNumber(QStyleOptionViewItem *option, const QModelIndex &index, int fixedDigits, int integerBase) const;
+
+protected:
+    void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const override;
 
 private:
     int _fixedDigits, _integerBase;

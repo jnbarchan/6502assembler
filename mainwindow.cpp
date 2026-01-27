@@ -70,12 +70,15 @@ MainWindow::MainWindow(QWidget *parent)
     syntaxHighlighter = new SyntaxHighlighter(ui->codeEditor->document());
 
     ui->tvMemory->setModel(processorModel()->memoryModel());
-    ui->tvMemory->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    ui->tvMemory->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     tvMemoryViewItemDelegate = new MemoryViewItemDelegate(ui->tvMemory);
     ui->tvMemory->setItemDelegate(tvMemoryViewItemDelegate);
     _lastMemoryModelDataChangedIndex = QModelIndex();
     connect(processorModel()->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged, queuedChangedSignalsConnectionType);
+
+    watchModel = new WatchModel(processorModel()->memoryModel(), emulator());
+    ui->tvWatch->setModel(watchModel);
+    tvWatchViewItemDelegate = new WatchViewItemDelegate(ui->tvWatch);
+    ui->tvWatch->setItemDelegate(tvWatchViewItemDelegate);
 
     connect(ui->rbgNumBase, &QButtonGroup::buttonClicked, this, &MainWindow::rbgNumBaseClicked);
     ui->rbNumBaseHex->click();
@@ -290,8 +293,10 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         assembler()->assemble();
 
         processorModel()->memoryModel()->notifyAllDataChanged();
+        watchModel->recalculateAllSymbols();
         if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
             return;
+
         processorModel()->setStartNewRun(true);
         processorModel()->setProgramCounter(emulator()->runStartAddress());
     }
@@ -383,6 +388,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         spn->setFixedDigits(fixedDigits);
         spn->setDisplayIntegerBase(integerBase);
     }
+
     tvMemoryViewItemDelegate->setFixedDigits(fixedDigits);
     tvMemoryViewItemDelegate->setIntegerBase(integerBase);
     int digitSize = ui->tvMemory->font().pointSize() * 9 / 10;
@@ -393,6 +399,16 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         for (int col = 0; col < model->columnCount(); col++)
             ui->tvMemory->update(model->index(row, col));
     scrollToLastMemoryModelDataChangedIndex();
+
+    tvWatchViewItemDelegate->setFixedDigits(fixedDigits);
+    tvWatchViewItemDelegate->setIntegerBase(integerBase);
+    digitSize = ui->tvWatch->font().pointSize() * 9 / 10;
+    digits = fixedDigits > 0 ? fixedDigits : 3;
+    ui->tvWatch->horizontalHeader()->setDefaultSectionSize((digits + 1.4) * digitSize);
+    model = ui->tvWatch->model();
+    for (int row = 0; row < model->rowCount(); row++)
+        for (int col = 0; col < model->columnCount(); col++)
+            ui->tvWatch->update(model->index(row, col));
 }
 
 /*slot*/ void MainWindow::codeTextChanged()
@@ -662,7 +678,9 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     case QueuedChangeSignal::CurrentInstructionAddressChanged:
         currentInstructionAddressChanged(sig.instruction.instructionAddress); break;
     case QueuedChangeSignal::MemoryModelDataChanged:
-        memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles); break;
+        memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles);
+        watchModel->memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles);
+        break;
     case QueuedChangeSignal::RegisterChanged:
         registerChanged(sig._register.spn, sig._register.value); break;
     }

@@ -33,6 +33,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         emulator.h emulator.cpp
         syntaxhighlighter.h syntaxhighlighter.cpp
         memoryview.h memoryview.cpp
+        watchview.h watchview.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET 6502assembler APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

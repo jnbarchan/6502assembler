@@ -1,3 +1,5 @@
+#include <QHeaderView>
+
 #include "memoryview.h"
 
 //
@@ -7,6 +9,8 @@
 MemoryView::MemoryView(QWidget *parent /*= nullptr*/)
     : QTableView{parent}
 {
+    horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+    verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
 }
 
 
@@ -40,11 +44,17 @@ void MemoryViewItemDelegate::setIntegerBase(int newIntegerBase)
     _integerBase = newIntegerBase;
 }
 
-/*virtual*/ QString MemoryViewItemDelegate::displayText(const QVariant &value, const QLocale &locale) const /*override*/
+void MemoryViewItemDelegate::setOptionTextForNumber(QStyleOptionViewItem *option, const QModelIndex &index, int fixedDigits, int integerBase) const
 {
+    QVariant value(index.data());
     bool ok;
     int val = value.toInt(&ok);
     if (ok)
-        return QStringLiteral("%1").arg(val, _fixedDigits, _integerBase, QChar('0')).toUpper();
-    return QStyledItemDelegate::displayText(value, locale);
+        option->text = QStringLiteral("%1").arg(val, fixedDigits, integerBase, QChar('0')).toUpper();
+}
+
+void MemoryViewItemDelegate::initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const /*override*/
+{
+    QStyledItemDelegate::initStyleOption(option, index);
+    setOptionTextForNumber(option, index, _fixedDigits, _integerBase);
 }
