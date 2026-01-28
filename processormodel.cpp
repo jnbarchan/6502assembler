@@ -838,6 +838,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_get_time(); break;
     case InternalJSRs::__JSR_get_elapsed_time:
         jsr_get_elapsed_time(); break;
+    case InternalJSRs::__JSR_get_elapsed_stime:
+        jsr_get_elapsed_stime(); break;
     case InternalJSRs::__JSR_clear_elapsed_time:
         jsr_clear_elapsed_time(); break;
     case InternalJSRs::__JSR_process_events:
@@ -862,6 +864,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_get_elapsed_cycles(); break;
     case InternalJSRs::__JSR_get_elapsed_kcycles:
         jsr_get_elapsed_kcycles(); break;
+    case InternalJSRs::__JSR_get_elapsed_mcycles:
+        jsr_get_elapsed_mcycles(); break;
     case InternalJSRs::__JSR_clear_elapsed_cycles:
         jsr_clear_elapsed_cycles(); break;
     default:
@@ -869,6 +873,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
     }
     if (internal)
     {
+        const InstructionInfo *instructionInfo(Assembly::findInstructionInfo(Operation::RTS, AddressingMode::Implied));
+        elapsedCycles += instructionInfo->cycles;
         instructionAddress = (pullFromStack() << 8) | pullFromStack();
         if (!suppressSignalsForSpeed())
             emit statusFlagsChanged();
@@ -878,7 +884,7 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
 
 void ProcessorModel::jsr_brk_handler()
 {
-    uint16_t address = pullFromStack() << 8 | pullFromStack();
+    uint16_t address = (pullFromStack() << 8) | pullFromStack();
     const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
     int len = std::strlen(memoryAddress);
     if (len > 255)
@@ -905,6 +911,14 @@ void ProcessorModel::jsr_get_elapsed_time()
     uint16_t milliseconds = static_cast<uint16_t>(elapsedTimer.elapsed());
     setAccumulator(static_cast<uint8_t>(milliseconds));
     setXregister(static_cast<uint8_t>(milliseconds >> 8));
+    setNZStatusFlags(_xregister);
+}
+
+void ProcessorModel::jsr_get_elapsed_stime()
+{
+    int seconds = (elapsedTimer.elapsed() + 500) / 1000;
+    setAccumulator(static_cast<uint8_t>(seconds));
+    setXregister(static_cast<uint8_t>(seconds >> 8));
     setNZStatusFlags(_xregister);
 }
 
@@ -1025,9 +1039,17 @@ void ProcessorModel::jsr_get_elapsed_cycles()
 
 void ProcessorModel::jsr_get_elapsed_kcycles()
 {
-    int cycles = (elapsedCycles + 512) / 1024;
-    setAccumulator(static_cast<uint8_t>(cycles));
-    setXregister(static_cast<uint8_t>(cycles >> 8));
+    int kcycles = (elapsedCycles + 512) / 1024;
+    setAccumulator(static_cast<uint8_t>(kcycles));
+    setXregister(static_cast<uint8_t>(kcycles >> 8));
+    setNZStatusFlags(_xregister);
+}
+
+void ProcessorModel::jsr_get_elapsed_mcycles()
+{
+    int mcycles = (elapsedCycles + 512 * 1024) / 1024 / 1024;
+    setAccumulator(static_cast<uint8_t>(mcycles));
+    setXregister(static_cast<uint8_t>(mcycles >> 8));
     setNZStatusFlags(_xregister);
 }
 

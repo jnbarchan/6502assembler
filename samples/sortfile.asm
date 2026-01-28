@@ -57,23 +57,23 @@ test_sortfile:
     rts  ; test_sortfile 
 
 .elapsed_time:
-    jsr __get_elapsed_time
+    jsr __get_elapsed_stime
     sta dividend
     stx dividend+1
     jsr _outnum
     jsr _outstr_inline
-    .byte " ms", 0
+    .byte " s", 0
     lda #10
     jsr __outch
     rts  ; elapsed_time
 
 .elapsed_cycles:
-    jsr __get_elapsed_kcycles
+    jsr __get_elapsed_mcycles
     sta dividend
     stx dividend+1
     jsr _outnum
     jsr _outstr_inline
-    .byte "k cycles", 0
+    .byte "M cycles", 0
     lda #10
     jsr __outch
     rts  ; elapsed_cycles

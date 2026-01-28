@@ -194,6 +194,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
     _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
     _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
+    _codeLabels["__get_elapsed_stime"] = InternalJSRs::__JSR_get_elapsed_stime;
     _codeLabels["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
     _codeLabels["__process_events"] = InternalJSRs::__JSR_process_events;
     _codeLabels["__inch"] = InternalJSRs::__JSR_inch;
@@ -206,6 +207,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
     _codeLabels["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
     _codeLabels["__get_elapsed_kcycles"] = InternalJSRs::__JSR_get_elapsed_kcycles;
+    _codeLabels["__get_elapsed_mcycles"] = InternalJSRs::__JSR_get_elapsed_mcycles;
     _codeLabels["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
     setAssembleState(AssembleState::NotStarted);
 }
