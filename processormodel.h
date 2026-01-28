@@ -143,6 +143,7 @@ private:
 
     QFile userFile;
     QElapsedTimer elapsedTimer;
+    uint32_t elapsedCycles;
 
     void resetModel();
     void setCurrentRunMode(RunMode newCurrentRunMode);
@@ -152,6 +153,7 @@ private:
     void runNextInstruction(const Instruction &instruction);
     void executeNextInstruction(const Instruction &instruction);
     void setNZStatusFlags(uint8_t value);
+    void branchTo(uint16_t instructionAddress);
     void jumpTo(uint16_t instructionAddress);
     void jsr_brk_handler();
     void jsr_outch();
@@ -167,6 +169,9 @@ private:
     void jsr_rewind_file();
     void jsr_read_file();
     void jsr_outstr_fast();
+    void jsr_get_elapsed_cycles();
+    void jsr_get_elapsed_kcycles();
+    void jsr_clear_elapsed_cycles();
 };
 
 

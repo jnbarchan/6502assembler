@@ -324,6 +324,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (!stepOneStatementOnly)
         setRunStopButton(false);
 
+    QCoreApplication::processEvents();
     emulator()->startQueuingChangedSignals();
 
     switch (runMode)
@@ -338,6 +339,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     }
 
     emulator()->endQueuingChangedSignals();
+    QCoreApplication::processEvents();
 
     if (!stepOneStatementOnly)
         setRunStopButton(true);

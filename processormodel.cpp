@@ -344,6 +344,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         {
             restart();
             elapsedTimer.start();
+            elapsedCycles = 0;
             setStartNewRun(false);
             startedNewRun = true;
             if (runMode == Continue)
@@ -359,7 +360,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         setCurrentRunMode(runMode);
 
         int count = 0;
-        const int processEventsEverySoOften = 1000;
+        const int processEventsEverySoOften = 10000;
 
         setIsRunning(true);
 
@@ -506,6 +507,23 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     const uint16_t argAddress{_argAddress};
     uint8_t tempValue8, origTempValue8;
     uint16_t tempValue16;
+
+    elapsedCycles += instructionInfo.cycles;
+    if (mode == AddressingMode::AbsoluteX || mode == AddressingMode::AbsoluteY || mode == AddressingMode::IndirectIndexedY)
+        switch (operation)
+        {
+        case Operation::ADC: case Operation::AND: case Operation::CMP:
+        case Operation::EOR: case Operation::LDA: case Operation::LDX:
+        case Operation::LDY: case Operation::ORA: case Operation::SBC: {
+            uint16_t baseAddress = operand;
+            if (mode == AddressingMode::IndirectIndexedY)
+                baseAddress = memoryZPWordAt(baseAddress);
+            if ((argAddress & 0xff00) != (baseAddress & 0xff00))
+                elapsedCycles++;
+            break;
+        }
+        default: break;
+        }
 
     // Operations ordered/grouped as per http://www.6502.org/users/obelisk/6502/instructions.html
     switch (operation)
@@ -719,35 +737,35 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
 
     case Operation::BCC:
         if (!statusFlag(StatusFlags::Carry))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BCS:
         if (statusFlag(StatusFlags::Carry))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BEQ:
         if (statusFlag(StatusFlags::Zero))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BMI:
         if (statusFlag(StatusFlags::Negative))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BNE:
         if (!statusFlag(StatusFlags::Zero))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BPL:
         if (!statusFlag(StatusFlags::Negative))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BVC:
         if (!statusFlag(StatusFlags::Overflow))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
     case Operation::BVS:
         if (statusFlag(StatusFlags::Overflow))
-            jumpTo(argAddress);
+            branchTo(argAddress);
         break;
 
     case Operation::CLC:
@@ -794,6 +812,14 @@ void ProcessorModel::setNZStatusFlags(uint8_t value)
     setStatusFlag(StatusFlags::Zero, value == 0);
 }
 
+void ProcessorModel::branchTo(uint16_t instructionAddress)
+{
+    elapsedCycles++;
+    if ((instructionAddress &0xff00) != (_programCounter & 0xff00))
+        elapsedCycles++;
+    jumpTo(instructionAddress);
+}
+
 void ProcessorModel::jumpTo(uint16_t instructionAddress)
 {
     bool internal = true;
@@ -832,6 +858,12 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_read_file(); break;
     case InternalJSRs::__JSR_outstr_fast:
         jsr_outstr_fast(); break;
+    case InternalJSRs::__JSR_get_elapsed_cycles:
+        jsr_get_elapsed_cycles(); break;
+    case InternalJSRs::__JSR_get_elapsed_kcycles:
+        jsr_get_elapsed_kcycles(); break;
+    case InternalJSRs::__JSR_clear_elapsed_cycles:
+        jsr_clear_elapsed_cycles(); break;
     default:
         internal = false; break;
     }
@@ -982,6 +1014,26 @@ void ProcessorModel::jsr_outstr_fast()
     const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
     QString str(QString::fromLatin1(memoryAddress));
     emit sendStringToConsole(str);
+}
+
+void ProcessorModel::jsr_get_elapsed_cycles()
+{
+    setAccumulator(static_cast<uint8_t>(elapsedCycles));
+    setXregister(static_cast<uint8_t>(elapsedCycles >> 8));
+    setNZStatusFlags(_xregister);
+}
+
+void ProcessorModel::jsr_get_elapsed_kcycles()
+{
+    int cycles = (elapsedCycles + 512) / 1024;
+    setAccumulator(static_cast<uint8_t>(cycles));
+    setXregister(static_cast<uint8_t>(cycles >> 8));
+    setNZStatusFlags(_xregister);
+}
+
+void ProcessorModel::jsr_clear_elapsed_cycles()
+{
+    elapsedCycles = 0;
 }
 
 

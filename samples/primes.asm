@@ -96,6 +96,7 @@ run_primes:
 
 .finished:
     jsr .elapsed_time
+    jsr .elapsed_cycles
     jsr __process_events
     rts  ; run_primes
     
@@ -215,6 +216,17 @@ run_primes:
     lda #10
     jsr __outch
     rts  ; elapsed_time
+
+.elapsed_cycles:
+    jsr __get_elapsed_kcycles
+    sta dividend
+    stx dividend+1
+    jsr _outnum
+    jsr _outstr_inline
+    .byte "k cycles", 0
+    lda #10
+    jsr __outch
+    rts  ; elapsed_cycles
 
 .include "outnum.asm"
 .include "mul16.asm"

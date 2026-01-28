@@ -204,6 +204,9 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
     _codeLabels["__read_file"] = InternalJSRs::__JSR_read_file;
     _codeLabels["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
+    _codeLabels["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
+    _codeLabels["__get_elapsed_kcycles"] = InternalJSRs::__JSR_get_elapsed_kcycles;
+    _codeLabels["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
     setAssembleState(AssembleState::NotStarted);
 }
 
