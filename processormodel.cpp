@@ -358,6 +358,8 @@ void ProcessorModel::runInstructions(RunMode runMode)
             return;
         }
         setCurrentRunMode(runMode);
+        if (startedNewRun && runMode == StepInto)
+            return;
 
         int count = 0;
         const int processEventsEverySoOften = 10000;
