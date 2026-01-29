@@ -115,6 +115,7 @@ signals:
     void endRequestCharFromConsole();
     void receivedCharFromConsole(char ch);
     void modelReset();
+    void isRunningChanged();
     void stopRunChanged();
     void accumulatorChanged();
     void xregisterChanged();

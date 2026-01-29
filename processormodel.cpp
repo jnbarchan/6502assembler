@@ -217,7 +217,11 @@ bool ProcessorModel::isRunning() const
 
 void ProcessorModel::setIsRunning(bool newIsRunning)
 {
-    _isRunning = newIsRunning;
+    if (newIsRunning != _isRunning)
+    {
+        _isRunning = newIsRunning;
+        emit isRunningChanged();
+    }
 }
 
 bool ProcessorModel::stopRun() const
@@ -365,6 +369,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
         const int processEventsEverySoOften = 10000;
 
         setIsRunning(true);
+        QCoreApplication::processEvents();
 
         int stopAtInstructionAddress = -1;
         bool keepGoing = true;
@@ -403,7 +408,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 keepGoing = false;
 
             if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
-                QCoreApplication::processEvents();//TEMPORARY
+                QCoreApplication::processEvents();
         }
     }
     catch (const ExecutionError &e)

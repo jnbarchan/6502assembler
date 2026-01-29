@@ -739,6 +739,8 @@
     <addaction name="actionSave"/>
     <addaction name="actionSaveAs"/>
     <addaction name="separator"/>
+    <addaction name="actionAssembleOnly"/>
+    <addaction name="separator"/>
     <addaction name="actionTurboRun"/>
     <addaction name="actionRun"/>
     <addaction name="actionStepInto"/>
@@ -805,6 +807,11 @@
   <action name="actionTurboRun">
    <property name="text">
     <string>Turbo</string>
+   </property>
+  </action>
+  <action name="actionAssembleOnly">
+   <property name="text">
+    <string>Assemble Only</string>
    </property>
   </action>
  </widget>

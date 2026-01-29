@@ -56,6 +56,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::modelReset, this, &MainWindow::modelReset, processorModelConnectionType);
     modelReset();
 
+    connect(processorModel(), &ProcessorModel::isRunningChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::currentInstructionAddressChanged, this, &MainWindow::currentInstructionAddressChanged, queuedChangedSignalsConnectionType);
 
@@ -93,6 +94,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::openFile);
     connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveFile);
     connect(ui->actionSaveAs, &QAction::triggered, this, &MainWindow::saveFileAs);
+    connect(ui->actionAssembleOnly, &QAction::triggered, this, &MainWindow::assembleOnly);
     connect(ui->actionTurboRun, &QAction::triggered, this, &MainWindow::turboRun);
     connect(ui->actionRun, &QAction::triggered, this, &MainWindow::run);
     connect(ui->actionStepInto, &QAction::triggered, this, &MainWindow::stepInto);
@@ -352,11 +354,14 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (!haveDoneReset() || assembler()->needsAssembling())
         enable = true;
     else
-        enable = !processorModel()->stopRun();
+        enable = !processorModel()->isRunning() && !processorModel()->stopRun();
     ui->btnStepInto->defaultAction()->setEnabled(enable);
     ui->btnStepOver->defaultAction()->setEnabled(enable);
     ui->btnStepOut->defaultAction()->setEnabled(enable);
     ui->btnContinue->defaultAction()->setEnabled(enable);
+
+    ui->btnTurboRun->defaultAction()->setEnabled(!processorModel()->isRunning());
+    ui->btnReset->defaultAction()->setEnabled(!processorModel()->isRunning());
 }
 
 /*slot*/ void MainWindow::debugMessage(const QString &message)
@@ -539,6 +544,11 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     registerChanged(nullptr, 0);
 
     setHaveDoneReset(true);
+}
+
+/*slot*/ void MainWindow::assembleOnly()
+{
+    assembleAndRun(ProcessorModel::NotRunning);
 }
 
 /*slot*/ void MainWindow::turboRun()

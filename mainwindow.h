@@ -63,6 +63,7 @@ private slots:
     void endRequestCharFromConsole();
     void modelReset();
     void reset();
+    void assembleOnly();
     void turboRun();
     void run();
     void continueRun();
