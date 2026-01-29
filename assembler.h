@@ -136,7 +136,7 @@ private:
     bool getNextToken(bool wantOperator = false);
     int getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing = false, bool *indirectAddressingMetCloseParen = nullptr);
     bool tokenIsDirective() const;
-    bool tokenIsLabel() const;
+    bool tokenIsLabel(bool isDefinition = false) const;
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
     int tokenValueAsInt(bool *ok) const;

@@ -327,7 +327,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
     hasOperation = Assembly::OperationValueIsValid(operation);
     if (!hasOperation)
     {
-        if (tokenIsLabel())
+        if (tokenIsLabel(true))
         {
             QString label(currentToken);
 
@@ -758,7 +758,7 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     }
     else
     {
-        while (std::isalnum(nextChar) || nextChar == '_')
+        while (std::isalnum(nextChar) || nextChar == '_' || nextChar == '.')
         {
             currentToken.append(nextChar);
             nextChar = readChar();
@@ -947,7 +947,7 @@ bool Assembler::tokenIsDirective() const
     return Assembly::directives().contains(currentToken);
 }
 
-bool Assembler::tokenIsLabel() const
+bool Assembler::tokenIsLabel(bool isDefinition /*= false*/) const
 {
     if (currentToken.size() == 0)
         return false;
@@ -960,7 +960,7 @@ bool Assembler::tokenIsLabel() const
     for (int i = 1; i < currentToken.size(); i++)
     {
         ch = currentToken.at(i).toLatin1();
-        if (!(ch == '_' || std::isalnum(ch)))
+        if (!(ch == '_' || std::isalnum(ch) || ch == '.'))
             return false;
     }
     return true;

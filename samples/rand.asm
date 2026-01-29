@@ -74,3 +74,10 @@ _RND16_SEED_FROM_TIME:
     sta _RND16_STATE_LOW
     stx _RND16_STATE_HIGH
     rts
+
+_RND16_SEED_FROM_DEFAULT:
+    lda #1
+    sta _RND16_STATE_LOW
+    lda #0
+    sta _RND16_STATE_HIGH
+    rts

@@ -31,7 +31,7 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         for (Assembly::Operation operation : Assembly::branchJumpOperations())
             list.append(QRegularExpression::escape(me.valueToKey(operation)));
         QString pattern = QStringLiteral("\\b(?:") + list.join('|') + QStringLiteral(")\\b");
-        pattern += QStringLiteral("\\s+(\\.?[a-z_][a-z_0-9]*)");
+        pattern += QStringLiteral("\\s+(\\.?[a-z_][a-z_0-9]*)(\\.[a-z_][a-z_0-9]*)?");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
     static const QRegularExpression operationRegex = []{
@@ -97,7 +97,11 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         setFormat(match.capturedStart(1), match.capturedLength(1), match.captured(1).at(0) == '.' ? localLabelDefinitionFormat : labelDefinitionFormat);
     match = labelBranchJumpRegex.match(code);
     if (match.hasMatch())
+    {
         setFormat(match.capturedStart(1), match.capturedLength(1), match.captured(1).at(0) == '.' ? localLabelBranchJumpFormat : labelBranchJumpFormat);
+        if (match.hasCaptured(2))
+            setFormat(match.capturedStart(2), match.capturedLength(2), localLabelBranchJumpFormat);
+    }
 
     match = operationRegex.match(code);
     if (match.hasMatch())
