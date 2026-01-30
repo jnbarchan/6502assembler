@@ -2,6 +2,9 @@
 #include <QMessageBox>
 #include <QTextBlock>
 
+#include "findreplacedialog/finddialog.h"
+#include "findreplacedialog/findreplacedialog.h"
+
 #include "emulator.h"
 #include "syntaxhighlighter.h"
 
@@ -23,6 +26,9 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    findDialog = nullptr;
+    findReplaceDialog = nullptr;
 
     codeStream = nullptr;
     _haveDoneReset = false;
@@ -103,6 +109,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionContinue, &QAction::triggered, this, &MainWindow::continueRun);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
+
+    connect(ui->actionFind, &QAction::triggered, this, &MainWindow::showFindDialog);
+    connect(ui->actionFindReplace, &QAction::triggered, this, &MainWindow::showFindReplaceDialog);
 
     ui->actionTurboRun->setIcon(ui->btnTurboRun->icon());
     ui->btnTurboRun->setDefaultAction(ui->actionTurboRun);
@@ -461,6 +470,27 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (fileInfo.suffix().isEmpty())
         fileName.append(".asm");
     saveToFile(fileName);
+}
+
+
+/*slot*/ void MainWindow::showFindDialog()
+{
+    if (findDialog == nullptr)
+    {
+        findDialog = new FindDialog(ui->codeEditor);
+        findDialog->setEditor(ui->codeEditor);
+    }
+    findDialog->show();
+}
+
+/*slot*/ void MainWindow::showFindReplaceDialog()
+{
+    if (findReplaceDialog == nullptr)
+    {
+        findReplaceDialog = new FindReplaceDialog(ui->codeEditor);
+        findReplaceDialog->setEditor(ui->codeEditor);
+    }
+    findReplaceDialog->show();
 }
 
 

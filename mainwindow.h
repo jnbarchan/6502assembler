@@ -17,6 +17,9 @@ class MainWindow;
 }
 QT_END_NAMESPACE
 
+class FindDialog;
+class FindReplaceDialog;
+
 class MemoryViewItemDelegate;
 class WatchViewItemDelegate;
 class SyntaxHighlighter;
@@ -56,6 +59,8 @@ private slots:
     void openFile();
     void saveFile();
     void saveFileAs();
+    void showFindDialog();
+    void showFindReplaceDialog();
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
     void sendStringToConsole(const QString &str);
     void sendCharToConsole(char ch);
@@ -80,6 +85,8 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    FindDialog *findDialog;
+    FindReplaceDialog *findReplaceDialog;
     QByteArray codeBytes;
     QTextStream *codeStream;
     bool _haveDoneReset;

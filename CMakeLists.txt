@@ -34,6 +34,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         syntaxhighlighter.h syntaxhighlighter.cpp
         memoryview.h memoryview.cpp
         watchview.h watchview.cpp
+        findreplacedialog/finddialog.cpp findreplacedialog/finddialog.h findreplacedialog/findreplacedialog.cpp findreplacedialog/findreplacedialog.h
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET 6502assembler APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
