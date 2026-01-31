@@ -1,5 +1,6 @@
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QSplitter>
 #include <QTextBlock>
 
 #include "findreplacedialog/finddialog.h"
@@ -26,6 +27,20 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    QSplitter *horizontalSplitter = new QSplitter(this);
+    horizontalSplitter->setChildrenCollapsible(false);
+    horizontalSplitter->addWidget(ui->codeEditor);
+    horizontalSplitter->setStretchFactor(0, 1);
+    horizontalSplitter->addWidget(ui->rhsFrame);
+    horizontalSplitter->setStretchFactor(1, 0);
+    QSplitter *verticalSplitter = new QSplitter(Qt::Orientation::Vertical, this);
+    verticalSplitter->setChildrenCollapsible(false);
+    verticalSplitter->addWidget(horizontalSplitter);
+    horizontalSplitter->setStretchFactor(0, 1);
+    verticalSplitter->addWidget(ui->teConsole);
+    horizontalSplitter->setStretchFactor(1, 0);
+    ui->mainLayout->addWidget(verticalSplitter);
 
     findDialog = nullptr;
     findReplaceDialog = nullptr;

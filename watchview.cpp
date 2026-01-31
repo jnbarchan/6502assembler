@@ -14,7 +14,7 @@ WatchView::WatchView(QWidget *parent /*= nullptr*/)
 {
     horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-    QTimer::singleShot(0, this, [this](){ resizeColumnsToContents(); horizontalHeader()->resizeSection(0, 100); });
+    QTimer::singleShot(0, this, [this](){ resizeColumnsToContents(); horizontalHeader()->resizeSection(0, 200); });
 }
 
 void WatchView::setModel(QAbstractItemModel *model)
