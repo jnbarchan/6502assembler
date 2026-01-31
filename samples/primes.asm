@@ -6,14 +6,31 @@
 nextnum = ZP_USER_0
 primes_counter = ZP_USER_0+2
 primes_ptr = ZP_USER_0+4
+primes_count = ZP_USER_0+6
+last_prime = ZP_USER_0+8
 
-primes_count = MEM_USER_0
-primes = primes_count+2
+primes = MEM_USER_0+$1000
 
-max_primes = 100
+primes_sieve_start = primes
+primes_sieve_end = primes_sieve_start+$2000
+
+max_primes = 1028
+
+show_primes = 1  ; 0 => none, 1 => last, 2 => all
+
+.org MEM_USER_0
 
 main:
-run_primes:
+    jsr clear_elapsed_time_cycles
+    jsr run_primes_trial_division
+    jsr clear_elapsed_time_cycles
+    jsr run_primes_eratosthenes_sieve
+    rts  ; main 
+    brk
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+run_primes_trial_division:
     ; primes_count = 0
     lda #0
     sta primes_count
@@ -45,8 +62,9 @@ run_primes:
     beq .no_more_primes
     
 .more_primes:
-    ; if reached sqrt(nextnum) goto .no_more_primes
+    ; if exceeded sqrt(nextnum) goto .no_more_primes
     jsr .prime_stop_dividing
+    beq *+4
     bcs .no_more_primes
     ; if divisible goto .try_next_num
     jsr .prime_divisible
@@ -70,8 +88,11 @@ run_primes:
 .no_more_primes:
     ; store nextnum as prime into (primes_ptr)
     jsr .found_prime   
-    ; show prime found
-    jsr .found_prime_output
+    ; show prime found?
+    lda #show_primes
+    cmp #2
+    bcc *+5
+    jsr found_prime_output
     
     ; primes_count++, test for finished
     lda primes_count+1
@@ -95,10 +116,16 @@ run_primes:
     jmp .test_next_num
 
 .finished:
-    jsr .elapsed_time
-    jsr .elapsed_cycles
+    jsr _outstr_inline
+    .byte "Trial division:", 10, 0
+    ; show last prime found?
+    lda #show_primes
+    beq *+5
+    jsr found_prime_output
+    jsr elapsed_time
+    jsr elapsed_cycles
     jsr __process_events
-    rts  ; run_primes
+    rts  ; run_primes_trial_division
     
 .prime_stop_dividing:
     ldy #0
@@ -113,17 +140,9 @@ run_primes:
     jsr _mul16
     lda result+1
     cmp nextnum+1
-    bcc .not_greater
-    bne .greater
+    bne *+6
     lda result
     cmp nextnum
-    bcc .not_greater
-    bne .greater
-.not_greater:
-    clc
-    rts  ; .prime_stop_dividing
-.greater:
-    sec
     rts  ; .prime_stop_dividing
     
 .prime_divisible:
@@ -146,6 +165,12 @@ run_primes:
     rts  ; .prime_divisible
     
 .found_prime:
+    ; last_prime = nextnum
+    lda nextnum
+    sta last_prime
+    lda nextnum+1
+    sta last_prime+1
+    
     ; primes_ptr = &primes
     lda #primes & $ff
     sta primes_ptr
@@ -178,11 +203,151 @@ run_primes:
 
     ; primes_count++
     inc primes_count
-    bne *+5
+    bne *+4
     inc primes_count+1
     rts  ; .found_prime
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     
-.found_prime_output:
+run_primes_eratosthenes_sieve:
+    ; set primes_sieve_start .. primes_sieve_end to 0s
+    jsr .clear_primes_sieve
+
+    ; primes_count = 0
+    lda #0
+    sta primes_count
+    sta primes_count+1
+    
+    ; nextnum = 2
+    lda #2
+    sta nextnum
+    lda #0
+    sta nextnum+1
+    
+.test_next_num:
+    ; primes_ptr = primes_sieve_start + nextnum
+    clc
+    lda #<primes_sieve_start
+    adc nextnum
+    sta primes_ptr
+    lda #>primes_sieve_start
+    adc nextnum+1
+    sta primes_ptr+1
+    
+    ; test for primes_sieve_end
+    lda primes_ptr+1
+    cmp #>primes_sieve_end
+    bne *+6
+    lda primes_ptr
+    cmp #<primes_sieve_end
+    bcs .finished
+    
+    ; see whether primes_ptr[nextnum] is already marked as non-prime
+    ldy #0
+    lda (primes_ptr),Y
+    bne .try_next_num
+
+    ; mark all multiples in primes_sieve_start..primes_sieve_end
+    jsr .found_prime   
+    ; show prime found?
+    lda #show_primes
+    cmp #2
+    bcc *+5
+    jsr found_prime_output
+
+.try_next_num:
+    ; nextnum++, test for finished
+    inc nextnum
+    bne *+4
+    inc nextnum+1
+    beq .finished
+    ; if nextnum & 1 == 0 (even) nextnum++
+    lda nextnum
+    and #1
+    bne *+4
+    inc nextnum
+    jmp .test_next_num
+    
+.finished:
+    jsr _outstr_inline
+    .byte "Eratosthenes sieve:", 10, 0
+    ; show last prime found?
+    lda #show_primes
+    beq *+5
+    jsr found_prime_output
+    jsr elapsed_time
+    jsr elapsed_cycles
+    jsr __process_events
+    rts ; run_primes_eratosthenes_sieve
+    
+.found_prime:
+    ; last_prime = nextnum
+    lda nextnum
+    sta last_prime
+    lda nextnum+1
+    sta last_prime+1
+    
+    ; mark (primes_ptr+nextnum) as non-prime
+    ldy #0
+    lda #1
+    sta (primes_ptr),Y
+    
+    ; primes_ptr += nextnum
+    clc
+    lda primes_ptr
+    adc nextnum
+    sta primes_ptr
+    lda primes_ptr+1
+    adc nextnum+1
+    sta primes_ptr+1
+    
+    ; test for primes_sieve_end
+    lda primes_ptr+1
+    cmp #>primes_sieve_end
+    bne *+6
+    lda primes_ptr
+    cmp #<primes_sieve_end
+    bcc .found_prime
+    
+    ; primes_count++
+    inc primes_count
+    bne *+4
+    inc primes_count+1
+    rts  ; .found_prime
+
+.clear_primes_sieve:
+    ; primes_ptr = primes_sieve_start
+    lda #<primes_sieve_start
+    sta primes_ptr
+    lda #>primes_sieve_start
+    sta primes_ptr+1
+
+.clear_primes_sieve_next:
+    ; test for primes_sieve_end
+    lda primes_ptr+1
+    cmp #>primes_sieve_end
+    bne *+6
+    lda primes_ptr
+    cmp #<primes_sieve_end
+    bcs .done_clear_primes_sieve
+    
+    ; (primes_ptr) = 0
+    ldy #0
+    lda #0
+    sta (primes_ptr),Y
+    ; primes_ptr++
+    inc primes_ptr
+    bne *+4
+    inc primes_ptr+1
+    
+    jmp .clear_primes_sieve_next
+
+.done_clear_primes_sieve:
+    rts  ; .clear_primes_sieve
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+found_prime_output:
     ; print primes_count
     lda primes_count
     sta dividend
@@ -194,19 +359,26 @@ run_primes:
     jsr __outch
     lda #' '
     jsr __outch
-    ; print nextnum
-    lda nextnum
+    ; print last_prime
+    lda last_prime
     sta dividend
-    lda nextnum+1
+    lda last_prime+1
     sta dividend+1
     ; print newline
     jsr _outnum
     lda #10
     jsr __outch
     ;jsr __process_events
-    rts  ; .run_primes_output
+    rts  ; .found_prime_output
     
-.elapsed_time:
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+clear_elapsed_time_cycles:
+    jsr __clear_elapsed_time
+    jsr __clear_elapsed_cycles
+    rts  ; clear_elapsed_time_cycles
+
+elapsed_time:
     jsr __get_elapsed_time
     sta dividend
     stx dividend+1
@@ -217,7 +389,7 @@ run_primes:
     jsr __outch
     rts  ; elapsed_time
 
-.elapsed_cycles:
+elapsed_cycles:
     jsr __get_elapsed_kcycles
     sta dividend
     stx dividend+1

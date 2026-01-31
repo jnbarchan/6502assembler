@@ -42,38 +42,38 @@ insertion_sort:
     jsr cmp_p_nums_2_end
     bcs .done
     
-    jsr .copy_p_nums_2_to_save
+    jsr .copy_ind_p_nums_2_to_save
     jsr .copy_p_nums_2_to_p_nums
     
 .next_num:
     jsr dec_p_nums
     jsr cmp_p_nums_start
     bcc .done_next_num
-    jsr .cmp_p_nums_save
+    jsr .cmp_ind_p_nums_save
     bcc .done_next_num
     beq .done_next_num
     
-    jsr .copy_p_nums_to_p_nums_plus_1
+    jsr .copy_ind_p_nums_to_p_nums_plus_1
 
     jmp .next_num
     
 .done_next_num:
     jsr inc_p_nums
-    jsr .copy_p_nums_save_to_p_nums
+    jsr .copy_p_nums_save_to_ind_p_nums
     jsr inc_p_nums_2
     jmp .next_num_2
     
 .done:
     rts  ; insertion_sort
     
-.copy_p_nums_2_to_save:
+.copy_ind_p_nums_2_to_save:
     ldy #0
     lda (p_nums_2),Y
     sta p_nums_save
     iny
     lda (p_nums_2),Y
     sta p_nums_save+1
-    rts  ; .copy_p_nums_2_to_save
+    rts  ; .copy_ind_p_nums_2_to_save
     
 .copy_p_nums_2_to_p_nums:
     lda p_nums_2
@@ -82,7 +82,7 @@ insertion_sort:
     sta p_nums+1
     rts  ; .copy_p_nums_2_to_p_nums
 
-.cmp_p_nums_save:
+.cmp_ind_p_nums_save:
     ldy #1
     lda (p_nums),Y
     cmp p_nums_save+1
@@ -90,9 +90,9 @@ insertion_sort:
     dey
     lda (p_nums),Y
     cmp p_nums_save
-    rts  ; .cmp_p_nums_save
+    rts  ; .cmp_ind_p_nums_save
     
-.copy_p_nums_to_p_nums_plus_1:
+.copy_ind_p_nums_to_p_nums_plus_1:
     ldy #0
     lda (p_nums),Y
     ldy #2
@@ -101,16 +101,16 @@ insertion_sort:
     lda (p_nums),Y
     ldy #3
     sta (p_nums),Y
-    rts  ; .copy_p_nums_to_p_nums_plus_1
+    rts  ; .copy_ind_p_nums_to_p_nums_plus_1
     
-.copy_p_nums_save_to_p_nums:
+.copy_p_nums_save_to_ind_p_nums:
     ldy #0
     lda p_nums_save
     sta (p_nums),Y
     iny
     lda p_nums_save+1
     sta (p_nums),Y
-    rts  ; .copy_p_nums_save_to_p_nums
+    rts  ; .copy_p_nums_save_to_ind_p_nums
     
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -127,7 +127,7 @@ selection_sort:
     jsr cmp_p_nums_end
     bcs .done_next_num
     
-    jsr .cmp_p_nums_min
+    jsr .cmp_ind_p_nums_min
     bcs .not_min
     jsr .copy_p_nums_to_min
 
@@ -139,7 +139,7 @@ selection_sort:
     jsr .cmp_p_nums_2_min
     beq .no_swap
     
-    jsr .swap_p_nums_2_p_nums_min
+    jsr .swap_ind_p_nums_2_p_nums_min
 
 .no_swap:
     jsr inc_p_nums_2
@@ -155,7 +155,7 @@ selection_sort:
     sta p_nums_min+1
     rts  ; .copy_p_nums_2_to_min
     
-.swap_p_nums_2_p_nums_min:
+.swap_ind_p_nums_2_p_nums_min:
     ldy #0
     lda (p_nums_2),Y
     sta swap_temp
@@ -170,7 +170,7 @@ selection_sort:
     sta (p_nums_2),Y
     lda swap_temp
     sta (p_nums_min),Y
-    rts  ; .swap_p_nums_p_nums_2
+    rts  ; .swap_ind_p_nums_2_p_nums_min
 
 .cmp_p_nums_2_end_minus_1:
     lda p_nums_2+1
@@ -180,7 +180,7 @@ selection_sort:
     cmp #<(nums_end-2)
     rts  ; .cmp_p_nums_2_end_minus_1
     
-.cmp_p_nums_min:
+.cmp_ind_p_nums_min:
     ldy #1
     lda (p_nums),Y
     cmp (p_nums_min),Y
@@ -188,7 +188,7 @@ selection_sort:
     dey
     lda (p_nums),Y
     cmp (p_nums_min),Y
-    rts  ; .cmp_p_nums_min
+    rts  ; .cmp_ind_p_nums_min
     
 .copy_p_nums_to_min:
     lda p_nums
@@ -220,10 +220,10 @@ bubble_sort_optimized:
     
     jsr init_p_nums_2_from_p_nums_minus_1
     
-    jsr cmp_p_nums_p_nums_2
+    jsr cmp_ind_p_nums_p_nums_2
     bcs .no_swap
     
-    jsr bubble_sort.swap_p_nums_p_nums_2
+    jsr bubble_sort.swap_ind_p_nums_2_p_nums_min
     jsr .copy_p_nums_to_new_last
     
 .no_swap:
@@ -292,10 +292,10 @@ bubble_sort:
     
     jsr init_p_nums_2_from_p_nums_minus_1
     
-    jsr cmp_p_nums_p_nums_2
+    jsr cmp_ind_p_nums_p_nums_2
     bcs .no_swap
     
-    jsr .swap_p_nums_p_nums_2
+    jsr .swap_ind_p_nums_2_p_nums_min
     lda #1
     sta swapped
     
@@ -310,7 +310,7 @@ bubble_sort:
 .done:
     rts  ; bubble_sort
 
-.swap_p_nums_p_nums_2:
+.swap_ind_p_nums_2_p_nums_min:
     ldy #0
     lda (p_nums),Y
     sta swap_temp
@@ -325,7 +325,7 @@ bubble_sort:
     sta (p_nums),Y
     lda swap_temp
     sta (p_nums_2),Y
-    rts  ; .swap_p_nums_p_nums_2
+    rts  ; .swap_ind_p_nums_p_nums_2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -396,7 +396,7 @@ verify_sorted:
     
     jsr init_p_nums_2_from_p_nums_minus_1
     
-    jsr cmp_p_nums_p_nums_2
+    jsr cmp_ind_p_nums_p_nums_2
     bcc .error
 
     jsr inc_p_nums
@@ -486,7 +486,7 @@ cmp_p_nums_2_end:
     cmp #<nums_end
     rts  ; cmp_p_nums_2_end
     
-cmp_p_nums_p_nums_2:
+cmp_ind_p_nums_p_nums_2:
     ldy #1
     lda (p_nums),Y
     cmp (p_nums_2),Y
@@ -494,7 +494,7 @@ cmp_p_nums_p_nums_2:
     dey
     lda (p_nums),Y
     cmp (p_nums_2),Y
-    rts  ; cmp_p_nums_p_nums_2
+    rts  ; cmp_ind_p_nums_p_nums_2
     
 inc_p_nums_2:
     inc p_nums_2

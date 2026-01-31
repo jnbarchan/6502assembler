@@ -114,14 +114,9 @@ cmp_this_line_to_last_line:
     inx
     lda this_line,X
     cmp last_line,X
-    bcc .lt
-    bne .gt
+    bne *+7
     lda this_line,X
     bne .cmp_char
-.eq:
-.lt:
-.gt:
-.return:
     rts  ; cmp_this_line_to_last_line
     
 cmp_this_line_to_next_line:
@@ -130,14 +125,9 @@ cmp_this_line_to_next_line:
     inx
     lda this_line,X
     cmp next_line,X
-    bcc .lt
-    bne .gt
+    bne *+7
     lda next_line,X
     bne .cmp_char
-.eq:
-.lt:
-.gt:
-.return:
     rts  ; cmp_this_line_to_next_line
 
 copy_this_line_to_next_line:
