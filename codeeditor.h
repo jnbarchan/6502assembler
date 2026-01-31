@@ -35,6 +35,7 @@ public:
     void lineNumberAreaPaintEvent(QPaintEvent *event);
     int lineNumberAreaWidth();
     void lineNumberAreaMousePressEvent(QMouseEvent *event);
+    void lineNumberAreaToolTipEvent(QHelpEvent *helpEvent);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -59,7 +60,8 @@ class LineNumberArea : public QWidget
 {
 public:
     LineNumberArea(CodeEditor *editor) : QWidget(editor), codeEditor(editor)
-    {}
+    {
+    }
 
     QSize sizeHint() const override
     {
@@ -78,11 +80,17 @@ protected:
     }
     void wheelEvent(QWheelEvent *event) override
     {
-        if (auto editor = qobject_cast<CodeEditor *>(parentWidget()))
+        QApplication::sendEvent(codeEditor->viewport(), event);
+        event->accept();
+    }
+    bool event(QEvent *event) override
+    {
+        if (event->type() == QEvent::ToolTip)
         {
-            QApplication::sendEvent(editor->viewport(), event);
-            event->accept();
+            codeEditor->lineNumberAreaToolTipEvent(static_cast<QHelpEvent *>(event));
+            return true;
         }
+        return QWidget::event(event);
     }
 
 private:
@@ -102,6 +110,7 @@ public:
 
     virtual ~ILineInfoProvider() = default;
     virtual BreakpointInfo findBreakpointInfo(int blockNumber) const = 0;
+    virtual int findInstructionAddress(int blockNumber) const = 0;
 };
 
 

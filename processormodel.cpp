@@ -370,6 +370,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
 
         setIsRunning(true);
         QCoreApplication::processEvents();
+        QCoreApplication::processEvents();  // extra time, allows proper redraw
 
         int stopAtInstructionAddress = -1;
         bool keepGoing = true;

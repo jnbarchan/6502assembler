@@ -679,7 +679,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         if (topLeft == bottomRight)
         {
             _lastMemoryModelDataChangedIndex = topLeft;
-            scrollToLastMemoryModelDataChangedIndex();
+            if (!ui->tvMemory->selectionModel()->hasSelection())
+                scrollToLastMemoryModelDataChangedIndex();
         }
 }
 
@@ -739,4 +740,9 @@ ILineInfoProvider::BreakpointInfo CodeEditorLineInfoProvider::findBreakpointInfo
     ILineInfoProvider::BreakpointInfo bpInfo;
     bpInfo.instructionAddress = instructionAddress >= 0 ? instructionAddress : 0;
     return bpInfo;
+}
+
+int CodeEditorLineInfoProvider::findInstructionAddress(int blockNumber) const
+{
+    return emulator()->mapFileLineNumberToInstructionAddress("", blockNumber, true);
 }

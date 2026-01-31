@@ -1,5 +1,6 @@
 #include <QPainter>
 #include <QTextBlock>
+#include <QToolTip>
 
 #include "codeeditor.h"
 
@@ -209,5 +210,20 @@ void CodeEditor::lineNumberAreaMousePressEvent(QMouseEvent *event)
 {
     QTextCursor cursor = cursorForPosition(event->pos());
     emit lineNumberClicked(cursor.blockNumber());
+}
+
+void CodeEditor::lineNumberAreaToolTipEvent(QHelpEvent *helpEvent)
+{
+    QString text;
+    if (lineInfoProvider == nullptr)
+        return;
+    QTextCursor cursor = cursorForPosition(helpEvent->pos());
+    int instructionAddress = lineInfoProvider->findInstructionAddress(cursor.blockNumber());
+    if (instructionAddress >= 0)
+        text = QString("%1").arg(instructionAddress, 4, 16, QChar('0'));
+    if (!text.isEmpty())
+        QToolTip::showText(helpEvent->globalPos(), text, this);
+    else
+        QToolTip::hideText();
 }
 

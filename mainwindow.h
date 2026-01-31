@@ -118,6 +118,7 @@ class CodeEditorLineInfoProvider : public ILineInfoProvider
 public:
     CodeEditorLineInfoProvider(const Emulator *emulator) : _emulator(emulator) {}
     ILineInfoProvider::BreakpointInfo findBreakpointInfo(int blockNumber) const override;
+    int findInstructionAddress(int blockNumber) const override;
 
 private:
     const Emulator *_emulator;
