@@ -58,6 +58,8 @@ public:
     QPlainTextEdit *getEditor(){
         return myEditor;
     }
+    // jon
+    void initFindWhat();
 
 private slots:
     void find();

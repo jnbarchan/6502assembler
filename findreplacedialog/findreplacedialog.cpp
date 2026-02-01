@@ -37,6 +37,8 @@ FindReplaceDialog::FindReplaceDialog(QWidget *parent) : QDialog(parent)
 
     label = new QLabel(tr("Find &what: "));
     lineEdit = new QLineEdit;
+    // jon
+    lineEdit->setFixedWidth(250);
     label->setBuddy(lineEdit);
 
     replaceLabel = new QLabel(tr("Replace with: "));
@@ -55,7 +57,9 @@ FindReplaceDialog::FindReplaceDialog(QWidget *parent) : QDialog(parent)
     findButton->setDefault(true);
 
     replaceButton = new QPushButton(tr("&Replace"));
-    connect(replaceButton, SIGNAL(clicked()), this, SLOT(replace()));
+    // jon
+    // connect(replaceButton, SIGNAL(clicked()), this, SLOT(replace()));
+    connect(replaceButton, SIGNAL(clicked()), this, SLOT(replaceAndFind()));
 
     replaceAllButton = new QPushButton(tr("Replace All"));
     connect(replaceAllButton, SIGNAL(clicked()), this, SLOT(replaceAll()));
@@ -117,9 +121,19 @@ FindReplaceDialog::FindReplaceDialog(QWidget *parent) : QDialog(parent)
     extension->hide();
 }
 
+// jon
+void FindReplaceDialog::initFindWhat()
+{
+    QPlainTextEdit *Editor = getEditor();
+    QString text = Editor->textCursor().selectedText();
+    if (!text.isEmpty() && !text.contains(u8"\u2029"))
+        lineEdit->setText(text);
+}
+
 void FindReplaceDialog::find(){
     QString query = lineEdit->text();
-    QRegularExpression re;
+    // jon
+    // QRegularExpression re;
     QPlainTextEdit *Editor = getEditor();
 
     if(fromStartCheckBox->isChecked()){
@@ -129,51 +143,70 @@ void FindReplaceDialog::find(){
     }
     fromStartCheckBox->setChecked(false);
 
-    if(regexCheckBox->isChecked()){
-        re = QRegularExpression(query);
-        if(backwardCheckBox->isChecked()){
-            lastMatch = Editor->find(re, QTextDocument::FindBackward);
-        }
-        else{
-            lastMatch = Editor->find(re);
-        }
-    }
-
-    if(searchSelectionCheckBox->isChecked()){
+    // jon: Changed lots of lines here
+    QTextDocument::FindFlags findFlags;
+    if (searchSelectionCheckBox->isChecked())
         query = Editor->textCursor().selectedText();
-        Editor->find(query);
-    }
+    if (backwardCheckBox->isChecked())
+        findFlags.setFlag(QTextDocument::FindBackward);
+    if (wholeWordsCheckBox->isChecked())
+        findFlags.setFlag(QTextDocument::FindWholeWords);
+    if (caseCheckBox->isChecked())
+        findFlags.setFlag(QTextDocument::FindCaseSensitively);
 
-    else{
-        if(backwardCheckBox->isChecked()){
-            if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked()){
-                lastMatch = Editor->find(query, QTextDocument::FindWholeWords | QTextDocument::FindBackward | QTextDocument::FindCaseSensitively);
-            }
-            else if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked() != true){
-                lastMatch = Editor->find(query, QTextDocument::FindWholeWords | QTextDocument::FindBackward);
-            }
-            else if(caseCheckBox->isChecked()){
-                lastMatch = Editor->find(query, QTextDocument::FindBackward | QTextDocument::FindCaseSensitively);
-            }
-            else{
-                lastMatch = Editor->find(query, QTextDocument::FindBackward);
-            }
-        }
-        else{
-            if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked()){
-                lastMatch = Editor->find(query, QTextDocument::FindWholeWords | QTextDocument::FindCaseSensitively);
-            }
-            else if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked() != true){
-                lastMatch = Editor->find(query, QTextDocument::FindWholeWords);
-            }
-            else if(caseCheckBox->isChecked()){
-                lastMatch = Editor->find(query, QTextDocument::FindCaseSensitively);
-            }
-            else{
-                lastMatch = Editor->find(query);
-            }
-        }
+    if (regexCheckBox->isChecked())
+    {
+        QRegularExpression re = QRegularExpression(query);
+        lastMatch = Editor->find(re, findFlags);
     }
+    else
+        lastMatch = Editor->find(query, findFlags);
+
+    // if(regexCheckBox->isChecked()){
+    //     re = QRegularExpression(query);
+    //     if(backwardCheckBox->isChecked()){
+    //         lastMatch = Editor->find(re, QTextDocument::FindBackward);
+    //     }
+    //     else{
+    //         lastMatch = Editor->find(re);
+    //     }
+    // }
+
+    // if(searchSelectionCheckBox->isChecked()){
+    //     query = Editor->textCursor().selectedText();
+    //     Editor->find(query);
+    // }
+
+    // else{
+    //     if(backwardCheckBox->isChecked()){
+    //         if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked()){
+    //             lastMatch = Editor->find(query, QTextDocument::FindWholeWords | QTextDocument::FindBackward | QTextDocument::FindCaseSensitively);
+    //         }
+    //         else if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked() != true){
+    //             lastMatch = Editor->find(query, QTextDocument::FindWholeWords | QTextDocument::FindBackward);
+    //         }
+    //         else if(caseCheckBox->isChecked()){
+    //             lastMatch = Editor->find(query, QTextDocument::FindBackward | QTextDocument::FindCaseSensitively);
+    //         }
+    //         else{
+    //             lastMatch = Editor->find(query, QTextDocument::FindBackward);
+    //         }
+    //     }
+    //     else{
+    //         if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked()){
+    //             lastMatch = Editor->find(query, QTextDocument::FindWholeWords | QTextDocument::FindCaseSensitively);
+    //         }
+    //         else if(wholeWordsCheckBox->isChecked() and caseCheckBox->isChecked() != true){
+    //             lastMatch = Editor->find(query, QTextDocument::FindWholeWords);
+    //         }
+    //         else if(caseCheckBox->isChecked()){
+    //             lastMatch = Editor->find(query, QTextDocument::FindCaseSensitively);
+    //         }
+    //         else{
+    //             lastMatch = Editor->find(query);
+    //         }
+    //     }
+    // }
 }
 
 void FindReplaceDialog::replace(){
@@ -186,23 +219,46 @@ void FindReplaceDialog::replace(){
     }
 }
 
+// jon
+void FindReplaceDialog::replaceAndFind()
+{
+    replace();
+    find();
+}
+
 void FindReplaceDialog::replaceAll(){
+    // jon
+    QPlainTextEdit *Editor = getEditor();
+    cursor = Editor->textCursor();
+    cursor.movePosition(QTextCursor::Start);
+    Editor->setTextCursor(cursor);
+
     lastMatch = false;
     find();
     replace();
 
-    QPlainTextEdit *Editor = getEditor();
-    for(int i = 0; i<Editor->document()->lineCount(); i++){
+    // jon
+    // QPlainTextEdit *Editor = getEditor();
+    // for(int i = 0; i<Editor->document()->lineCount(); i++){
+    while(lastMatch){
         find();
         replace();
     }
+
+    // jon
+    fromStartCheckBox->setChecked(true);
+    searchSelectionCheckBox->setChecked(false);
 }
 
 
 void FindReplaceDialog::regexMode(){
-    caseCheckBox->setChecked(false);
-    wholeWordsCheckBox->setChecked(false);
+    // jon
+    // caseCheckBox->setChecked(false);
+    // wholeWordsCheckBox->setChecked(false);
 
-    caseCheckBox->setEnabled(false);
-    wholeWordsCheckBox->setEnabled(false);
+    // // jon
+    // // caseCheckBox->setEnabled(false);
+    // // wholeWordsCheckBox->setEnabled(false);
+    // caseCheckBox->setEnabled(!regexCheckBox->isChecked());
+    // wholeWordsCheckBox->setEnabled(!regexCheckBox->isChecked());
 }

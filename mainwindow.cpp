@@ -495,6 +495,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         findDialog = new FindDialog(ui->codeEditor);
         findDialog->setEditor(ui->codeEditor);
     }
+    findDialog->initFindWhat();
     findDialog->show();
 }
 
@@ -505,6 +506,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         findReplaceDialog = new FindReplaceDialog(ui->codeEditor);
         findReplaceDialog->setEditor(ui->codeEditor);
     }
+    findReplaceDialog->initFindWhat();
     findReplaceDialog->show();
 }
 
