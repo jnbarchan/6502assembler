@@ -83,22 +83,67 @@ void CodeEditor::handleReturnKey()
 
 void CodeEditor::handleShiftDeleteKey()
 {
-    QTextCursor c = textCursor();
-    if (c.hasSelection())
+    QTextCursor tc = textCursor();
+    if (tc.hasSelection())
     {
         cut();
         return;
     }
-    c.beginEditBlock();
+    tc.beginEditBlock();
     // Select the line contents
-    c.select(QTextCursor::LineUnderCursor);
+    tc.select(QTextCursor::LineUnderCursor);
     // Extend selection to include the line break, if there is one
-    if (c.selectionEnd() < c.document()->characterCount() - 1)
-        c.setPosition(c.selectionEnd() + 1, QTextCursor::KeepAnchor);
-    c.removeSelectedText();
-    c.endEditBlock();
+    if (tc.selectionEnd() < tc.document()->characterCount() - 1)
+        tc.setPosition(tc.selectionEnd() + 1, QTextCursor::KeepAnchor);
+    tc.removeSelectedText();
+    tc.endEditBlock();
 
-    setTextCursor(c);
+    setTextCursor(tc);
+}
+
+void CodeEditor::handleToggleCommentKey()
+{
+    QTextCursor tc = textCursor();
+    if (!tc.hasSelection())
+        return;
+
+    int selStart = tc.selectionStart();
+    int selEnd   = tc.selectionEnd();
+    QTextBlock startBlock = tc.document()->findBlock(selStart);
+
+    bool uncomment = true;
+    for (QTextBlock block = startBlock; block.isValid(); block = block.next())
+    {
+        int blockStart = block.position();
+        if (blockStart >= selEnd)
+            break;
+
+        if (!block.text().startsWith(';'))
+            uncomment = false;
+    }
+
+    tc.beginEditBlock();
+    for (QTextBlock block = startBlock; block.isValid(); block = block.next())
+    {
+        int blockStart = block.position();
+        if (blockStart >= selEnd)
+            break;
+
+        QTextCursor lineCursor(tc.document());
+        lineCursor.setPosition(blockStart);
+        if (uncomment)
+        {
+            Q_ASSERT(block.text().startsWith(';'));
+            lineCursor.deleteChar();
+            selEnd--;
+        }
+        else
+        {
+            lineCursor.insertText(";");
+            selEnd++;
+        }
+    }
+    tc.endEditBlock();
 }
 
 void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
@@ -111,6 +156,11 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
     else if (e->key() == Qt::Key_Delete && (e->modifiers() & Qt::ShiftModifier))
     {
         handleShiftDeleteKey();
+        return;
+    }
+    else if (e->key() == '/' && (e->modifiers() & Qt::ControlModifier))
+    {
+        handleToggleCommentKey();
         return;
     }
     QPlainTextEdit::keyPressEvent(e);

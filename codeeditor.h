@@ -27,6 +27,7 @@ protected:
 private:
     void handleReturnKey();
     void handleShiftDeleteKey();
+    void handleToggleCommentKey();
 
 signals:
     void lineNumberClicked(int blockNumber);
