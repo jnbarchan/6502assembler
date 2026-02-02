@@ -31,6 +31,7 @@ public:
     const uint16_t runStartAddress() const;
     void mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const;
     int mapFileLineNumberToInstructionAddress(const QString &filename, int lineNumber, bool exact = false) const;
+
     int findBreakpoint(const QString &filename, int lineNumber) const;
     void toggleBreakpoint(const QString &filename, int lineNumber);
     void clearBreakpoints();
@@ -43,6 +44,9 @@ signals:
 
 private:
     int findBreakpointIndex(uint16_t instructionAddress) const;
+
+public:
+    QString wordCompletion(const QString &word, const QString &filename, int lineNumber) const;
 
 public:
     struct QueuedChangeSignal

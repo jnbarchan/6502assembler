@@ -5,7 +5,7 @@
 #include <QPlainTextEdit>
 
 class LineNumberArea;
-class ILineInfoProvider;
+class ICodeEditorInfoProvider;
 
 //
 // CodeEditor Class
@@ -16,7 +16,7 @@ class CodeEditor : public QPlainTextEdit
 public:
     explicit CodeEditor(QWidget *parent = nullptr);
 
-    void setLineInfoProvider(const ILineInfoProvider *provider);
+    void setCodeEditorInfoProvider(const ICodeEditorInfoProvider *provider);
     void moveCursorToEnd();
     void highlightCurrentBlock(QTextBlock &block);
     void unhighlightCurrentBlock();
@@ -28,6 +28,7 @@ private:
     void handleReturnKey();
     void handleShiftDeleteKey();
     void handleToggleCommentKey();
+    bool handleTabKey();
 
 signals:
     void lineNumberClicked(int blockNumber);
@@ -43,7 +44,7 @@ protected:
 
 private:
     LineNumberArea *lineNumberArea;
-    const ILineInfoProvider *lineInfoProvider;
+    const ICodeEditorInfoProvider *codeEditorInfoProvider;
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
@@ -100,18 +101,20 @@ private:
 
 
 //
-// ILineInfoProvider Class
+// ICodeEditorInfoProvider Class
 //
-class ILineInfoProvider
+class ICodeEditorInfoProvider
 {
 public:
     struct BreakpointInfo {
         uint16_t instructionAddress;
     };
 
-    virtual ~ILineInfoProvider() = default;
+    virtual ~ICodeEditorInfoProvider() = default;
     virtual BreakpointInfo findBreakpointInfo(int blockNumber) const = 0;
     virtual int findInstructionAddress(int blockNumber) const = 0;
+
+    virtual QString wordCompletion(const QString& word, int lineNumber) const = 0;
 };
 
 

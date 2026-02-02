@@ -23,7 +23,7 @@ class FindReplaceDialog;
 class MemoryViewItemDelegate;
 class WatchViewItemDelegate;
 class SyntaxHighlighter;
-class CodeEditorLineInfoProvider;
+class CodeEditorInfoProvider;
 
 //
 // MainWindow Class
@@ -96,8 +96,10 @@ private:
     QModelIndex _lastMemoryModelDataChangedIndex;
     WatchViewItemDelegate *tvWatchViewItemDelegate;
     SyntaxHighlighter *syntaxHighlighter;
-    CodeEditorLineInfoProvider *codeEditorLineInfoProvider;
+    CodeEditorInfoProvider *codeEditorInfoProvider;
     WatchModel *watchModel;
+
+    bool _autoAssembleOnFileOpen = true;
 
     void updateWindowTitle();
     QString scratchFileName() const;
@@ -111,14 +113,16 @@ private:
 
 
 //
-// CodeEditorLineInfoProvider Class
+// CodeEditorInfoProvider Class
 //
-class CodeEditorLineInfoProvider : public ILineInfoProvider
+class CodeEditorInfoProvider : public ICodeEditorInfoProvider
 {
 public:
-    CodeEditorLineInfoProvider(const Emulator *emulator) : _emulator(emulator) {}
-    ILineInfoProvider::BreakpointInfo findBreakpointInfo(int blockNumber) const override;
+    CodeEditorInfoProvider(const Emulator *emulator) : _emulator(emulator) {}
+    ICodeEditorInfoProvider::BreakpointInfo findBreakpointInfo(int blockNumber) const override;
     int findInstructionAddress(int blockNumber) const override;
+
+    QString wordCompletion(const QString& word, int lineNumber) const override;
 
 private:
     const Emulator *_emulator;

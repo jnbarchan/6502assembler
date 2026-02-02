@@ -44,6 +44,18 @@ public:
         }
     };
 
+    struct ScopeLabel
+    {
+        QString label;
+        int lineNumber;
+        ScopeLabel(const QString &_label, int _lineNumber) { label = _label; lineNumber = _lineNumber; }
+    };
+    struct CodeLabels
+    {
+        QMap<QString, int> values;
+        QMap<QString, QList<ScopeLabel> > scopes;
+    };
+
     const uint16_t defaultLocationCounter() const;
 
     const Instruction *instructions() const;
@@ -58,6 +70,7 @@ public:
     uint16_t locationCounter() const;
     void setLocationCounter(uint16_t newLocationCounter);
 
+    const CodeLabels &codeLabels() const;
     int codeLabelValue(const QString &key) const;
     void setCodeLabelValue(const QString &key, int value);
 
@@ -109,7 +122,7 @@ private:
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
     IAssemblerBreakpointProvider *assemblerBreakpointProvider;
 
-    QMap<QString, int> _codeLabels;
+    CodeLabels _codeLabels;
     QString _currentCodeLabelScope;
 
     bool _codeLabelRequiresColon = true;
@@ -120,7 +133,7 @@ private:
     void assemblerWarningMessage(const QString &message) const;
     void assemblerErrorMessage(const QString &message) const;
     QString scopedLabelName(const QString &label) const;
-    void assignLabelValue(const QString &scopedLabel, int value);
+    void assignLabelValue(const QString &scopedLabel, bool isLabel, int value);
     void cleanup(bool assemblePass2 = false);
     void addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln);
     void assemblePass();

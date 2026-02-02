@@ -13,7 +13,7 @@ CodeEditor::CodeEditor(QWidget *parent)
 {
     lineNumberArea = new LineNumberArea(this);
     lineNumberArea->setCursor(Qt::PointingHandCursor);
-    lineInfoProvider = nullptr;
+    codeEditorInfoProvider = nullptr;
 
     connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
@@ -21,9 +21,9 @@ CodeEditor::CodeEditor(QWidget *parent)
     updateLineNumberAreaWidth(0);
 }
 
-void CodeEditor::setLineInfoProvider(const ILineInfoProvider *provider)
+void CodeEditor::setCodeEditorInfoProvider(const ICodeEditorInfoProvider *provider)
 {
-    lineInfoProvider = provider;
+    codeEditorInfoProvider = provider;
 }
 
 void CodeEditor::moveCursorToEnd()
@@ -146,6 +146,31 @@ void CodeEditor::handleToggleCommentKey()
     tc.endEditBlock();
 }
 
+bool CodeEditor::handleTabKey()
+{
+    if (codeEditorInfoProvider == nullptr)
+        return false;
+    QTextCursor tc = textCursor();
+    if (tc.hasSelection())
+        return false;
+    QTextBlock block = tc.block();
+    int endPos = tc.position() - block.position();
+    int startPos = endPos;
+    char ch;
+    while (startPos > 0
+           && (std::isalnum(ch = block.text().at(startPos - 1).toLatin1()) || ch == '_' || ch == '.'))
+        startPos--;
+    QString word = block.text().mid(startPos, endPos - startPos);
+    if (word.isEmpty())
+        return false;
+    QString completion = codeEditorInfoProvider->wordCompletion(word, block.blockNumber());
+    if (!completion.isEmpty())
+        tc.insertText(completion);
+    else
+        QApplication::beep();
+    return true;
+}
+
 void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
 {
     if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)
@@ -162,6 +187,11 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
     {
         handleToggleCommentKey();
         return;
+    }
+    else if (e->key() == Qt::Key_Tab)
+    {
+        if (handleTabKey())
+            return;
     }
     QPlainTextEdit::keyPressEvent(e);
 }
@@ -238,9 +268,9 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
             painter.setPen(Qt::black);
             painter.drawText(10, top, lineNumberArea->width() - 20, fontMetrics().height(),
                              Qt::AlignRight, number);
-            if (lineInfoProvider != nullptr)
+            if (codeEditorInfoProvider != nullptr)
             {
-                ILineInfoProvider::BreakpointInfo breakpointInfo = lineInfoProvider->findBreakpointInfo(blockNumber);
+                ICodeEditorInfoProvider::BreakpointInfo breakpointInfo = codeEditorInfoProvider->findBreakpointInfo(blockNumber);
                 if (breakpointInfo.instructionAddress > 0)
                 {
                     painter.setBrush(Qt::darkRed);
@@ -265,10 +295,10 @@ void CodeEditor::lineNumberAreaMousePressEvent(QMouseEvent *event)
 void CodeEditor::lineNumberAreaToolTipEvent(QHelpEvent *helpEvent)
 {
     QString text;
-    if (lineInfoProvider == nullptr)
+    if (codeEditorInfoProvider == nullptr)
         return;
     QTextCursor cursor = cursorForPosition(helpEvent->pos());
-    int instructionAddress = lineInfoProvider->findInstructionAddress(cursor.blockNumber());
+    int instructionAddress = codeEditorInfoProvider->findInstructionAddress(cursor.blockNumber());
     if (instructionAddress >= 0)
         text = QString("%1").arg(instructionAddress, 4, 16, QChar('0'));
     if (!text.isEmpty())
@@ -276,4 +306,3 @@ void CodeEditor::lineNumberAreaToolTipEvent(QHelpEvent *helpEvent)
     else
         QToolTip::hideText();
 }
-

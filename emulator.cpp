@@ -1,6 +1,8 @@
 #include "emulator.h"
 
 using CodeFileLineNumber = Assembler::CodeFileLineNumber;
+using CodeLabels = Assembler::CodeLabels;
+using ScopeLabel = Assembler::ScopeLabel;
 
 //
 // Emulator Class
@@ -41,6 +43,7 @@ const uint16_t Emulator::runStartAddress() const
     return assembler()->defaultLocationCounter();
 }
 
+
 void Emulator::mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const
 {
     filename.clear();
@@ -66,6 +69,7 @@ int Emulator::mapFileLineNumberToInstructionAddress(const QString &filename, int
                 return cfln._locationCounter;
     return -1;
 }
+
 
 int Emulator::findBreakpointIndex(uint16_t instructionAddress) const
 {
@@ -135,6 +139,54 @@ void Emulator::clearAssemblerBreakpoints()
 bool Emulator::breakpointAt(uint16_t instructionAddress)
 {
     return _breakpoints.contains(instructionAddress);
+}
+
+
+QString Emulator::wordCompletion(const QString &word, const QString &filename, int lineNumber) const
+{
+    const CodeLabels &codeLabels(assembler()->codeLabels());
+
+    QString scopeLabel;
+    if (codeLabels.scopes.contains(filename))
+    {
+        const QList<ScopeLabel> &scopeLabels(codeLabels.scopes.value(filename));
+        for (int i = scopeLabels.length() - 1; i >= 0 && scopeLabel.isEmpty(); i--)
+        {
+            if (i > 0)
+                Q_ASSERT(scopeLabels.at(i - 1).lineNumber <= scopeLabels.at(i).lineNumber);
+            if (lineNumber >= scopeLabels.at(i).lineNumber)
+                scopeLabel = scopeLabels.at(i).label;
+        }
+    }
+    if (!scopeLabel.isEmpty())
+        scopeLabel.append('.');
+
+    int wordLen = word.length();
+    QString completion;
+    for (auto [label, value] : codeLabels.values.asKeyValueRange())
+    {
+        int startAt = 0;
+        if (label.startsWith(scopeLabel))
+            startAt = scopeLabel.length() - 1;
+        if (label.mid(startAt, wordLen) != word)
+            continue;
+        QString newCompletion = label.mid(startAt + wordLen);
+        if (newCompletion.isEmpty())
+            continue;
+        else if (completion.isEmpty())
+            completion = newCompletion;
+        else
+        {
+            int maxLen = std::min(newCompletion.length(), completion.length());
+            int commonLen = 0;
+            while (commonLen < maxLen && newCompletion.at(commonLen) == completion.at(commonLen))
+                commonLen++;
+            completion = newCompletion.left(commonLen);
+            if (completion.isEmpty())
+                return QString();
+        }
+    }
+    return completion;
 }
 
 

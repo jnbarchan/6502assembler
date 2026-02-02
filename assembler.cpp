@@ -103,14 +103,19 @@ void Assembler::setLocationCounter(uint16_t newLocationCounter)
     _locationCounter = newLocationCounter;
 }
 
+const Assembler::CodeLabels &Assembler::codeLabels() const
+{
+    return _codeLabels;
+}
+
 int Assembler::codeLabelValue(const QString &key) const
 {
-    return _codeLabels.value(key, -1);
+    return _codeLabels.values.value(key, -1);
 }
 
 void Assembler::setCodeLabelValue(const QString &key, int value)
 {
-    _codeLabels[key] = value;
+    _codeLabels.values[key] = value;
 }
 
 void Assembler::setCode(QTextStream *codeStream)
@@ -155,15 +160,18 @@ QString Assembler::scopedLabelName(const QString &label) const
     return _currentCodeLabelScope + label;
 }
 
-void Assembler::assignLabelValue(const QString &scopedLabel, int value)
+void Assembler::assignLabelValue(const QString &scopedLabel, bool isLabel, int value)
 {
     if (scopedLabel.isEmpty())
         assemblerWarningMessage(QString("Defining label with no name"));
-    if (_codeLabels.value(scopedLabel, value) != value)
+    if (_codeLabels.values.value(scopedLabel, value) != value)
         assemblerWarningMessage(QString("Label redefinition: %1").arg(scopedLabel));
     setCodeLabelValue(scopedLabel, value);
-    if (!scopedLabel.contains('.'))
+    if (isLabel && !scopedLabel.contains('.'))
+    {
         _currentCodeLabelScope = scopedLabel;
+        _codeLabels.scopes[currentFile.filename].append(ScopeLabel(scopedLabel, currentFile.lineNumber));
+    }
 }
 
 void Assembler::cleanup(bool assemblePass2 /*= false*/)
@@ -182,33 +190,36 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     currentFile.file = nullptr;
     currentFile.stream->seek(0);
     currentFile.lines.clear();
-    _currentCodeLabelScope = "";
+    _currentCodeLabelScope.clear();
     currentToken.clear();
+    _codeLabels.scopes.clear();
+
     if (assemblePass2)
         return;
 
     assemblerBreakpointProvider->clearBreakpoints();
-    _codeLabels.clear();
-    _codeLabels["__terminate"] = InternalJSRs::__JSR_terminate;
-    _codeLabels["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
-    _codeLabels["__outch"] = InternalJSRs::__JSR_outch;
-    _codeLabels["__get_time"] = InternalJSRs::__JSR_get_time;
-    _codeLabels["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
-    _codeLabels["__get_elapsed_stime"] = InternalJSRs::__JSR_get_elapsed_stime;
-    _codeLabels["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
-    _codeLabels["__process_events"] = InternalJSRs::__JSR_process_events;
-    _codeLabels["__inch"] = InternalJSRs::__JSR_inch;
-    _codeLabels["__inkey"] = InternalJSRs::__JSR_inkey;
-    _codeLabels["__wait"] = InternalJSRs::__JSR_wait;
-    _codeLabels["__open_file"] = InternalJSRs::__JSR_open_file;
-    _codeLabels["__close_file"] = InternalJSRs::__JSR_close_file;
-    _codeLabels["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
-    _codeLabels["__read_file"] = InternalJSRs::__JSR_read_file;
-    _codeLabels["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
-    _codeLabels["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
-    _codeLabels["__get_elapsed_kcycles"] = InternalJSRs::__JSR_get_elapsed_kcycles;
-    _codeLabels["__get_elapsed_mcycles"] = InternalJSRs::__JSR_get_elapsed_mcycles;
-    _codeLabels["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
+    _codeLabels.values.clear();
+    _codeLabels.values["__terminate"] = InternalJSRs::__JSR_terminate;
+    _codeLabels.values["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
+    _codeLabels.values["__outch"] = InternalJSRs::__JSR_outch;
+    _codeLabels.values["__get_time"] = InternalJSRs::__JSR_get_time;
+    _codeLabels.values["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
+    _codeLabels.values["__get_elapsed_stime"] = InternalJSRs::__JSR_get_elapsed_stime;
+    _codeLabels.values["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
+    _codeLabels.values["__process_events"] = InternalJSRs::__JSR_process_events;
+    _codeLabels.values["__inch"] = InternalJSRs::__JSR_inch;
+    _codeLabels.values["__inkey"] = InternalJSRs::__JSR_inkey;
+    _codeLabels.values["__wait"] = InternalJSRs::__JSR_wait;
+    _codeLabels.values["__open_file"] = InternalJSRs::__JSR_open_file;
+    _codeLabels.values["__close_file"] = InternalJSRs::__JSR_close_file;
+    _codeLabels.values["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
+    _codeLabels.values["__read_file"] = InternalJSRs::__JSR_read_file;
+    _codeLabels.values["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
+    _codeLabels.values["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
+    _codeLabels.values["__get_elapsed_kcycles"] = InternalJSRs::__JSR_get_elapsed_kcycles;
+    _codeLabels.values["__get_elapsed_mcycles"] = InternalJSRs::__JSR_get_elapsed_mcycles;
+    _codeLabels.values["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
+
     setAssembleState(AssembleState::NotStarted);
 }
 
@@ -349,12 +360,12 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
                 int value = getTokensExpressionValueAsInt(ok);
                 if (!ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                assignLabelValue(scopedLabelName(label), value);
+                assignLabelValue(scopedLabelName(label), false, value);
                 return;
             }
             else if (isCodeLabel)
             {
-                assignLabelValue(scopedLabelName(label), _locationCounter);
+                assignLabelValue(scopedLabelName(label), true, _locationCounter);
                 getNextToken();
             }
 
@@ -626,6 +637,7 @@ void Assembler::startIncludeFile(const QString &includeFilename)
     currentFile.stream = new QTextStream(file);
     currentFile.lines = QStringList();
     currentToken.clear();
+    _currentCodeLabelScope.clear();
 }
 
 void Assembler::endIncludeFile()
@@ -636,6 +648,7 @@ void Assembler::endIncludeFile()
     closeIncludeFile();
 
     currentFile = codeFileStateStack.pop();
+    _currentCodeLabelScope.clear();
 }
 
 void Assembler::closeIncludeFile()
@@ -1010,10 +1023,10 @@ int Assembler::tokenValueAsInt(bool *ok) const
     if (tokenIsLabel())
     {
         QString label = scopedLabelName(currentToken);
-        if (_codeLabels.contains(label))
+        if (_codeLabels.values.contains(label))
         {
             *ok = true;
-            return _codeLabels.value(label);
+            return _codeLabels.values.value(label);
         }
         else if (_assembleState == Pass1)
         {

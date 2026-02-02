@@ -28,6 +28,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    ui->actionAssembleOnly->setIcon(QIcon("/usr/share/qtcreator/doc/qtcreator/images/front-advanced.png"));
+
     QSplitter *horizontalSplitter = new QSplitter(this);
     horizontalSplitter->setChildrenCollapsible(false);
     horizontalSplitter->addWidget(ui->codeEditor);
@@ -86,8 +88,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->codeEditor, &QPlainTextEdit::modificationChanged, this, &MainWindow::updateWindowTitle);
     connect(ui->codeEditor, &CodeEditor::lineNumberClicked, this, &MainWindow::codeEditorLineNumberClicked);
 
-    codeEditorLineInfoProvider = new CodeEditorLineInfoProvider(emulator());
-    ui->codeEditor->setLineInfoProvider(codeEditorLineInfoProvider);
+    codeEditorInfoProvider = new CodeEditorInfoProvider(emulator());
+    ui->codeEditor->setCodeEditorInfoProvider(codeEditorInfoProvider);
 
     syntaxHighlighter = new SyntaxHighlighter(ui->codeEditor->document());
 
@@ -152,7 +154,7 @@ MainWindow::~MainWindow()
     delete ui;
 
     delete codeStream;
-    delete codeEditorLineInfoProvider;
+    delete codeEditorInfoProvider;
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) /*override*/
@@ -237,6 +239,8 @@ void MainWindow::openFromFile(QString fileName)
         setCurrentFileNameToSave(fileName);
     }
     reset();
+    if (_autoAssembleOnFileOpen)
+        assembleOnly();
 }
 
 void MainWindow::saveToFile(QString fileName)
@@ -308,6 +312,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     }
     if (run || !haveDoneReset() || assembler()->needsAssembling())
     {
+        QTextCursor savedTextCursor(ui->codeEditor->textCursor());
         saveToFile(scratchFileName());
         reset();
         codeBytes.clear();
@@ -317,6 +322,12 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         assembler()->setCode(codeStream);
 
         assembler()->assemble();
+        if (!assembler()->needsAssembling())
+        {
+            currentCodeLineNumberChanged("", -1);
+            ui->codeEditor->setTextCursor(savedTextCursor);
+            ui->codeEditor->centerCursor();
+        }
 
         processorModel()->memoryModel()->notifyAllDataChanged();
         watchModel->recalculateAllSymbols();
@@ -748,18 +759,23 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 
 //
-// CodeEditorLineInfoProvider Class
+// CodeEditorInfoProvider Class
 //
 
-ILineInfoProvider::BreakpointInfo CodeEditorLineInfoProvider::findBreakpointInfo(int blockNumber) const
+ICodeEditorInfoProvider::BreakpointInfo CodeEditorInfoProvider::findBreakpointInfo(int blockNumber) const
 {
     int instructionAddress = emulator()->findBreakpoint("", blockNumber);
-    ILineInfoProvider::BreakpointInfo bpInfo;
+    ICodeEditorInfoProvider::BreakpointInfo bpInfo;
     bpInfo.instructionAddress = instructionAddress >= 0 ? instructionAddress : 0;
     return bpInfo;
 }
 
-int CodeEditorLineInfoProvider::findInstructionAddress(int blockNumber) const
+int CodeEditorInfoProvider::findInstructionAddress(int blockNumber) const
 {
     return emulator()->mapFileLineNumberToInstructionAddress("", blockNumber, true);
+}
+
+QString CodeEditorInfoProvider::wordCompletion(const QString &word, int lineNumber) const
+{
+    return emulator()->wordCompletion(word, "", lineNumber);
 }
