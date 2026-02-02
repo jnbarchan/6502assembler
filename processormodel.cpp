@@ -1,5 +1,6 @@
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QDeadlineTimer>
 #include <QDebug>
 #include <QTimer>
 
@@ -365,8 +366,10 @@ void ProcessorModel::runInstructions(RunMode runMode)
         if (startedNewRun && runMode == StepInto)
             return;
 
-        int count = 0;
-        const int processEventsEverySoOften = 10000;
+        int instructionCount = 0;
+        const int processEventsEverySoOften = /*0*/ 100000;
+        const int processEventsForVerticalSync = 0 /*50*/;
+        QDeadlineTimer verticalSync(processEventsForVerticalSync);
 
         setIsRunning(true);
         QCoreApplication::processEvents();
@@ -400,7 +403,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
             }
 
             runNextInstruction(instruction);
-            count++;
+            instructionCount++;
 
             if (runMode == TurboRun)
                 continue;
@@ -408,7 +411,15 @@ void ProcessorModel::runInstructions(RunMode runMode)
             if (_programCounter == stopAtInstructionAddress || processorBreakpointProvider->breakpointAt(_programCounter))
                 keepGoing = false;
 
-            if (processEventsEverySoOften != 0 && count % processEventsEverySoOften == 0)
+            bool processEvents = false;
+            if (processEventsForVerticalSync != 0 && verticalSync.hasExpired())
+            {
+                verticalSync.setDeadline(processEventsForVerticalSync);
+                processEvents = true;
+            }
+            if (processEventsEverySoOften != 0 && instructionCount % processEventsEverySoOften == 0)
+                processEvents = true;
+            if (processEvents)
                 QCoreApplication::processEvents();
         }
     }
