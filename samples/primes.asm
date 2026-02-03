@@ -9,10 +9,16 @@ primes_ptr = ZP_USER_0+4
 primes_count = ZP_USER_0+6
 last_prime = ZP_USER_0+8
 
+nextnum_compact = ZP_USER_0+10
+nextnum_compact_byte = ZP_USER_0+12
+nextnum_compact_bit = ZP_USER_0+14
+nextnum_compact_bit_mask = ZP_USER_0+15
+
 primes = MEM_USER_0+$1000
 
 primes_sieve_start = primes
 primes_sieve_end = primes_sieve_start+$2000
+primes_sieve_compact_end = primes_sieve_start+$400
 
 max_primes = 1028
 
@@ -25,6 +31,8 @@ main:
     jsr run_primes_trial_division
     jsr clear_elapsed_time_cycles
     jsr run_primes_eratosthenes_sieve
+    jsr clear_elapsed_time_cycles
+    jsr run_primes_eratosthenes_sieve_compact
     rts  ; main 
     brk
 
@@ -209,6 +217,185 @@ run_primes_trial_division:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     
+run_primes_eratosthenes_sieve_compact:
+    ; set primes_sieve_start .. primes_sieve_compact_end to 0s
+    jsr .clear_primes_sieve
+
+    ; primes_count = 0
+    lda #0
+    sta primes_count
+    sta primes_count+1
+    
+    ; nextnum = 2
+    lda #2
+    sta nextnum
+    lda #0
+    sta nextnum+1
+    
+.test_next_num:
+    ; set nextnum_compact_byte/bit
+    lda nextnum
+    sta nextnum_compact
+    lda nextnum+1
+    sta nextnum_compact+1
+    jsr .nextnum_compact_to_byte_bit
+    ; primes_ptr = primes_sieve_start + nextnum_compact_byte
+    clc
+    lda #<primes_sieve_start
+    adc nextnum_compact_byte
+    sta primes_ptr
+    lda #>primes_sieve_start
+    adc nextnum_compact_byte+1
+    sta primes_ptr+1
+    
+    ; test for primes_sieve_compact_end
+    lda primes_ptr+1
+    cmp #>primes_sieve_compact_end
+    bne *+6
+    lda primes_ptr
+    cmp #<primes_sieve_compact_end
+    bcs .finished
+    
+    ; see whether primes_ptr[nextnum_compact_byte/bit] is already marked as non-prime
+    ldy #0
+    lda (primes_ptr),Y
+    ldx nextnum_compact_bit
+    and .nextnum_compact_bit_masks,X
+    bne .try_next_num
+
+    ; mark all multiples in primes_sieve_start..primes_sieve_end
+    jsr .found_prime   
+    ; show prime found?
+    lda #show_primes
+    cmp #2
+    bcc *+5
+    jsr found_prime_output
+
+.try_next_num:
+    ; nextnum++, test for finished
+    inc nextnum
+    bne *+4
+    inc nextnum+1
+    beq .finished
+    ; if nextnum & 1 == 0 (even) nextnum++
+    lda nextnum
+    and #1
+    bne *+4
+    inc nextnum
+    jmp .test_next_num
+    
+.finished:
+    jsr _outstr_inline
+    .byte "Eratosthenes sieve compact:", 10, 0
+    ; show last prime found?
+    lda #show_primes
+    beq *+5
+    jsr found_prime_output
+    jsr elapsed_time
+    jsr elapsed_cycles
+    jsr __process_events
+    rts ; run_primes_eratosthenes_sieve_compact
+    
+.found_prime:
+.break
+    ; last_prime = nextnum
+    lda nextnum
+    sta last_prime
+    lda nextnum+1
+    sta last_prime+1
+    
+.found_prime_next:
+    ; mark primes_ptr[nextnum_compact_byte/bit] as non-prime
+    ldy #0
+    lda (primes_ptr),Y
+    ldx nextnum_compact_bit
+    ora .nextnum_compact_bit_masks,X
+    sta (primes_ptr),Y
+    
+    ; nextnum_compact += nextnum
+    clc
+    lda nextnum_compact
+    adc nextnum
+    sta nextnum_compact
+    lda nextnum_compact+1
+    adc nextnum+1
+    sta nextnum_compact+1
+    jsr .nextnum_compact_to_byte_bit
+    
+    ; primes_ptr = primes_sieve_start + nextnum_compact_byte
+    clc
+    lda #<primes_sieve_start
+    adc nextnum_compact_byte
+    sta primes_ptr
+    lda #>primes_sieve_start
+    adc nextnum_compact_byte+1
+    sta primes_ptr+1
+    
+    ; test for primes_sieve_compact_end
+    lda primes_ptr+1
+    cmp #>primes_sieve_compact_end
+    bne *+6
+    lda primes_ptr
+    cmp #<primes_sieve_compact_end
+    bcc .found_prime_next
+    
+    ; primes_count++
+    inc primes_count
+    bne *+4
+    inc primes_count+1
+    rts  ; .found_prime
+
+.clear_primes_sieve:
+    ; primes_ptr = primes_sieve_start
+    lda #<primes_sieve_start
+    sta primes_ptr
+    lda #>primes_sieve_start
+    sta primes_ptr+1
+
+.clear_primes_sieve_next:
+    ; test for primes_sieve_compact_end
+    lda primes_ptr+1
+    cmp #>primes_sieve_compact_end
+    bne *+6
+    lda primes_ptr
+    cmp #<primes_sieve_compact_end
+    bcs .done_clear_primes_sieve
+    
+    ; (primes_ptr) = 0
+    ldy #0
+    lda #0
+    sta (primes_ptr),Y
+    ; primes_ptr++
+    inc primes_ptr
+    bne *+4
+    inc primes_ptr+1
+    
+    jmp .clear_primes_sieve_next
+
+.nextnum_compact_bit_masks:
+    .byte $01, $02, $04, $08, $10, $20, $40, $80
+
+.nextnum_compact_to_byte_bit:
+    lda nextnum_compact+1
+    sta nextnum_compact_byte+1
+    lda nextnum_compact
+    sta nextnum_compact_byte
+    and #%111
+    sta nextnum_compact_bit
+    lsr nextnum_compact_byte+1
+    ror nextnum_compact_byte
+    lsr nextnum_compact_byte+1
+    ror nextnum_compact_byte
+    lsr nextnum_compact_byte+1
+    ror nextnum_compact_byte
+    
+    rts  ; .nextnum_to_compact
+
+.done_clear_primes_sieve:
+    rts  ; .clear_primes_sieve
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    
 run_primes_eratosthenes_sieve:
     ; set primes_sieve_start .. primes_sieve_end to 0s
     jsr .clear_primes_sieve
@@ -287,6 +474,7 @@ run_primes_eratosthenes_sieve:
     lda nextnum+1
     sta last_prime+1
     
+.found_prime_next:
     ; mark (primes_ptr+nextnum) as non-prime
     ldy #0
     lda #1
@@ -307,7 +495,7 @@ run_primes_eratosthenes_sieve:
     bne *+6
     lda primes_ptr
     cmp #<primes_sieve_end
-    bcc .found_prime
+    bcc .found_prime_next
     
     ; primes_count++
     inc primes_count
