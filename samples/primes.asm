@@ -297,7 +297,6 @@ run_primes_eratosthenes_sieve_compact:
     rts ; run_primes_eratosthenes_sieve_compact
     
 .found_prime:
-.break
     ; last_prime = nextnum
     lda nextnum
     sta last_prime
@@ -589,4 +588,4 @@ elapsed_cycles:
     rts  ; elapsed_cycles
 
 .include "outnum.asm"
-.include "mul16.asm"
+.include "mul.asm"

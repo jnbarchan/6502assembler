@@ -68,5 +68,5 @@ _innum:
 
 .include "outnum.asm"
 
-.include "mul16.asm"
+.include "mul.asm"
 
