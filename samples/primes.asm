@@ -27,11 +27,11 @@ show_primes = 1  ; 0 => none, 1 => last, 2 => all
 .org MEM_USER_0
 
 main:
-    jsr clear_elapsed_time_cycles
+    jsr _clear_elapsed_time_cycles
     jsr run_primes_trial_division
-    jsr clear_elapsed_time_cycles
+    jsr _clear_elapsed_time_cycles
     jsr run_primes_eratosthenes_sieve
-    jsr clear_elapsed_time_cycles
+    jsr _clear_elapsed_time_cycles
     jsr run_primes_eratosthenes_sieve_compact
     rts  ; main 
     brk
@@ -130,8 +130,8 @@ run_primes_trial_division:
     lda #show_primes
     beq *+5
     jsr found_prime_output
-    jsr elapsed_time
-    jsr elapsed_cycles
+    jsr _elapsed_time
+    jsr _elapsed_cycles
     jsr __process_events
     rts  ; run_primes_trial_division
     
@@ -291,8 +291,8 @@ run_primes_eratosthenes_sieve_compact:
     lda #show_primes
     beq *+5
     jsr found_prime_output
-    jsr elapsed_time
-    jsr elapsed_cycles
+    jsr _elapsed_time
+    jsr _elapsed_cycles
     jsr __process_events
     rts ; run_primes_eratosthenes_sieve_compact
     
@@ -461,8 +461,8 @@ run_primes_eratosthenes_sieve:
     lda #show_primes
     beq *+5
     jsr found_prime_output
-    jsr elapsed_time
-    jsr elapsed_cycles
+    jsr _elapsed_time
+    jsr _elapsed_cycles
     jsr __process_events
     rts ; run_primes_eratosthenes_sieve
     
@@ -560,32 +560,5 @@ found_prime_output:
     
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-clear_elapsed_time_cycles:
-    jsr __clear_elapsed_time
-    jsr __clear_elapsed_cycles
-    rts  ; clear_elapsed_time_cycles
-
-elapsed_time:
-    jsr __get_elapsed_time
-    sta dividend
-    stx dividend+1
-    jsr _outnum
-    jsr _outstr_inline
-    .byte " ms", 0
-    lda #10
-    jsr __outch
-    rts  ; elapsed_time
-
-elapsed_cycles:
-    jsr __get_elapsed_kcycles
-    sta dividend
-    stx dividend+1
-    jsr _outnum
-    jsr _outstr_inline
-    .byte "k cycles", 0
-    lda #10
-    jsr __outch
-    rts  ; elapsed_cycles
-
-.include "outnum.asm"
+.include "elapsed.asm"
 .include "mul.asm"

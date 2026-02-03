@@ -160,7 +160,6 @@ private:
     void jsr_outch();
     void jsr_get_time();
     void jsr_get_elapsed_time();
-    void jsr_get_elapsed_stime();
     void jsr_clear_elapsed_time();
     void jsr_process_events();
     void jsr_inch(int timeout = -1, bool justWait = false);
@@ -172,8 +171,6 @@ private:
     void jsr_read_file();
     void jsr_outstr_fast();
     void jsr_get_elapsed_cycles();
-    void jsr_get_elapsed_kcycles();
-    void jsr_get_elapsed_mcycles();
     void jsr_clear_elapsed_cycles();
 };
 

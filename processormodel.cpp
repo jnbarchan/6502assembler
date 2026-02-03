@@ -857,8 +857,6 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_get_time(); break;
     case InternalJSRs::__JSR_get_elapsed_time:
         jsr_get_elapsed_time(); break;
-    case InternalJSRs::__JSR_get_elapsed_stime:
-        jsr_get_elapsed_stime(); break;
     case InternalJSRs::__JSR_clear_elapsed_time:
         jsr_clear_elapsed_time(); break;
     case InternalJSRs::__JSR_process_events:
@@ -881,10 +879,6 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_outstr_fast(); break;
     case InternalJSRs::__JSR_get_elapsed_cycles:
         jsr_get_elapsed_cycles(); break;
-    case InternalJSRs::__JSR_get_elapsed_kcycles:
-        jsr_get_elapsed_kcycles(); break;
-    case InternalJSRs::__JSR_get_elapsed_mcycles:
-        jsr_get_elapsed_mcycles(); break;
     case InternalJSRs::__JSR_clear_elapsed_cycles:
         jsr_clear_elapsed_cycles(); break;
     default:
@@ -919,26 +913,22 @@ void ProcessorModel::jsr_outch()
 
 void ProcessorModel::jsr_get_time()
 {
-    uint16_t milliseconds = static_cast<uint16_t>(QDateTime::currentMSecsSinceEpoch());
-    setAccumulator(static_cast<uint8_t>(milliseconds));
-    setXregister(static_cast<uint8_t>(milliseconds >> 8));
-    setNZStatusFlags(_xregister);
+    uint16_t address = _accumulator | (_xregister << 8);
+    uint16_t milliseconds = static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch());
+    setMemoryByteAt(address, static_cast<uint8_t>(milliseconds));
+    setMemoryByteAt(address + 1, static_cast<uint8_t>(milliseconds >> 8));
+    setMemoryByteAt(address + 2, static_cast<uint8_t>(milliseconds >> 16));
+    setMemoryByteAt(address + 3, static_cast<uint8_t>(milliseconds >> 24));
 }
 
 void ProcessorModel::jsr_get_elapsed_time()
 {
-    uint16_t milliseconds = static_cast<uint16_t>(elapsedTimer.elapsed());
-    setAccumulator(static_cast<uint8_t>(milliseconds));
-    setXregister(static_cast<uint8_t>(milliseconds >> 8));
-    setNZStatusFlags(_xregister);
-}
-
-void ProcessorModel::jsr_get_elapsed_stime()
-{
-    int seconds = (elapsedTimer.elapsed() + 500) / 1000;
-    setAccumulator(static_cast<uint8_t>(seconds));
-    setXregister(static_cast<uint8_t>(seconds >> 8));
-    setNZStatusFlags(_xregister);
+    uint16_t address = _accumulator | (_xregister << 8);
+    uint16_t milliseconds = static_cast<uint32_t>(elapsedTimer.elapsed());
+    setMemoryByteAt(address, static_cast<uint8_t>(milliseconds));
+    setMemoryByteAt(address + 1, static_cast<uint8_t>(milliseconds >> 8));
+    setMemoryByteAt(address + 2, static_cast<uint8_t>(milliseconds >> 16));
+    setMemoryByteAt(address + 3, static_cast<uint8_t>(milliseconds >> 24));
 }
 
 void ProcessorModel::jsr_clear_elapsed_time()
@@ -1051,25 +1041,11 @@ void ProcessorModel::jsr_outstr_fast()
 
 void ProcessorModel::jsr_get_elapsed_cycles()
 {
-    setAccumulator(static_cast<uint8_t>(elapsedCycles));
-    setXregister(static_cast<uint8_t>(elapsedCycles >> 8));
-    setNZStatusFlags(_xregister);
-}
-
-void ProcessorModel::jsr_get_elapsed_kcycles()
-{
-    int kcycles = (elapsedCycles + 512) / 1024;
-    setAccumulator(static_cast<uint8_t>(kcycles));
-    setXregister(static_cast<uint8_t>(kcycles >> 8));
-    setNZStatusFlags(_xregister);
-}
-
-void ProcessorModel::jsr_get_elapsed_mcycles()
-{
-    int mcycles = (elapsedCycles + 512 * 1024) / 1024 / 1024;
-    setAccumulator(static_cast<uint8_t>(mcycles));
-    setXregister(static_cast<uint8_t>(mcycles >> 8));
-    setNZStatusFlags(_xregister);
+    uint16_t address = _accumulator | (_xregister << 8);
+    setMemoryByteAt(address, static_cast<uint8_t>(elapsedCycles));
+    setMemoryByteAt(address + 1, static_cast<uint8_t>(elapsedCycles >> 8));
+    setMemoryByteAt(address + 2, static_cast<uint8_t>(elapsedCycles >> 16));
+    setMemoryByteAt(address + 3, static_cast<uint8_t>(elapsedCycles >> 24));
 }
 
 void ProcessorModel::jsr_clear_elapsed_cycles()

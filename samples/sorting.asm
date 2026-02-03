@@ -28,8 +28,8 @@ test_sorting:
     
     jsr print_nums
     jsr verify_sorted
-    jsr elapsed_cycles
-    jsr elapsed_time
+    jsr _elapsed_cycles
+    jsr _elapsed_time
     rts  ; test_sorting
     
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -504,33 +504,10 @@ inc_p_nums_2:
     rts  ; inc_p_nums_2
     
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    
-elapsed_cycles:
-    jsr __get_elapsed_kcycles
-    sta dividend
-    stx dividend+1
-    jsr _outnum
-    jsr _outstr_inline
-    .byte "k cycles", 0
-    lda #10
-    jsr __outch
-    rts  ; elapsed_cycles 
 
-elapsed_time:
-    jsr __get_elapsed_time
-    sta dividend
-    stx dividend+1
-    jsr _outnum
-    jsr _outstr_inline
-    .byte " ms", 0
-    lda #10
-    jsr __outch
-    rts  ; elapsed_time
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-.include "outstr.asm"
+.include "elapsed.asm"
 .include "outnum.asm"
+.include "outstr.asm"
 .include "rand.asm"
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

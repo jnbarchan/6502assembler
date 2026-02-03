@@ -52,31 +52,9 @@ test_sortfile:
     jsr __close_file
     jsr _outstr_inline
     .byte ">>Finished<<", 10, 0
-    jsr .elapsed_cycles
-    jsr .elapsed_time
+    jsr _elapsed_cycles
+    jsr _elapsed_time
     rts  ; test_sortfile 
-
-.elapsed_cycles:
-    jsr __get_elapsed_mcycles
-    sta dividend
-    stx dividend+1
-    jsr _outnum
-    jsr _outstr_inline
-    .byte "M cycles", 0
-    lda #10
-    jsr __outch
-    rts  ; elapsed_cycles
-
-.elapsed_time:
-    jsr __get_elapsed_stime
-    sta dividend
-    stx dividend+1
-    jsr _outnum
-    jsr _outstr_inline
-    .byte " s", 0
-    lda #10
-    jsr __outch
-    rts  ; elapsed_time
 
 .filename:
     .byte "../../samples/scratchfile.txt", 0
@@ -149,5 +127,6 @@ copy_next_line_to_last_line:
     rts  ; copy_next_line_to_last_line
     
 
-.include "outstr.asm"
+.include "elapsed.asm"
 .include "outnum.asm"
+.include "outstr.asm"
