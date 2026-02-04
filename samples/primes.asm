@@ -24,18 +24,192 @@ max_primes = 1028
 
 show_primes = 1  ; 0 => none, 1 => last, 2 => all
 
+prime_test_32 = ZP_USER_1
+prime_test_max_32 = ZP_USER_1+4
+nextnum_32 = ZP_USER_1+8
+
+;test_prime_number_32 = 370362977
+test_prime_number_32 = 370362989
+
 .org MEM_USER_0
 
 main:
-    jsr _clear_elapsed_time_cycles
-    jsr run_primes_trial_division
-    jsr _clear_elapsed_time_cycles
-    jsr run_primes_eratosthenes_sieve
-    jsr _clear_elapsed_time_cycles
-    jsr run_primes_eratosthenes_sieve_compact
+;    jsr _clear_elapsed_time_cycles
+;    jsr run_primes_trial_division
+;    jsr _clear_elapsed_time_cycles
+;    jsr run_primes_eratosthenes_sieve
+;    jsr _clear_elapsed_time_cycles
+;    jsr run_primes_eratosthenes_sieve_compact
+    jsr run_is_prime
+
     rts  ; main 
     brk
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+run_is_prime:
+    ; prime_test_32 = test_prime_number_32
+    lda #<test_prime_number_32
+    sta prime_test_32
+    lda #<(test_prime_number_32 >> 8)
+    sta prime_test_32+1
+    lda #<(test_prime_number_32 >> 16)
+    sta prime_test_32+2
+    lda #<(test_prime_number_32 >> 24)
+    sta prime_test_32+3
+
+    ; output prime_test_32
+    jsr copy_prime_test_32_to_dividend_32
+    jsr _outnum32_commas
+    jsr _outstr_inline
+    .byte ": ", 0
+
+    jsr _clear_elapsed_time_cycles
+    jsr is_prime
+    
+    ; 0 => not prime, non-0 => prime
+    cmp #0
+    beq .no
+.yes:
+    jsr _outstr_inline
+    .byte "Yes", 10, 0
+    jmp .return
+.no:
+    jsr _outstr_inline
+    .byte "No", 10, 0
+.return:
+    jsr _elapsed_cycles
+    jsr _elapsed_time
+    jsr __process_events
+    rts  ; run_is_prime
+
+is_prime:
+    ; if prime_test_32 <= 2 give answer
+    lda prime_test_32+3
+    ora prime_test_32+2
+    ora prime_test_32+1
+    bne .not_small_number
+    lda prime_test_32
+    cmp #2
+    beq .yes
+    bcc .no
+    and #1
+    beq .no
+.not_small_number:
+    ; divide by all numbers
+    jsr is_prime_loop
+    ; 0 => not prime, non-0 => prime
+    cmp #0
+    beq .no
+.yes:
+    lda #1
+    bne *+4
+.no:
+    lda #0
+    rts  ; is_prime
+    
+is_prime_loop:
+    ; prime_test_max_32 = largest number to test as factor
+    jsr calc_prime_max
+    
+    ; divisor_32 = 2
+    lda #2
+    sta divisor_32
+    lda #0
+    sta divisor_32+1
+    sta divisor_32+2
+    sta divisor_32+3
+    
+    ; test whether divisor_32 reached prime_test_max_32
+.try_next:
+    ldx #3
+.cmp_next:
+    lda divisor_32,X
+    cmp prime_test_max_32,X
+    bcc .keep_going
+    bne .yes
+    dex
+    bpl .cmp_next
+    
+.keep_going:
+    jsr copy_prime_test_32_to_dividend_32
+    
+    jsr _div32
+    
+    lda remainder_32
+    ora remainder_32+1
+    ora remainder_32+2
+    ora remainder_32+3
+    beq .no
+    
+.inc_next:
+    ; divisor_32 += 1 if even (i.e. 2) else 2
+    lda divisor_32
+    lsr a
+    lda divisor_32
+    adc #1
+    sta divisor_32
+    lda divisor_32+1
+    adc #0
+    sta divisor_32+1
+    lda divisor_32+2
+    adc #0
+    sta divisor_32+2
+    lda divisor_32+3
+    adc #0
+    sta divisor_32+3
+    
+    jmp .try_next
+    
+.yes:
+    lda #1
+    bne *+4
+.no:
+    lda #0
+    rts  ; is_prime_loop
+    
+calc_prime_max:
+    ; prime_test_max_32 = largest number to test as factor
+    ldx #3
+.next_prime_test_32:
+    lda prime_test_32,X
+    sta sqrt_operand_32,X
+    dex
+    bpl .next_prime_test_32
+    
+    jsr _sqrt32
+    
+    ldx #3
+.next_prime_test_max_32:
+    lda sqrt_result_32,X
+    sta prime_test_max_32,X
+    dex
+    bpl .next_prime_test_max_32
+
+    rts  ; calc_prime_max
+
+copy_prime_test_32_to_dividend_32:
+    lda prime_test_32
+    sta dividend_32
+    lda prime_test_32+1
+    sta dividend_32+1
+    lda prime_test_32+2
+    sta dividend_32+2
+    lda prime_test_32+3
+    sta dividend_32+3
+    rts  ; copy_prime_test_32_to_dividend_32
+    
+copy_quotient_32_to_prime_test_32:
+    lda quotient_32
+    sta prime_test_max_32
+    lda quotient_32+1
+    sta prime_test_max_32+1
+    lda quotient_32+2
+    sta prime_test_max_32+2
+    lda quotient_32+3
+    sta prime_test_max_32+3
+    rts  ; copy_quotient_32_to_prime_test_32
+    
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 run_primes_trial_division:
@@ -130,8 +304,8 @@ run_primes_trial_division:
     lda #show_primes
     beq *+5
     jsr found_prime_output
-    jsr _elapsed_time
     jsr _elapsed_cycles
+    jsr _elapsed_time
     jsr __process_events
     rts  ; run_primes_trial_division
     
@@ -180,9 +354,9 @@ run_primes_trial_division:
     sta last_prime+1
     
     ; primes_ptr = &primes
-    lda #primes & $ff
+    lda #<primes
     sta primes_ptr
-    lda #primes >> 8
+    lda #>primes
     sta primes_ptr+1
 
     ; primes_ptr += primes_count + primes_count
@@ -291,8 +465,8 @@ run_primes_eratosthenes_sieve_compact:
     lda #show_primes
     beq *+5
     jsr found_prime_output
-    jsr _elapsed_time
     jsr _elapsed_cycles
+    jsr _elapsed_time
     jsr __process_events
     rts ; run_primes_eratosthenes_sieve_compact
     
@@ -461,8 +635,8 @@ run_primes_eratosthenes_sieve:
     lda #show_primes
     beq *+5
     jsr found_prime_output
-    jsr _elapsed_time
     jsr _elapsed_cycles
+    jsr _elapsed_time
     jsr __process_events
     rts ; run_primes_eratosthenes_sieve
     
@@ -561,4 +735,6 @@ found_prime_output:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 .include "elapsed.asm"
+.include "sqrt.asm"
+.include "div.asm"
 .include "mul.asm"

@@ -105,7 +105,7 @@ void CodeEditor::handleToggleCommentKey()
 {
     QTextCursor tc = textCursor();
     if (!tc.hasSelection())
-        return;
+        tc.select(QTextCursor::LineUnderCursor);
 
     int selStart = tc.selectionStart();
     int selEnd   = tc.selectionEnd();

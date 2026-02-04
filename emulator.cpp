@@ -166,7 +166,7 @@ QString Emulator::wordCompletion(const QString &word, const QString &filename, i
     for (auto [label, value] : codeLabels.values.asKeyValueRange())
     {
         int startAt = 0;
-        if (label.startsWith(scopeLabel))
+        if (!scopeLabel.isEmpty() && label.startsWith(scopeLabel))
             startAt = scopeLabel.length() - 1;
         if (label.mid(startAt, wordLen) != word)
             continue;
