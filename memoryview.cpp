@@ -1,5 +1,7 @@
 #include <QHeaderView>
 
+#include "numberbasespinbox.h"
+
 #include "memoryview.h"
 
 //
@@ -51,6 +53,29 @@ void MemoryViewItemDelegate::setOptionTextForNumber(QStyleOptionViewItem *option
     int val = value.toInt(&ok);
     if (ok)
         option->text = QStringLiteral("%1").arg(val, fixedDigits, integerBase, QChar('0')).toUpper();
+}
+
+QWidget *MemoryViewItemDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const /*override*/
+{
+    NumberBaseSpinBox *spn = new NumberBaseSpinBox(parent);
+    spn->setFixedDigits(_fixedDigits);
+    spn->setDisplayIntegerBase(_integerBase);
+    spn->setRange(0, 0xff);
+    QFont font = parent->font();
+    int fontSize = font.pointSize();
+    if (fontSize > 0)
+    {
+        font.setPointSize(fontSize + 1);
+        spn->setFont(font);
+    }
+    return spn;
+}
+
+void MemoryViewItemDelegate::updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const /*override*/
+{
+    QRect r = option.rect;
+    r.adjust(-5, -4, +15, +8);
+    editor->setGeometry(r);
 }
 
 void MemoryViewItemDelegate::initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const /*override*/

@@ -179,7 +179,7 @@ private:
         bool inUse() const { return memoryAddress != 0; }
     };
 
-    static constexpr int _rowCount = 4;
+    static constexpr int _rowCount = 6;
     MemoryModel *memoryModel;
     Emulator *emulator;
     QList<WatchInfo> watchInfos;

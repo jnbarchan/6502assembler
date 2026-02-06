@@ -55,8 +55,6 @@ WatchViewItemDelegate::WatchViewItemDelegate(QObject *parent) : MemoryViewItemDe
 
 QWidget *WatchViewItemDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
-    if (index.column() >= 2)
-        return MemoryViewItemDelegate::createEditor(parent, option, index);
     if (index.column() == 1)
     {
         NumberBaseSpinBox *spn = new NumberBaseSpinBox(parent);
@@ -65,7 +63,23 @@ QWidget *WatchViewItemDelegate::createEditor(QWidget *parent, const QStyleOption
         spn->setRange(0, 0xffff);
         return spn;
     }
+    else if (index.column() >= 2)
+    {
+        NumberBaseSpinBox *spn = new NumberBaseSpinBox(parent);
+        spn->setFixedDigits(fixedDigits());
+        spn->setDisplayIntegerBase(integerBase());
+        spn->setRange(0, 0xff);
+        return spn;
+    }
     return QStyledItemDelegate::createEditor(parent, option, index);
+}
+
+void WatchViewItemDelegate::updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const /*override*/
+{
+    if (index.column() > 0)
+        MemoryViewItemDelegate::updateEditorGeometry(editor, option, index);
+    else
+        QStyledItemDelegate::updateEditorGeometry(editor, option, index);
 }
 
 void WatchViewItemDelegate::initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const /*override*/

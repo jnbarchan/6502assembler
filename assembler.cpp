@@ -989,9 +989,9 @@ int Assembler::tokenToInt(bool *ok) const
         ok = &_ok;
     char firstChar = currentToken.size() > 0 ? currentToken.at(0).toLatin1() : '\0';
     if (firstChar == '%')
-        return currentToken.mid(1).toInt(ok, 2);
+        return currentToken.mid(1).toUInt(ok, 2);
     else if (firstChar == '$')
-        return currentToken.mid(1).toInt(ok, 16);
+        return currentToken.mid(1).toUInt(ok, 16);
     else if (std::isdigit(firstChar) || firstChar == '-')
         return currentToken.toInt(ok, 10);
     else if (firstChar == '\'')

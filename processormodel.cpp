@@ -1065,17 +1065,17 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     lastMemoryChangedAddress = -1;
 }
 
-/*virtual*/ int MemoryModel::rowCount(const QModelIndex &parent /*= QModelIndex()*/) const /*override*/
+int MemoryModel::rowCount(const QModelIndex &parent /*= QModelIndex()*/) const /*override*/
 {
     return (processorModel->memorySize() + columnCount() - 1) / columnCount();
 }
 
-/*virtual*/ int MemoryModel::columnCount(const QModelIndex &parent /*= QModelIndex()*/) const /*override*/
+int MemoryModel::columnCount(const QModelIndex &parent /*= QModelIndex()*/) const /*override*/
 {
     return 16;
 }
 
-/*virtual*/ QVariant MemoryModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole*/) const /*override*/
+QVariant MemoryModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole*/) const /*override*/
 {
     if (!index.isValid())
         return QVariant();
@@ -1097,7 +1097,7 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
     return QVariant();
 }
 
-/*virtual*/ QVariant MemoryModel::headerData(int section, Qt::Orientation orientation, int role /*= Qt::DisplayRole*/) const /*override*/
+QVariant MemoryModel::headerData(int section, Qt::Orientation orientation, int role /*= Qt::DisplayRole*/) const /*override*/
 {
     if (role == Qt::TextAlignmentRole)
         return Qt::AlignCenter;
@@ -1109,6 +1109,32 @@ MemoryModel::MemoryModel(QObject *parent) : QAbstractTableModel(parent)
             return QStringLiteral("%1").arg(section * columnCount(), 4, 16, QChar('0')).toUpper();
     }
     return QAbstractTableModel::headerData(section, orientation, role);
+}
+
+bool MemoryModel::setData(const QModelIndex &index, const QVariant &value, int role /*= Qt::EditRole*/) /*override*/
+{
+    if (!index.isValid())
+        return false;
+    int offset = index.row() * columnCount(index) + index.column();
+    if (offset < 0 || offset >= processorModel->memorySize())
+        return false;
+    if (role == Qt::DisplayRole || role == Qt::EditRole)
+    {
+        bool ok;
+        int val = value.toUInt(&ok);
+        if (!ok)
+            return false;
+        processorModel->setMemoryByteAt(offset, static_cast<uint8_t>(val));
+        return true;
+    }
+    return false;
+}
+
+Qt::ItemFlags MemoryModel::flags(const QModelIndex &index) const
+{
+    Qt::ItemFlags f(QAbstractTableModel::flags(index));
+    f |= Qt::ItemFlag::ItemIsEditable;
+    return f;
 }
 
 /*slot*/ void MemoryModel::notifyAllDataChanged()

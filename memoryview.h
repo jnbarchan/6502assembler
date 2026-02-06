@@ -31,6 +31,9 @@ public:
 
     void setOptionTextForNumber(QStyleOptionViewItem *option, const QModelIndex &index, int fixedDigits, int integerBase) const;
 
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+    void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+
 protected:
     void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const override;
 

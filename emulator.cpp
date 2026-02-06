@@ -312,7 +312,7 @@ int WatchModel::rowCount(const QModelIndex &parent) const /*override*/
 
 int WatchModel::columnCount(const QModelIndex &parent) const /*override*/
 {
-    return 4;
+    return 6;
 }
 
 QVariant WatchModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole*/) const /*override*/
@@ -350,7 +350,7 @@ QVariant WatchModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole
 
 QVariant WatchModel::headerData(int section, Qt::Orientation orientation, int role /*= Qt::DisplayRole*/) const /*override*/
 {
-    const QStringList columnNames{ "symbol", "address", "(addr)", "(addr+1)" };
+    const QStringList columnNames{ "symbol", "address", "(addr)", "(ad+1)", "(ad+2)", "(ad+3)" };
 
     if (orientation == Qt::Orientation::Horizontal)
     {
@@ -366,8 +366,10 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
 {
     if (!index.isValid())
         return false;
+    uint16_t memoryAddress = watchInfos.at(index.row()).memoryAddress;
+    QModelIndex memoryIndex;
     if (index.column() >= 2)
-        return false;
+        memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
     if (role == Qt::DisplayRole || role == Qt::EditRole)
     {
         if (index.column() == 0)
@@ -397,6 +399,14 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
                 setData(labelIndex, QString());
             return true;
         }
+        else
+        {
+            bool ok;
+            int val = value.toUInt(&ok);
+            if (!ok)
+                return false;
+            return memoryModel->setData(memoryIndex, static_cast<uint8_t>(val), role);
+        }
     }
     return false;
 }
@@ -404,8 +414,7 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
 Qt::ItemFlags WatchModel::flags(const QModelIndex &index) const
 {
     Qt::ItemFlags f(QAbstractTableModel::flags(index));
-    if (index.column() < 2)
-        f |= Qt::ItemFlag::ItemIsEditable;
+    f |= Qt::ItemFlag::ItemIsEditable;
     return f;
 }
 
@@ -424,7 +433,7 @@ void WatchModel::recalculateAllSymbols()
     uint16_t lowAddress(memoryModel->indexToAddress(topLeft)), highAddress(memoryModel->indexToAddress(bottomRight));
     if (lowAddress == 0 && highAddress == 0xffff)
     {
-        emit dataChanged(index(0, 2), index(rowCount() - 1, 3), roles);
+        emit dataChanged(index(0, 2), index(rowCount() - 1, columnCount() - 1), roles);
         return;
     }
     for (int i = 0; i < rowCount(); i++)
@@ -433,14 +442,13 @@ void WatchModel::recalculateAllSymbols()
         if (!watchInfo.inUse())
             continue;
         QModelIndex thisTopLeft, thisBottomRight;
-        if (watchInfo.memoryAddress >= lowAddress && watchInfo.memoryAddress <= highAddress)
-            thisTopLeft = thisBottomRight = index(i, 2);
-        if (watchInfo.memoryAddress + 1 >= lowAddress && watchInfo.memoryAddress + 1 <= highAddress)
-        {
-            thisBottomRight = index(i, 3);
-            if (!thisTopLeft.isValid())
-                thisTopLeft = thisBottomRight;
-        }
+        for (int col = 2; col < columnCount(); col++)
+            if (watchInfo.memoryAddress + col - 2 >= lowAddress && watchInfo.memoryAddress + col - 2 <= highAddress)
+            {
+                if (!thisTopLeft.isValid())
+                    thisTopLeft = index(i, col);
+                thisBottomRight = index(i, col);
+            }
         if (thisTopLeft.isValid() && thisBottomRight.isValid())
             emit dataChanged(thisTopLeft, thisBottomRight, roles);
     }

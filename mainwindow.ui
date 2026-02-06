@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>865</width>
-    <height>779</height>
+    <width>948</width>
+    <height>828</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -41,7 +41,7 @@
         <property name="frameShadow">
          <enum>QFrame::Raised</enum>
         </property>
-        <layout class="QGridLayout" name="gridLayout">
+        <layout class="QGridLayout" name="gridLayout" columnstretch="1,1">
          <item row="4" column="1">
           <widget class="NumberBaseSpinBox" name="spnProgramCounter">
            <property name="sizePolicy">
@@ -508,7 +508,7 @@
          <item row="2" column="0" colspan="2" alignment="Qt::AlignRight">
           <widget class="WatchView" name="tvWatch">
            <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
              <verstretch>0</verstretch>
             </sizepolicy>
@@ -522,7 +522,7 @@
            <property name="maximumSize">
             <size>
              <width>16777215</width>
-             <height>104</height>
+             <height>160</height>
             </size>
            </property>
            <property name="font">
@@ -563,6 +563,22 @@
     </item>
     <item>
      <layout class="QHBoxLayout" name="bottomLayout">
+      <item>
+       <widget class="QToolButton" name="btnAssemble">
+        <property name="minimumSize">
+         <size>
+          <width>60</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Assemble</string>
+        </property>
+        <property name="toolButtonStyle">
+         <enum>Qt::ToolButtonTextBesideIcon</enum>
+        </property>
+       </widget>
+      </item>
       <item>
        <widget class="QToolButton" name="btnTurboRun">
         <property name="minimumSize">
@@ -712,7 +728,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>865</width>
+     <width>948</width>
      <height>23</height>
     </rect>
    </property>

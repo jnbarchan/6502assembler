@@ -40,6 +40,7 @@ main:
 ;    jsr run_primes_eratosthenes_sieve
 ;    jsr _clear_elapsed_time_cycles
 ;    jsr run_primes_eratosthenes_sieve_compact
+    jsr _clear_elapsed_time_cycles
     jsr run_is_prime
 
     rts  ; main 

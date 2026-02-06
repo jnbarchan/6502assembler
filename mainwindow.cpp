@@ -130,6 +130,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionFind, &QAction::triggered, this, &MainWindow::showFindDialog);
     connect(ui->actionFindReplace, &QAction::triggered, this, &MainWindow::showFindReplaceDialog);
 
+    ui->btnAssemble->setDefaultAction(ui->actionAssembleOnly);
+    ui->btnAssemble->setText("Assemble");
     ui->actionTurboRun->setIcon(ui->btnTurboRun->icon());
     ui->btnTurboRun->setDefaultAction(ui->actionTurboRun);
     ui->actionRun->setIcon(ui->btnRun->icon());
@@ -444,13 +446,15 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
     tvWatchViewItemDelegate->setFixedDigits(fixedDigits);
     tvWatchViewItemDelegate->setIntegerBase(integerBase);
-    digitSize = ui->tvWatch->font().pointSize() * 9 / 10;
+    digitSize = ui->tvWatch->font().pointSize();
     digits = fixedDigits > 0 ? fixedDigits : 3;
-    ui->tvWatch->horizontalHeader()->setDefaultSectionSize((digits + 1.4) * digitSize);
     model = ui->tvWatch->model();
-    for (int row = 0; row < model->rowCount(); row++)
-        for (int col = 0; col < model->columnCount(); col++)
+    for (int col = 2; col < model->columnCount(); col++)
+    {
+        ui->tvWatch->horizontalHeader()->resizeSection(col, (digits + 2) * digitSize + 10);
+        for (int row = 0; row < model->rowCount(); row++)
             ui->tvWatch->update(model->index(row, col));
+    }
 }
 
 /*slot*/ void MainWindow::codeTextChanged()
