@@ -312,7 +312,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             processorModel()->stop();
         return;
     }
-    if (run || !haveDoneReset() || assembler()->needsAssembling())
+    if (run || !haveDoneReset() || assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
     {
         QTextCursor savedTextCursor(ui->codeEditor->textCursor());
         saveToFile(scratchFileName());
@@ -335,12 +335,15 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         watchModel->recalculateAllSymbols();
         if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
             return;
-
-        processorModel()->setStartNewRun(true);
-        processorModel()->setProgramCounter(emulator()->runStartAddress());
     }
     else
         registerChanged(nullptr, 0);
+
+    if (run || processorModel()->currentRunMode() == ProcessorModel::NotRunning && runMode != ProcessorModel::NotRunning)
+    {
+        processorModel()->setStartNewRun(true);
+        processorModel()->setProgramCounter(emulator()->runStartAddress());
+    }
 
     if (runMode == ProcessorModel::StepInto)
     {
@@ -396,6 +399,12 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     ui->btnStepOver->defaultAction()->setEnabled(enable);
     ui->btnStepOut->defaultAction()->setEnabled(enable);
     ui->btnContinue->defaultAction()->setEnabled(enable);
+    ProcessorModel::RunMode runMode = processorModel()->currentRunMode();
+    if (runMode == ProcessorModel::NotRunning || runMode == ProcessorModel::TurboRun)
+    {
+        ui->btnStepOut->defaultAction()->setEnabled(false);
+        ui->btnContinue->defaultAction()->setEnabled(false);
+    }
 
     ui->btnTurboRun->defaultAction()->setEnabled(!processorModel()->isRunning());
     ui->btnReset->defaultAction()->setEnabled(!processorModel()->isRunning());

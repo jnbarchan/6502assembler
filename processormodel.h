@@ -85,6 +85,10 @@ public:
     void setProgramCounter(uint16_t newProgramCounter);
 
     bool suppressSignalsForSpeed() const;
+    bool trackingMemoryChanged() const;
+    void memoryChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, bool foregroundOnly = false);
+
+    RunMode currentRunMode() const;
 
     bool isRunning() const;
     void setIsRunning(bool newIsRunning);
@@ -123,7 +127,6 @@ signals:
     void programCounterChanged();
     void stackRegisterChanged();
     void statusFlagsChanged();
-    void memoryChanged(uint16_t address);
     void currentInstructionAddressChanged(uint16_t instructionAddress);
 
 private:
@@ -139,6 +142,31 @@ private:
     uint16_t _programCounter;
     const IProcessorBreakpointProvider *processorBreakpointProvider;
 
+    struct HaveChangedState
+    {
+        bool stackRegister;
+        bool accumulator, xregister, yregister;
+        bool statusFlags;
+        bool programCounter;
+        struct MemoryChanged {
+            int topLeftRow, topLeftColumn, bottomRightRow, bottomRightColumn;
+            void clear()
+            {
+                topLeftRow = topLeftColumn = INT_MAX;
+                bottomRightRow = bottomRightColumn = -1;
+            }
+        } memoryChanged, memoryChangedForegroundOnly;
+        bool trackingMemoryChanged;
+
+        void clear()
+        {
+            stackRegister = accumulator = xregister = yregister = statusFlags = programCounter = false;
+            memoryChanged.clear();
+            memoryChangedForegroundOnly.clear();
+        }
+    };
+    HaveChangedState haveChangedState;
+
     bool _startNewRun, _stopRun, _isRunning;
     RunMode _currentRunMode;
 
@@ -148,6 +176,7 @@ private:
 
     void resetModel();
     void setCurrentRunMode(RunMode newCurrentRunMode);
+    void catchUpSuppressedSignals();
     void debugMessage(const QString &message) const;
     void executionErrorMessage(const QString &message) const;
     void runInstructions(RunMode runMode);
@@ -196,16 +225,13 @@ public:
     int indexToAddress(const QModelIndex &index) const { return index.isValid() ? index.row() * columnCount() + index.column() : -1; }
     QModelIndex addressToIndex(int address) const { return address >= 0 ? index(address / columnCount(), address % columnCount()) : QModelIndex(); }
 
+    void notifyAllDataChanged();
+    void clearLastMemoryChanged();
+    void memoryChanged(uint16_t address);
+
 private:
     ProcessorModel *processorModel;
     int lastMemoryChangedAddress;
-
-public slots:
-    void notifyAllDataChanged();
-    void clearLastMemoryChanged();
-
-private slots:
-    void memoryChanged(uint16_t address);
 };
 
 
