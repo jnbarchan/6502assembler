@@ -9,8 +9,6 @@
 #include "codeeditor.h"
 #include "emulator.h"
 
-using QueuedChangeSignal = Emulator::QueuedChangeSignal;
-
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -81,7 +79,6 @@ private slots:
     void currentInstructionAddressChanged(uint16_t instructionAddress);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
     void registerChanged(QSpinBox *spn, int value);
-    void processQueuedChangedSignal(const QueuedChangeSignal &sig);
 
 private:
     Ui::MainWindow *ui;

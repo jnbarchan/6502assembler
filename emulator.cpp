@@ -23,9 +23,6 @@ Emulator::Emulator(QObject *parent)
     _assembler->setInstructions(_instructions);
     assemblerBreakpointProvider = new AssemblerBreakpointProvider(this);
     _assembler->setAssemblerBreakpointProvider(assemblerBreakpointProvider);
-
-    _queueChangedSignals = false;
-    connect(&pendingSignalsTimer, &QTimer::timeout, this, &Emulator::processQueuedChangedSignals);
 }
 
 Emulator::~Emulator()
@@ -190,84 +187,6 @@ QString Emulator::wordCompletion(const QString &word, const QString &filename, i
 }
 
 
-bool Emulator::queueChangedSignals() const
-{
-    return _queueChangedSignals;
-}
-
-void Emulator::setQueueChangedSignals(bool newQueueChangedSignals)
-{
-    _queueChangedSignals = newQueueChangedSignals;
-}
-
-void Emulator::startQueuingChangedSignals()
-{
-    setQueueChangedSignals(true);
-    pendingSignalsTimer.start(100);
-}
-
-void Emulator::endQueuingChangedSignals()
-{
-    pendingSignalsTimer.stop();
-    setQueueChangedSignals(false);
-    processQueuedChangedSignals();
-}
-
-void Emulator::enqueueQueuedChangedSignal(const QueuedChangeSignal &sig)
-{
-    for (int i = _changedSignalsQueue.size() - 1; i >= 0; i--)
-    {
-        const QueuedChangeSignal &other(_changedSignalsQueue.at(i));
-        if (other.tag != sig.tag)
-            continue;
-        bool remove = false;
-        switch (sig.tag)
-        {
-        case QueuedChangeSignal::CurrentCodeLineNumberChanged:
-            if (other.codeLine.filename == sig.codeLine.filename)
-                remove = true;
-            break;
-        case QueuedChangeSignal::CurrentInstructionAddressChanged:
-            remove = true;
-            break;
-        case QueuedChangeSignal::MemoryModelDataChanged:
-            if (other.memory.topLeft == sig.memory.topLeft && other.memory.bottomRight == sig.memory.bottomRight)
-            {
-                const QList<int> &otherRoles(other.memory.roles), &sigRoles(sig.memory.roles);
-                if (otherRoles == sigRoles || sigRoles.isEmpty() || (otherRoles.size() == 1 && sigRoles.contains(otherRoles.at(0))))
-                    remove = true;
-                else if (otherRoles.isEmpty() || (sigRoles.size() == 1 && otherRoles.contains(sigRoles.at(0))))
-                    continue;
-            }
-            break;
-        case QueuedChangeSignal::RegisterChanged:
-            if (other._register.spn == sig._register.spn)
-                remove = true;
-            break;
-        }
-        if (remove)
-        {
-            _changedSignalsQueue.removeAt(i);
-            if (sig.tag != QueuedChangeSignal::MemoryModelDataChanged)
-                break;
-        }
-    }
-    _changedSignalsQueue.enqueue(sig);
-}
-
-/*slot*/ void Emulator::processQueuedChangedSignals()
-{
-    bool currentQueueChangedSignals = queueChangedSignals();
-    setQueueChangedSignals(false);
-    while (!_changedSignalsQueue.isEmpty())
-    {
-        QueuedChangeSignal sig = _changedSignalsQueue.dequeue();
-        emit processQueuedChangedSignal(sig);
-    }
-    setQueueChangedSignals(currentQueueChangedSignals);
-}
-
-
 //
 // AssemblerBreakpointProvider Class
 //
@@ -426,8 +345,6 @@ void WatchModel::recalculateAllSymbols()
 
 /*slot*/ void WatchModel::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles /*= QList<int>()*/)
 {
-    if (emulator->queueChangedSignals())
-        return;
     if (!(roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole) || roles.contains(Qt::ForegroundRole)))
         return;
     uint16_t lowAddress(memoryModel->indexToAddress(topLeft)), highAddress(memoryModel->indexToAddress(bottomRight));

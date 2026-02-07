@@ -60,9 +60,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(assembler(), &Assembler::currentCodeLineNumberChanged, this, &MainWindow::currentCodeLineNumberChanged);
 
     Qt::ConnectionType processorModelConnectionType(Qt::QueuedConnection);
-    Qt::ConnectionType queuedChangedSignalsConnectionType(Qt::DirectConnection);
+    Qt::ConnectionType changedSignalsConnectionType(processorModelConnectionType);
 
-    connect(emulator(), &Emulator::processQueuedChangedSignal, this, &MainWindow::processQueuedChangedSignal);
     connect(emulator(), &Emulator::breakpointChanged, this, &MainWindow::breakpointChanged);
 
     connect(processorModel(), &ProcessorModel::sendMessageToConsole, this, &MainWindow::sendMessageToConsole, processorModelConnectionType);
@@ -70,18 +69,18 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::requestCharFromConsole, this, &MainWindow::requestCharFromConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::endRequestCharFromConsole, this, &MainWindow::endRequestCharFromConsole, processorModelConnectionType);
-    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, queuedChangedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this]() { registerChanged(ui->spnProgramCounter, processorModel()->programCounter()); }, queuedChangedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, queuedChangedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); }, queuedChangedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); }, queuedChangedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, processorModel()->yregister()); }, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this]() { registerChanged(ui->spnProgramCounter, processorModel()->programCounter()); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, processorModel()->yregister()); }, changedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::modelReset, this, &MainWindow::modelReset, processorModelConnectionType);
     modelReset();
 
     connect(processorModel(), &ProcessorModel::isRunningChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::stopRunChanged, this, &MainWindow::actionEnablement, processorModelConnectionType);
-    connect(processorModel(), &ProcessorModel::currentInstructionAddressChanged, this, &MainWindow::currentInstructionAddressChanged, queuedChangedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::currentInstructionAddressChanged, this, &MainWindow::currentInstructionAddressChanged, changedSignalsConnectionType);
 
     ui->codeEditor->setLineWrapMode(QPlainTextEdit::NoWrap);
     connect(ui->codeEditor, &QPlainTextEdit::textChanged, this, &MainWindow::codeTextChanged);
@@ -97,7 +96,7 @@ MainWindow::MainWindow(QWidget *parent)
     tvMemoryViewItemDelegate = new MemoryViewItemDelegate(ui->tvMemory);
     ui->tvMemory->setItemDelegate(tvMemoryViewItemDelegate);
     _lastMemoryModelDataChangedIndex = QModelIndex();
-    connect(processorModel()->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged, queuedChangedSignalsConnectionType);
+    connect(processorModel()->memoryModel(), &MemoryModel::dataChanged, this, &MainWindow::memoryModelDataChanged, changedSignalsConnectionType);
 
     watchModel = new WatchModel(processorModel()->memoryModel(), emulator());
     ui->tvWatch->setModel(watchModel);
@@ -367,7 +366,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         setRunStopButton(false);
 
     QCoreApplication::processEvents();
-    emulator()->startQueuingChangedSignals();
 
     switch (runMode)
     {
@@ -380,7 +378,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     case ProcessorModel::Continue: processorModel()->continueRun(); break;
     }
 
-    emulator()->endQueuingChangedSignals();
     QCoreApplication::processEvents();
 
     if (!stepOneStatementOnly)
@@ -676,11 +673,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::currentCodeLineNumberChanged(const QString &filename, int lineNumber)
 {
-    if (emulator()->queueChangedSignals())
-    {
-        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::currentCodeLineNumberChanged(filename, lineNumber));
-        return;
-    }
     if (!filename.isEmpty())
         return;
     if (lineNumber < 0)
@@ -697,11 +689,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::currentInstructionAddressChanged(uint16_t instructionAddress)
 {
-    if (emulator()->queueChangedSignals())
-    {
-        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::currentInstructionAddressChanged(instructionAddress));
-        return;
-    }
     QString filename;
     int lineNumber;
     emulator()->mapInstructionAddressToFileLineNumber(instructionAddress, filename, lineNumber);
@@ -711,11 +698,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles /*= QList<int>()*/)
 {
-    if (emulator()->queueChangedSignals())
-    {
-        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::memoryModelDataChanged(topLeft, bottomRight, roles));
-        return;
-    }
     if (roles.isEmpty() || roles.contains(Qt::DisplayRole) || roles.contains(Qt::EditRole) || roles.contains(Qt::ForegroundRole))
         if (topLeft == bottomRight)
         {
@@ -727,11 +709,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::registerChanged(QSpinBox *spn, int value)
 {
-    if (emulator()->queueChangedSignals())
-    {
-        emulator()->enqueueQueuedChangedSignal(QueuedChangeSignal::registerChanged(spn, value));
-        return;
-    }
     bool changeColor = (spn == ui->spnAccumulator || spn == ui->spnXRegister || spn == ui->spnYRegister);
     if (spnLastChangedColor != nullptr && (changeColor || spn == nullptr))
     {
@@ -749,24 +726,6 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             spn->setPalette(palette);
             spnLastChangedColor = spn;
         }
-    }
-}
-
-/*slot*/ void MainWindow::processQueuedChangedSignal(const QueuedChangeSignal &sig)
-{
-    Q_ASSERT(!emulator()->queueChangedSignals());
-    switch (sig.tag)
-    {
-    case QueuedChangeSignal::CurrentCodeLineNumberChanged:
-        currentCodeLineNumberChanged(sig.codeLine.filename, sig.codeLine.lineNumber); break;
-    case QueuedChangeSignal::CurrentInstructionAddressChanged:
-        currentInstructionAddressChanged(sig.instruction.instructionAddress); break;
-    case QueuedChangeSignal::MemoryModelDataChanged:
-        memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles);
-        watchModel->memoryModelDataChanged(sig.memory.topLeft, sig.memory.bottomRight, sig.memory.roles);
-        break;
-    case QueuedChangeSignal::RegisterChanged:
-        registerChanged(sig._register.spn, sig._register.value); break;
     }
 }
 

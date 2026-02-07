@@ -48,58 +48,6 @@ private:
 public:
     QString wordCompletion(const QString &word, const QString &filename, int lineNumber) const;
 
-public:
-    struct QueuedChangeSignal
-    {
-        enum SignalType { CurrentCodeLineNumberChanged, CurrentInstructionAddressChanged, MemoryModelDataChanged, RegisterChanged, } tag;
-
-        struct { QString filename; int lineNumber; } codeLine{};
-
-        struct { uint16_t instructionAddress; } instruction{};
-
-        struct { QModelIndex topLeft, bottomRight; QList<int> roles; } memory{};
-
-        struct { QSpinBox *spn; int value; } _register{};
-
-        QueuedChangeSignal(SignalType tag) : tag(tag) {};
-        static QueuedChangeSignal currentCodeLineNumberChanged(const QString &filename, int lineNumber)
-        {
-            QueuedChangeSignal qcs(CurrentCodeLineNumberChanged);
-            qcs.codeLine.filename = filename; qcs.codeLine.lineNumber = lineNumber;
-            return qcs;
-        }
-        static QueuedChangeSignal currentInstructionAddressChanged(uint16_t instructionAddress)
-        {
-            QueuedChangeSignal qcs(CurrentInstructionAddressChanged);
-            qcs.instruction.instructionAddress = instructionAddress;
-            return qcs;
-        }
-        static QueuedChangeSignal memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>())
-        {
-            QueuedChangeSignal qcs(MemoryModelDataChanged);
-            qcs.memory.topLeft = topLeft; qcs.memory.bottomRight = bottomRight; qcs.memory.roles = roles;
-            return qcs;
-        }
-        static QueuedChangeSignal registerChanged(QSpinBox *spn, int value)
-        {
-            QueuedChangeSignal qcs(RegisterChanged);
-            qcs._register.spn = spn; qcs._register.value = value;
-            return qcs;
-        }
-    };
-
-    bool queueChangedSignals() const;
-    void setQueueChangedSignals(bool newQueueChangedSignals);
-    void startQueuingChangedSignals();
-    void endQueuingChangedSignals();
-    void enqueueQueuedChangedSignal(const QueuedChangeSignal &sig);
-
-signals:
-    void processQueuedChangedSignal(const QueuedChangeSignal &sig);
-
-private slots:
-    void processQueuedChangedSignals();
-
 private:
     ProcessorModel *_processorModel;
     uint8_t *_memory;
@@ -109,11 +57,6 @@ private:
 
     Assembler *_assembler;
     AssemblerBreakpointProvider *assemblerBreakpointProvider;
-
-    bool _queueChangedSignals;
-    typedef QQueue<QueuedChangeSignal> ChangedSignalsQueue;
-    ChangedSignalsQueue _changedSignalsQueue;
-    QTimer pendingSignalsTimer;
 };
 
 
