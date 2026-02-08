@@ -118,7 +118,7 @@ uint8_t ProcessorModel::statusFlags() const
 
 void ProcessorModel::setStatusFlags(uint8_t newStatusFlags)
 {
-    _statusFlags = newStatusFlags;
+    _statusFlags = newStatusFlags & ~StatusFlags::Break;
 }
 
 uint8_t ProcessorModel::statusFlag(uint8_t flagBit) const
@@ -128,12 +128,12 @@ uint8_t ProcessorModel::statusFlag(uint8_t flagBit) const
 
 void ProcessorModel::clearStatusFlag(uint8_t newFlagBit)
 {
-    _statusFlags &= ~newFlagBit;
+    _statusFlags &= ~(newFlagBit & ~StatusFlags::Break);
 }
 
 void ProcessorModel::setStatusFlag(uint8_t newFlagBit)
 {
-    _statusFlags |= newFlagBit;
+    _statusFlags |= newFlagBit & ~StatusFlags::Break;
 }
 
 void ProcessorModel::setStatusFlag(uint8_t newFlagBit, bool on)
@@ -199,12 +199,14 @@ void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
 
 void ProcessorModel::resetModel()
 {
-    _stackRegister = 0xFD;
-    _statusFlags = 0x00;
+    _stackRegister = 0xfd;
+    _statusFlags = (0x00 & ~StatusFlags::Break);
     _accumulator = 5;
     _xregister = 10;
     _yregister = 15;
     emit modelReset();
+    setMemoryByteAt(Assembly::__VEC_BRKV, Assembly::__JSR_brk_default_handler & 0xff);
+    setMemoryByteAt(Assembly::__VEC_BRKV + 1, (Assembly::__JSR_brk_default_handler >> 8) & 0xff);
     _memoryModel->clearLastMemoryChanged();
     haveChangedState.clear();
     haveChangedState.trackingMemoryChanged = true;
@@ -438,8 +440,6 @@ void ProcessorModel::runInstructions(RunMode runMode)
             startedNewRun = true;
             if (runMode == Continue)
                 runMode = Run;
-            pushToStack(static_cast<uint8_t>(Assembly::__JSR_terminate));
-            pushToStack(static_cast<uint8_t>(Assembly::__JSR_terminate >> 8));
         }
         if (stopRun())
         {
@@ -452,6 +452,15 @@ void ProcessorModel::runInstructions(RunMode runMode)
         suppressingSignalsForSpeed = suppressSignalsForSpeed();
         if (suppressingSignalsForSpeed && runMode == TurboRun)
             haveChangedState.trackingMemoryChanged = false;
+
+        if (startedNewRun)
+        {
+            setStackRegister(0xfd);
+            uint16_t returnAddress = Assembly::__JSR_terminate - 1;
+            pushToStack(static_cast<uint8_t>(returnAddress >> 8));
+            pushToStack(static_cast<uint8_t>(returnAddress));
+            clearStatusFlag(StatusFlags::InterruptDisable);
+        }
 
         setIsRunning(true);
         QCoreApplication::processEvents();
@@ -484,9 +493,8 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 }
                 else if (runMode == StepOut)
                 {
-                    uint16_t rtsAddress = memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1)) << 8;
-                    rtsAddress |= memoryByteAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 2));
-                    stopAtInstructionAddress = rtsAddress;
+                    uint16_t rtsAddress = memoryWordAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1));
+                    stopAtInstructionAddress = rtsAddress + 1;
                     keepGoing = true;
                 }
             }
@@ -616,8 +624,6 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
 
     setProgramCounter(_programCounter + instructionInfo.bytes);
 
-    clearStatusFlag(StatusFlags::Break);
-
     const uint8_t argValue{_argValue};
     const uint16_t argAddress{_argAddress};
     uint8_t tempValue8, origTempValue8;
@@ -693,7 +699,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         pushToStack(_accumulator);
         break;
     case Operation::PHP:
-        pushToStack(_statusFlags);
+        pushToStack(_statusFlags | StatusFlags::Break);
         break;
     case Operation::PLA:
         setAccumulator(pullFromStack());
@@ -724,7 +730,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case Operation::ADC:
         // sum = (A + M + C)
         tempValue16 = _accumulator + argValue + statusFlag(StatusFlags::Carry);
-        // C = sum > 0xFF
+        // C = sum > 0xff
         setStatusFlag(StatusFlags::Carry, tempValue16 > 0xff);
         // V = (~(A ^ M) & (A ^ R) & 0x80) != 0;
         setStatusFlag(StatusFlags::Overflow, ~(_accumulator ^ argValue) & (_accumulator ^ (tempValue16 & 0xff)) & 0x80);
@@ -735,7 +741,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case Operation::SBC:
         // sum = (A + ~M + C)
         tempValue16 = _accumulator + (argValue ^ 0xff) + statusFlag(StatusFlags::Carry);
-        // C = sum > 0xFF
+        // C = sum > 0xff
         setStatusFlag(StatusFlags::Carry, tempValue16 > 0xff);
         // V = ((A ^ M) & (A ^ R) & 0x80) != 0;
         setStatusFlag(StatusFlags::Overflow, (_accumulator ^ argValue) & (_accumulator ^ (tempValue16 & 0xff)) & 0x80);
@@ -839,15 +845,15 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         jumpTo(argAddress);
         break;
     case Operation::JSR:
-        tempValue16 = _programCounter;
-        pushToStack(static_cast<uint8_t>(tempValue16));
+        tempValue16 = _programCounter - 1;
         pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
+        pushToStack(static_cast<uint8_t>(tempValue16));
         jumpTo(argAddress);
         break;
     case Operation::RTS:
-        tempValue16 = pullFromStack() << 8;
-        tempValue16 |= pullFromStack();
-        jumpTo(tempValue16);
+        tempValue16 = pullFromStack();
+        tempValue16 |= pullFromStack() << 8;
+        jumpTo(tempValue16 + 1);
         break;
 
     case Operation::BCC:
@@ -886,21 +892,34 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case Operation::CLC:
         clearStatusFlag(StatusFlags::Carry);
         break;
+    case Operation::CLI:
+        clearStatusFlag(StatusFlags::InterruptDisable);
+        break;
     case Operation::CLV:
         clearStatusFlag(StatusFlags::Overflow);
         break;
     case Operation::SEC:
         setStatusFlag(StatusFlags::Carry);
         break;
+    case Operation::SEI:
+        setStatusFlag(StatusFlags::InterruptDisable);
+        break;
 
     case Operation::BRK:
-        tempValue16 = _programCounter;
-        pushToStack(static_cast<uint8_t>(tempValue16));
+        tempValue16 = _programCounter + 1;
         pushToStack(static_cast<uint8_t>(tempValue16 >> 8));
-        setStatusFlag(StatusFlags::Break);
+        pushToStack(static_cast<uint8_t>(tempValue16));
+        pushToStack(_statusFlags | StatusFlags::Break);
+        setStatusFlag(StatusFlags::InterruptDisable);
         jumpTo(Assembly::__JSR_brk_handler);
         break;
     case Operation::NOP:
+        break;
+    case Operation::RTI:
+        setStatusFlags(pullFromStack());
+        tempValue16 = pullFromStack();
+        tempValue16 |= pullFromStack() << 8;
+        jumpTo(tempValue16);
         break;
 
     default:
@@ -912,6 +931,8 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case Operation::STA: case Operation::STX: case Operation::STY:
     case Operation::TXS: case Operation::PHA: case Operation::PHP:
     case Operation::JMP: case Operation::JSR: case Operation::RTS:
+    case Operation::BEQ: case Operation::BNE: case Operation::BMI: case Operation::BPL:
+    case Operation::BCS: case Operation::BCC: case Operation::BVS: case Operation::BVC:
     case Operation::NOP:
         break;
     default:
@@ -947,8 +968,11 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         return;
     case InternalJSRs::__JSR_brk_handler:
         jsr_brk_handler();
-        stop();
         return;
+    case InternalJSRs::__JSR_brk_default_handler:
+        jsr_brk_default_handler();
+        return;
+
     case InternalJSRs::__JSR_outch:
         jsr_outch(); break;
     case InternalJSRs::__JSR_get_time:
@@ -986,7 +1010,7 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
     {
         const InstructionInfo *instructionInfo(Assembly::findInstructionInfo(Operation::RTS, AddressingMode::Implied));
         elapsedCycles += instructionInfo->cycles;
-        instructionAddress = (pullFromStack() << 8) | pullFromStack();
+        instructionAddress = (pullFromStack() | (pullFromStack() << 8)) + 1;
         if (!suppressSignalsForSpeed())
             emit statusFlagsChanged();
     }
@@ -995,13 +1019,30 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
 
 void ProcessorModel::jsr_brk_handler()
 {
-    uint16_t address = (pullFromStack() << 8) | pullFromStack();
+    setXregister(_stackRegister);
+    uint16_t address = _stackBottom + 2 + _xregister;
+    uint8_t flags = memoryByteAt(address);
+    uint8_t breakFlag = flags & StatusFlags::Break;
+    Q_UNUSED(breakFlag);
+
+    uint16_t instructionAddress = memoryWordAt(Assembly::__VEC_BRKV);
+    jumpTo(instructionAddress);
+}
+
+void ProcessorModel::jsr_brk_default_handler()
+{
+    setStatusFlags(pullFromStack());
+    uint16_t address = pullFromStack() | (pullFromStack() << 8);
+    uint8_t signatureByte = memoryByteAt(address - 1);
+    Q_UNUSED(signatureByte);
     const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
     int len = std::strlen(memoryAddress);
     if (len > 255)
         len = 255;
     QString message(QString::fromLatin1(memoryAddress, len));
     sendMessageToConsole(message);
+
+    stop();
 }
 
 void ProcessorModel::jsr_outch()

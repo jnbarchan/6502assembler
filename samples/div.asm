@@ -38,7 +38,7 @@ _div16:
     ora divisor+1
     bne .non_zero
     brk
-    .byte "Division by zero.", 0
+    .byte 1, "Division by zero.", 0
 .non_zero:
     lda #0
     sta quotient
@@ -85,7 +85,7 @@ _div32:
     ora divisor_32+3
     bne .non_zero
     brk
-    .byte "Division by zero.", 0
+    .byte 1, "Division by zero.", 0
 .non_zero:
     lda #0
     sta quotient_32

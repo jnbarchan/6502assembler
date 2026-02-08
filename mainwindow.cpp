@@ -311,6 +311,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             processorModel()->stop();
         return;
     }
+
     if (run || !haveDoneReset() || assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
     {
         QTextCursor savedTextCursor(ui->codeEditor->textCursor());
@@ -338,13 +339,15 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     else
         registerChanged(nullptr, 0);
 
+    bool startedNewRun = false;
     if (run || processorModel()->currentRunMode() == ProcessorModel::NotRunning && runMode != ProcessorModel::NotRunning)
     {
         processorModel()->setStartNewRun(true);
+        startedNewRun = true;
         processorModel()->setProgramCounter(emulator()->runStartAddress());
     }
 
-    if (runMode == ProcessorModel::StepInto)
+    if (runMode == ProcessorModel::StepInto && !startedNewRun)
     {
         const Instruction *instruction = processorModel()->nextInstructionToExecute();
         if (instruction != nullptr)

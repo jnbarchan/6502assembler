@@ -44,10 +44,10 @@ _outstr_X:
     
 _outstr_inline:
     pla
-    sta _outstr_inline_zp+1
-    pla
     sta _outstr_inline_zp
-    ldy #0
+    pla
+    sta _outstr_inline_zp+1
+    ldy #1
 .loop:
     lda (_outstr_inline_zp),Y
     beq .done

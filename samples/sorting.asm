@@ -404,7 +404,7 @@ verify_sorted:
     
 .error:
     brk
-    .byte "Not sorted!", 0
+    .byte 0, "Not sorted!", 0
 
 .done:
     rts  ; verify_sorted

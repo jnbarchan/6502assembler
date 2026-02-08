@@ -113,7 +113,7 @@ ___sqrt_init_bounds:
     bcc .not_number_too_large
 .number_too_large:
     brk
-    .byte "Sqrt too large.", 0
+    .byte 0, "Sqrt too large.", 0
 
 .not_number_too_large:
     ; sqrt_lower = 0

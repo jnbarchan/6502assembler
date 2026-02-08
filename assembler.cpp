@@ -201,6 +201,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels.values.clear();
     _codeLabels.values["__terminate"] = InternalJSRs::__JSR_terminate;
     _codeLabels.values["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
+    _codeLabels.values["__brk_default_handler"] = InternalJSRs::__JSR_brk_default_handler;
     _codeLabels.values["__outch"] = InternalJSRs::__JSR_outch;
     _codeLabels.values["__get_time"] = InternalJSRs::__JSR_get_time;
     _codeLabels.values["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
@@ -216,6 +217,8 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels.values["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
     _codeLabels.values["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
     _codeLabels.values["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
+
+    _codeLabels.values["__BRKV"] = InternalVECs::__VEC_BRKV;
 
     setAssembleState(AssembleState::NotStarted);
 }

@@ -15,6 +15,7 @@ using AddressingModeFlag = Assembly::AddressingModeFlag;
 using Instruction = Assembly::Instruction;
 using InstructionInfo = Assembly::InstructionInfo;
 using InternalJSRs = Assembly::InternalJSRs;
+using InternalVECs = Assembly::InternalVECs;
 
 
 class IAssemblerBreakpointProvider;
@@ -118,7 +119,7 @@ private:
     uint8_t *_memory;
     Instruction *_instructions;
     uint16_t _locationCounter;
-    const uint16_t _defaultLocationCounter = 0xC000;
+    const uint16_t _defaultLocationCounter = 0xc000;
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
     IAssemblerBreakpointProvider *assemblerBreakpointProvider;
 

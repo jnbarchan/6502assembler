@@ -186,6 +186,7 @@ private:
     void branchTo(uint16_t instructionAddress);
     void jumpTo(uint16_t instructionAddress);
     void jsr_brk_handler();
+    void jsr_brk_default_handler();
     void jsr_outch();
     void jsr_get_time();
     void jsr_get_elapsed_time();
