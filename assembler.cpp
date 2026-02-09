@@ -108,13 +108,14 @@ const Assembler::CodeLabels &Assembler::codeLabels() const
     return _codeLabels;
 }
 
-int Assembler::codeLabelValue(const QString &key) const
+Assembler::ExpressionValue Assembler::codeLabelValue(const QString &key) const
 {
-    return _codeLabels.values.value(key, -1);
+    return _codeLabels.values.value(key, ExpressionValue(true, true, -1));
 }
 
-void Assembler::setCodeLabelValue(const QString &key, int value)
+void Assembler::setCodeLabelValue(const QString &key, ExpressionValue value)
 {
+    Q_ASSERT(value.ok);
     _codeLabels.values[key] = value;
 }
 
@@ -160,12 +161,16 @@ QString Assembler::scopedLabelName(const QString &label) const
     return _currentCodeLabelScope + label;
 }
 
-void Assembler::assignLabelValue(const QString &scopedLabel, bool isLabel, int value)
+void Assembler::assignLabelValue(const QString &scopedLabel, bool isLabel, ExpressionValue value)
 {
     if (scopedLabel.isEmpty())
         assemblerWarningMessage(QString("Defining label with no name"));
-    if (_codeLabels.values.value(scopedLabel, value) != value)
-        assemblerWarningMessage(QString("Label redefinition: %1").arg(scopedLabel));
+    if (_codeLabels.values.contains(scopedLabel))
+    {
+        ExpressionValue labelValue(_codeLabels.values.value(scopedLabel));
+        if (!labelValue.isUndefined && !value.isUndefined && labelValue.intValue != value.intValue)
+            assemblerWarningMessage(QString("Label redefinition: %1").arg(scopedLabel));
+    }
     setCodeLabelValue(scopedLabel, value);
     if (isLabel && !scopedLabel.contains('.'))
     {
@@ -199,6 +204,10 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
 
     assemblerBreakpointProvider->clearBreakpoints();
     _codeLabels.values.clear();
+    // struct InternalJSR { const char *label; InternalJSRs intValue; };
+    // InternalJSR intValues[]{
+    //                       {"__terminate", InternalJSRs::__JSR_terminate},
+    // };
     _codeLabels.values["__terminate"] = InternalJSRs::__JSR_terminate;
     _codeLabels.values["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
     _codeLabels.values["__brk_default_handler"] = InternalJSRs::__JSR_brk_default_handler;
@@ -270,9 +279,9 @@ void Assembler::assemblePass()
     _instructionsCodeFileLineNumbers.clear();
     Operation operation;
     AddressingMode mode;
-    uint16_t arg;
+    uint16_t intValue;
     bool hasOperation, eof;
-    assembleNextStatement(operation, mode, arg, hasOperation, eof);
+    assembleNextStatement(operation, mode, intValue, hasOperation, eof);
     while (!eof)
     {
         if (hasOperation)
@@ -287,24 +296,24 @@ void Assembler::assemblePass()
             addInstructionsCodeFileLineNumber(CodeFileLineNumber(_locationCounter, currentFile.filename, currentFile.lineNumber));
             uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
             Instruction *instruction = reinterpret_cast<Instruction *>(address);
-            *instruction = Instruction(instructionInfo->opcodeByte, arg);
+            *instruction = Instruction(instructionInfo->opcodeByte, intValue);
             address[0] = instructionInfo->opcodeByte;
             if (bytes > 1)
             {
-                address[1] = static_cast<uint8_t>(arg);
+                address[1] = static_cast<uint8_t>(intValue);
                 if (bytes > 2)
-                    address[2] = static_cast<uint8_t>(arg >> 8);
+                    address[2] = static_cast<uint8_t>(intValue >> 8);
             }
             setLocationCounter(_locationCounter + bytes);
         }
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
-        assembleNextStatement(operation, mode, arg, hasOperation, eof);
+        assembleNextStatement(operation, mode, intValue, hasOperation, eof);
     }
     for (int i = 1; i < _instructionsCodeFileLineNumbers.size(); i++)
         Q_ASSERT(_instructionsCodeFileLineNumbers.at(i)._locationCounter > _instructionsCodeFileLineNumbers.at(i - 1)._locationCounter);
 }
 
-void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof)
+void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &intValue, bool &hasOperation, bool &eof)
 {
     //
     // ASSEMBLING PHASE
@@ -317,12 +326,12 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         eof = true;
         return;
     }
-    assembleNextStatement(operation, mode, arg, hasOperation);
+    assembleNextStatement(operation, mode, intValue, hasOperation);
     if (!currentToken.isEmpty())
         throw AssemblerError(QString("Unexpected token at end of statement: %1").arg(currentToken));
 }
 
-void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation)
+void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &intValue, bool &hasOperation)
 {
     //
     // ASSEMBLING PHASE
@@ -357,9 +366,8 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             {
                 getNextToken();
                 getNextToken();
-                bool ok;
-                int value = getTokensExpressionValueAsInt(ok);
-                if (!ok)
+                ExpressionValue value = getTokensExpressionValueAsInt();
+                if (!value.ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
                 assignLabelValue(scopedLabelName(label), false, value);
                 return;
@@ -393,30 +401,34 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
     if (currentToken.isEmpty())
     {
         mode = AddressingMode::Implied;
-        arg = 0;
+        intValue = 0;
         recognised = true;
     }
     else if (currentToken == '#')
     {
         mode = AddressingMode::Immediate;
         getNextToken();
-        bool ok;
-        int value = getTokensExpressionValueAsInt(ok);
-        if (!ok)
+        ExpressionValue value = getTokensExpressionValueAsInt();
+        if (!value.ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-        if (value < -128 || value > 255)
-            assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value, 2, 16, QChar('0')).arg(operationName));
-        arg = value;
+        if (value.isUndefined)
+            intValue = 0;
+        else
+        {
+            if (value.intValue < -128 || value.intValue > 255)
+                assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value.intValue, 2, 16, QChar('0')).arg(operationName));
+            intValue = value.intValue;
+        }
         recognised = true;
     }
     else if (currentToken.toUpper() == "A")
     {
         mode = AddressingMode::Accumulator;
-        arg = 0;
+        intValue = 0;
         getNextToken();
         recognised = true;
     }
-    else if (tokenIsInt() || tokenIsLabel() || currentToken == "*" || currentToken == "(")
+    else if (tokenStartsExpression())
     {
         QString firstToken(currentToken);
         bool allowForIndirectAddressing = firstToken == "(";
@@ -428,14 +440,18 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             if (operationMode.modes.testAnyFlags({AddressingModeFlag::IndirectFlag, AddressingModeFlag::IndexedIndirectXFlag, AddressingModeFlag::IndirectIndexedYFlag}))
                 mode = AddressingMode::Indirect;
 
-        bool ok;
         bool indirectAddressingMetCloseParen;
-        int value = getTokensExpressionValueAsInt(ok, allowForIndirectAddressing, &indirectAddressingMetCloseParen);
-        if (!ok)
+        ExpressionValue value = getTokensExpressionValueAsInt(allowForIndirectAddressing, &indirectAddressingMetCloseParen);
+        if (!value.ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-        if (value < -32768 || value > 65535)
-            assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value, 2, 16, QChar('0')).arg(operationName));
-        arg = value;
+        if (value.isUndefined)
+            intValue = 0xffff;
+        else
+        {
+            if (value.intValue < -32768 || value.intValue > 65535)
+                assemblerWarningMessage(QString("Value out of range for operation: $%1 %2").arg(value.intValue, 2, 16, QChar('0')).arg(operationName));
+            intValue = value.intValue;
+        }
 
         if (currentToken.isEmpty())
             recognised = true;
@@ -479,7 +495,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
     if (!recognised)
         throw AssemblerError(QString("Unrecognized operand addressing mode for operation: %1 %2").arg(currentToken).arg(operationName));
 
-    bool zpArg = (arg & 0xff00) == 0;
+    bool zpArg = (intValue & 0xff00) == 0;
     const Assembly::OperationMode &operationMode(Assembly::getOperationMode(operation));
     switch (mode)
     {
@@ -501,11 +517,11 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
             throw AssemblerError(QString("Operand argument value must be ZeroPage: %1 %2").arg(Assembly::AddressingModeValueToString(mode)).arg(operationName));
         break;
     case AddressingMode::Relative: {
-        int relative = arg - _locationCounter - 2;
+        int relative = intValue - _locationCounter - 2;
         if (relative < -128 || relative > 127)
             if (_assembleState == Pass2)
                 throw AssemblerError(QString("Relative mode branch address out of range: %1 %2").arg(relative).arg(operationName));
-        arg = relative;
+        intValue = relative;
         break;
     }
     default: break;
@@ -540,10 +556,11 @@ void Assembler::assembleDirective()
             }
             else
             {
-                int intValue = getTokensExpressionValueAsInt(ok);
-                if (!ok)
+                ExpressionValue value = getTokensExpressionValueAsInt();
+                if (!value.ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-                *address = intValue & 0xff;
+                if (!value.isUndefined)
+                    *address = value.intValue & 0xff;
                 setLocationCounter(_locationCounter + 1);
             }
         } while (currentToken == ",");
@@ -569,13 +586,16 @@ void Assembler::assembleDirective()
     else if (directive == ".org")
     {
         getNextToken();
-        bool ok;
-        int value = getTokensExpressionValueAsInt(ok);
-        if (!ok)
+        ExpressionValue value = getTokensExpressionValueAsInt();
+        if (!value.ok)
             throw AssemblerError(QString("Bad value: %1").arg(currentToken));
-        if (value < 0 || value > 0xffff)
-            assemblerWarningMessage(QString("Value out of range for directive: $%1 %2").arg(value, 2, 16, QChar('0')).arg(directive));
-        setLocationCounter(value);
+        if (!value.isUndefined)
+        {
+            int intValue = value.intValue;
+            if (intValue < 0 || intValue > 0xffff)
+                assemblerWarningMessage(QString("Value out of range for directive: $%1 %2").arg(intValue, 2, 16, QChar('0')).arg(directive));
+            setLocationCounter(intValue);
+        }
     }
     else
         throw AssemblerError(QString("Unimplemented directive: %1").arg(directive));
@@ -783,7 +803,7 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     return true;
 }
 
-int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing /*= false*/, bool *indirectAddressingMetCloseParen /*= nullptr*/)
+Assembler::ExpressionValue Assembler::getTokensExpressionValueAsInt(bool allowForIndirectAddressing /*= false*/, bool *indirectAddressingMetCloseParen /*= nullptr*/)
 {
     enum Operator { NotAnOperator = -1, OpenParen, CloseParen, BitOr, BitAnd, ShiftLeft, ShiftRight, Plus, Minus, Multiply, Divide, UnaryLow, UnaryHigh, };
     struct OperatorInfo { Operator _operator; bool isUnary; int precedence; QString string; };
@@ -818,15 +838,15 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
         }
     };
     QStack<Operator> operatorStack;
-    QStack<int> valueStack;
+    QStack<ExpressionValue> valueStack;
+    ExpressionValue value;
 
+    if (indirectAddressingMetCloseParen != nullptr)
+        *indirectAddressingMetCloseParen = false;
     QString firstToken(currentToken);
     if (firstToken != "(")
         allowForIndirectAddressing = false;
-    ok = false;
-    if (indirectAddressingMetCloseParen != nullptr)
-        *indirectAddressingMetCloseParen = false;
-    int value = -1;
+    value.ok = false;
     bool wantOperator = false;
     bool endOfExpression = false;
     do
@@ -848,9 +868,9 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                     operatorStack.push(OpenParen);
                 else
                 {
-                    value = tokenValueAsInt(&ok);
-                    if (!ok)
-                        return -1;
+                    value = tokenValueAsInt();
+                    if (!value.ok)
+                        return value;
                     valueStack.push(value);
                     wantOperator = true;
                 }
@@ -875,40 +895,50 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
             {
                 if (operatorStack.size() < 1)
                 {
-                   ok = false;
-                   return -1;
+                   value.ok = false;
+                   return value;
                 }
                 Operator _operator2 = operatorStack.pop();
                 bool isUnary = operatorsInfo[_operator2].isUnary;
                 if (valueStack.size() < (isUnary ? 1 : 2))
                 {
-                    ok = false;
-                    return -1;
+                    value.ok = false;
+                    return value;
                 }
-                int valRight = valueStack.pop();
-                int valLeft = isUnary ? -1 : valueStack.pop();
-                switch (_operator2)
+                ExpressionValue valueRight = valueStack.pop();
+                Q_ASSERT(valueRight.ok);
+                ExpressionValue valueLeft = isUnary ? ExpressionValue(-1) : valueStack.pop();
+                Q_ASSERT(valueLeft.ok);
+                if (valueRight.isUndefined || valueLeft.isUndefined)
+                    value = ExpressionValue(true, true, -1);
+                else
                 {
-                case BitOr:         value = valLeft | valRight; break;
-                case BitAnd:        value = valLeft & valRight; break;
-                case ShiftLeft:     value = valLeft << valRight; break;
-                case ShiftRight:    value = valLeft >> valRight; break;
-                case Plus:          value = valLeft + valRight; break;
-                case Minus:         value = valLeft - valRight; break;
-                case Multiply:      value = valLeft * valRight; break;
-                case Divide:
-                    if (valRight == 0)
+                    int valRight = valueRight.intValue;
+                    int valLeft = valueLeft.intValue;
+                    switch (_operator2)
                     {
-                        assemblerWarningMessage(QString("Division by zero"));
-                        ok = false;
-                        return -1;
+                    case BitOr:         value = valLeft | valRight; break;
+                    case BitAnd:        value = valLeft & valRight; break;
+                    case ShiftLeft:     value = valLeft << valRight; break;
+                    case ShiftRight:    value = valLeft >> valRight; break;
+                    case Plus:          value = valLeft + valRight; break;
+                    case Minus:         value = valLeft - valRight; break;
+                    case Multiply:      value = valLeft * valRight; break;
+                    case Divide:
+                        if (valRight == 0)
+                        {
+                            assemblerWarningMessage(QString("Division by zero"));
+                            value.ok = false;
+                            return value;
+                        }
+                        value = valLeft / valRight;
+                        break;
+                    case UnaryLow:       value = static_cast<uint8_t>(valRight); break;
+                    case UnaryHigh:      value = static_cast<uint8_t>(valRight >> 8); break;
+                    default: Q_ASSERT(false); break;
                     }
-                    value = valLeft / valRight;
-                    break;
-                case UnaryLow:      value = static_cast<uint8_t>(valRight); break;
-                case UnaryHigh:      value = static_cast<uint8_t>(valRight >> 8); break;
-                default: Q_ASSERT(false); break;
                 }
+                Q_ASSERT(value.ok);
                 valueStack.push(value);
             }
 
@@ -918,8 +948,8 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
                 {
                     if (operatorStack.isEmpty() || operatorsInfo[operatorStack.top()]._operator != OpenParen)
                     {
-                        ok = false;
-                        return -1;
+                        value.ok = false;
+                        return value;
                     }
                     operatorStack.pop();
                     if (allowForIndirectAddressing)
@@ -940,17 +970,17 @@ int Assembler::getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddr
 
     } while (!endOfExpression);
 
-    ok = false;
+    value.ok = false;
     if (valueStack.size() != 1)
-        return -1;
+        return value;
 
     if (allowForIndirectAddressing)
         if (currentToken == "," && operatorStack.size() == 1 && operatorsInfo[operatorStack.top()]._operator == OpenParen)
             operatorStack.pop();
     if (!operatorStack.isEmpty())
-        return -1;
+        return value;
 
-    ok = true;
+    value.ok = true;
     return value;
 }
 
@@ -961,20 +991,24 @@ bool Assembler::tokenIsDirective() const
     return Assembly::directives().contains(currentToken);
 }
 
+bool Assembler::tokenStartsExpression() const
+{
+    return tokenIsInt() || tokenIsLabel() || currentToken == "*"  || currentToken == "<"  || currentToken == ">" || currentToken == "(";
+}
+
 bool Assembler::tokenIsLabel(bool isDefinition /*= false*/) const
 {
-    if (currentToken.size() == 0)
+    if (currentToken.isEmpty())
         return false;
     char ch = currentToken.at(0).toLatin1();
     if (!(ch == '.' || ch == '_' || std::isalpha(ch)))
         return false;
-    if (ch == '.')
-        if (tokenIsDirective())
-            return false;
+    if (tokenIsDirective())
+        return false;
     for (int i = 1; i < currentToken.size(); i++)
     {
         ch = currentToken.at(i).toLatin1();
-        if (!(ch == '_' || std::isalnum(ch) || ch == '.'))
+        if (!(ch == '_' || std::isalnum(ch) || (ch == '.' && !isDefinition)))
             return false;
     }
     return true;
@@ -982,7 +1016,9 @@ bool Assembler::tokenIsLabel(bool isDefinition /*= false*/) const
 
 bool Assembler::tokenIsInt() const
 {
-    char firstChar = currentToken.size() > 0 ? currentToken.at(0).toLatin1() : '\0';
+    if (currentToken.isEmpty())
+        return false;
+    char firstChar = currentToken.at(0).toLatin1();
     return firstChar == '%' || firstChar == '$' || std::isdigit(firstChar) || firstChar == '-' || firstChar == '\'';
 }
 
@@ -991,7 +1027,10 @@ int Assembler::tokenToInt(bool *ok) const
     bool _ok;
     if (ok == nullptr)
         ok = &_ok;
-    char firstChar = currentToken.size() > 0 ? currentToken.at(0).toLatin1() : '\0';
+    *ok = false;
+    if (currentToken.isEmpty())
+        return -1;
+    char firstChar = currentToken.at(0).toLatin1();
     if (firstChar == '%')
         return currentToken.mid(1).toUInt(ok, 2);
     else if (firstChar == '$')
@@ -1008,41 +1047,36 @@ int Assembler::tokenToInt(bool *ok) const
             return nextChar;
         }
     }
-    *ok = false;
     return -1;
 }
 
-int Assembler::tokenValueAsInt(bool *ok) const
+Assembler::ExpressionValue Assembler::tokenValueAsInt() const
 {
-    bool _ok;
-    if (ok == nullptr)
-        ok = &_ok;
-    int value;
-    value = tokenToInt(ok);
-    if (*ok)
+    ExpressionValue value;
+    value.isUndefined = false;
+    value.intValue = tokenToInt(&value.ok);
+    if (value.ok)
         return value;
     if (tokenIsLabel())
     {
         QString label = scopedLabelName(currentToken);
         if (_codeLabels.values.contains(label))
-        {
-            *ok = true;
             return _codeLabels.values.value(label);
-        }
         else if (_assembleState == Pass1)
         {
-            *ok = true;
-            return 0xffff;
+            value.ok = true;
+            value.isUndefined = true;
+            return value;
         }
         assemblerWarningMessage(QString("Label not defined: %1").arg(currentToken));
     }
     else if (currentToken == "*")
     {
-        *ok = true;
-        return _locationCounter;
+        value = _locationCounter;
+        return value;
     }
-    *ok = false;
-    return -1;
+    value.ok = false;
+    return value;
 }
 
 bool Assembler::tokenIsString() const

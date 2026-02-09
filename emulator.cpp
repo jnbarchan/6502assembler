@@ -33,10 +33,12 @@ Emulator::~Emulator()
 
 const uint16_t Emulator::runStartAddress() const
 {
-    int value;
     for (const QString &label : { "reset", "start", "START", "main", "MAIN", })
-        if ((value = assembler()->codeLabelValue(label)) >= 0)
-            return value;
+    {
+        Assembler::ExpressionValue value(assembler()->codeLabelValue(label));
+        if (value.isValid() && value.intValue > 0)
+            return value.intValue;
+    }
     return assembler()->defaultLocationCounter();
 }
 
@@ -119,7 +121,6 @@ void Emulator::clearBreakpoints()
 
 void Emulator::addAssemblerBreakpoint(uint16_t instructionAddress)
 {
-    //TEMPORARY?
     int i = findBreakpointIndex(instructionAddress);
     if (i < _breakpoints.size() && _breakpoints.at(i) == instructionAddress)
         return;
@@ -129,7 +130,6 @@ void Emulator::addAssemblerBreakpoint(uint16_t instructionAddress)
 
 void Emulator::clearAssemblerBreakpoints()
 {
-    //TEMPORARY?
     clearBreakpoints();
 }
 
@@ -299,9 +299,13 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
                 watchInfos[index.row()].symbol = label;
                 emit dataChanged(index, index, { role });
             }
-            QModelIndex addressIndex(index.siblingAtColumn(1));
             if (!label.isEmpty())
-                setData(addressIndex, emulator->assembler()->codeLabelValue(label));
+            {
+                QModelIndex addressIndex(index.siblingAtColumn(1));
+                Assembler::ExpressionValue value(emulator->assembler()->codeLabelValue(label));
+                if (value.isValid())
+                    setData(addressIndex, value.intValue);
+            }
             return true;
         }
         else if (index.column() == 1)
@@ -314,8 +318,12 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
             }
             QModelIndex labelIndex(index.siblingAtColumn(0));
             QString label(labelIndex.data().toString());
-            if (!label.isEmpty() && emulator->assembler()->codeLabelValue(label) != address)
-                setData(labelIndex, QString());
+            if (!label.isEmpty())
+            {
+                Assembler::ExpressionValue value(emulator->assembler()->codeLabelValue(label));
+                if (!value.isValid() || value.intValue != address)
+                    setData(labelIndex, QString());
+            }
             return true;
         }
         else

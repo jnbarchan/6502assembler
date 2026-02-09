@@ -1196,7 +1196,7 @@ void ProcessorModel::jsr_outstr_fast()
 
 void ProcessorModel::jsr_outstr_inline()
 {
-    uint16_t rtsAddress = pullFromStack() | (pullFromStack() << 8) + 1;
+    uint16_t rtsAddress = (pullFromStack() | (pullFromStack() << 8)) + 1;
     uint8_t maxLen;
     const char *memoryAddress = memoryStrPointer(rtsAddress, &maxLen);
     QString str(QString::fromLatin1(memoryAddress, maxLen));

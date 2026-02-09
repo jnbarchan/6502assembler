@@ -51,9 +51,22 @@ public:
         int lineNumber;
         ScopeLabel(const QString &_label, int _lineNumber) { label = _label; lineNumber = _lineNumber; }
     };
+    struct ExpressionValue
+    {
+        bool ok;
+        bool isUndefined;
+        int intValue;
+
+        ExpressionValue() { ok = false; }
+        ExpressionValue(int _intValue) { ok = true; isUndefined = false; intValue = _intValue; }
+        ExpressionValue &operator=(int _intValue) { ok = true; isUndefined = false; intValue = _intValue; return *this; }
+        ExpressionValue(bool _ok, bool _isUndefined, int _intValue) { ok = _ok; isUndefined = _isUndefined; intValue = _intValue; }
+
+        bool isValid() const { return ok && !isUndefined; }
+    };
     struct CodeLabels
     {
-        QMap<QString, int> values;
+        QMap<QString, ExpressionValue> values;
         QMap<QString, QList<ScopeLabel> > scopes;
     };
 
@@ -72,8 +85,8 @@ public:
     void setLocationCounter(uint16_t newLocationCounter);
 
     const CodeLabels &codeLabels() const;
-    int codeLabelValue(const QString &key) const;
-    void setCodeLabelValue(const QString &key, int value);
+    ExpressionValue codeLabelValue(const QString &key) const;
+    void setCodeLabelValue(const QString &key, ExpressionValue value);
 
     void setCode(QTextStream *codeStream);
 
@@ -134,12 +147,12 @@ private:
     void assemblerWarningMessage(const QString &message) const;
     void assemblerErrorMessage(const QString &message) const;
     QString scopedLabelName(const QString &label) const;
-    void assignLabelValue(const QString &scopedLabel, bool isLabel, int value);
+    void assignLabelValue(const QString &scopedLabel, bool isLabel, ExpressionValue value);
     void cleanup(bool assemblePass2 = false);
     void addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln);
     void assemblePass();
-    void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation, bool &eof);
-    void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &arg, bool &hasOperation);
+    void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &intValue, bool &hasOperation, bool &eof);
+    void assembleNextStatement(Operation &operation, AddressingMode &mode, uint16_t &intValue, bool &hasOperation);
     void assembleDirective();
     QString findIncludeFilePath(const QString &includeFilename);
     void startIncludeFile(const QString &includeFilename);
@@ -148,12 +161,13 @@ private:
     bool getNextLine();
     QString peekNextToken(bool wantOperator = false);
     bool getNextToken(bool wantOperator = false);
-    int getTokensExpressionValueAsInt(bool &ok, bool allowForIndirectAddressing = false, bool *indirectAddressingMetCloseParen = nullptr);
+    ExpressionValue getTokensExpressionValueAsInt(bool allowForIndirectAddressing = false, bool *indirectAddressingMetCloseParen = nullptr);
     bool tokenIsDirective() const;
+    bool tokenStartsExpression() const;
     bool tokenIsLabel(bool isDefinition = false) const;
     bool tokenIsInt() const;
     int tokenToInt(bool *ok) const;
-    int tokenValueAsInt(bool *ok) const;
+    ExpressionValue tokenValueAsInt() const;
     bool tokenIsString() const;
     QString tokenToString(bool *ok) const;
 };

@@ -6,11 +6,11 @@ saved_vector = ZP_USER_0
 
 main:
     lda __BRKV
-;    sta catch_brk.saved_vector
-    sta saved_vector
+    sta catch_brk.saved_vector
+;    sta saved_vector
     lda __BRKV+1
-;    sta catch_brk.saved_vector+1
-    sta saved_vector+1
+    sta catch_brk.saved_vector+1
+;    sta saved_vector+1
     
     lda #<ignore_brk
     sta __BRKV
@@ -36,10 +36,8 @@ ignore_brk:
 catch_brk:
     jsr __outstr_inline
     .byte "In catch_brk", 0
-.break
-lda #99
-    ;jmp (.saved_vector)
-    jmp (saved_vector)
+    jmp (.saved_vector)
+;    jmp (saved_vector)
     
 .saved_vector:
     .byte 0, 0
