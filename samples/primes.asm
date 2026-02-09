@@ -62,7 +62,7 @@ run_is_prime:
     ; output prime_test_32
     jsr copy_prime_test_32_to_dividend_32
     jsr _outnum32_commas
-    jsr _outstr_inline
+    jsr __outstr_inline
     .byte ": ", 0
 
     jsr _clear_elapsed_time_cycles
@@ -72,11 +72,11 @@ run_is_prime:
     cmp #0
     beq .no
 .yes:
-    jsr _outstr_inline
+    jsr __outstr_inline
     .byte "Yes", 10, 0
     jmp .return
 .no:
-    jsr _outstr_inline
+    jsr __outstr_inline
     .byte "No", 10, 0
 .return:
     jsr _elapsed_cycles
@@ -299,7 +299,7 @@ run_primes_trial_division:
     jmp .test_next_num
 
 .finished:
-    jsr _outstr_inline
+    jsr __outstr_inline
     .byte "Trial division:", 10, 0
     ; show last prime found?
     lda #show_primes
@@ -460,7 +460,7 @@ run_primes_eratosthenes_sieve_compact:
     jmp .test_next_num
     
 .finished:
-    jsr _outstr_inline
+    jsr __outstr_inline
     .byte "Eratosthenes sieve compact:", 10, 0
     ; show last prime found?
     lda #show_primes
@@ -630,7 +630,7 @@ run_primes_eratosthenes_sieve:
     jmp .test_next_num
     
 .finished:
-    jsr _outstr_inline
+    jsr __outstr_inline
     .byte "Eratosthenes sieve:", 10, 0
     ; show last prime found?
     lda #show_primes

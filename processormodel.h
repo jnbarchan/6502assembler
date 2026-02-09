@@ -78,6 +78,8 @@ public:
     void setMemoryByteAt(uint16_t address, uint8_t value);
     uint16_t memoryWordAt(uint16_t address) const;
     uint16_t memoryZPWordAt(uint8_t address) const;
+    char *memoryCharPointer(uint16_t address) const;
+    char *memoryStrPointer(uint16_t address, uint8_t *maxLen = nullptr) const;
 
     Instruction *instructions() const;
 
@@ -200,6 +202,7 @@ private:
     void jsr_rewind_file();
     void jsr_read_file();
     void jsr_outstr_fast();
+    void jsr_outstr_inline();
     void jsr_get_elapsed_cycles();
     void jsr_clear_elapsed_cycles();
 };

@@ -215,6 +215,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _codeLabels.values["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
     _codeLabels.values["__read_file"] = InternalJSRs::__JSR_read_file;
     _codeLabels.values["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
+    _codeLabels.values["__outstr_inline"] = InternalJSRs::__JSR_outstr_inline;
     _codeLabels.values["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
     _codeLabels.values["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
 

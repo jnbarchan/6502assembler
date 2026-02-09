@@ -60,6 +60,10 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     localLabelDefinitionFormat.setForeground(Qt::darkMagenta);
     QTextCharFormat labelBranchJumpFormat;
     labelBranchJumpFormat.setForeground(labelDefinitionFormat.foreground());
+    QTextCharFormat internalLabelBranchJumpFormat;
+    QColor color(labelBranchJumpFormat.foreground().color());
+    color.setGreen(96);
+    internalLabelBranchJumpFormat.setForeground(color);
     QTextCharFormat localLabelBranchJumpFormat;
     localLabelBranchJumpFormat.setForeground(localLabelDefinitionFormat.foreground());
 
@@ -98,7 +102,9 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     match = labelBranchJumpRegex.match(code);
     if (match.hasMatch())
     {
-        setFormat(match.capturedStart(1), match.capturedLength(1), match.captured(1).at(0) == '.' ? localLabelBranchJumpFormat : labelBranchJumpFormat);
+        bool local = match.captured(1).at(0) == '.';
+        bool internal = match.captured(1).startsWith("__");
+        setFormat(match.capturedStart(1), match.capturedLength(1), local ? localLabelBranchJumpFormat : internal ? internalLabelBranchJumpFormat : labelBranchJumpFormat);
         if (match.hasCaptured(2))
             setFormat(match.capturedStart(2), match.capturedLength(2), localLabelBranchJumpFormat);
     }

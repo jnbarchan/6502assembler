@@ -170,9 +170,25 @@ uint16_t ProcessorModel::memoryWordAt(uint16_t address) const
     return _memory[address] | (_memory[static_cast<uint16_t>(address + 1)] << 8);
 }
 
-uint16_t ProcessorModel::memoryZPWordAt(uint8_t address) const
+uint16_t ProcessorModel::memoryZPWordAt(uint8_t zpaddress) const
 {
-    return _memory[address] | (_memory[static_cast<uint8_t>(address + 1)] << 8);
+    return _memory[zpaddress] | (_memory[static_cast<uint8_t>(zpaddress + 1)] << 8);
+}
+
+char *ProcessorModel::memoryCharPointer(uint16_t address) const
+{
+    return reinterpret_cast<char *>(_memory + address);
+}
+
+char *ProcessorModel::memoryStrPointer(uint16_t address, uint8_t *maxLen /*= nullptr*/) const
+{
+    char *memoryAddress = memoryCharPointer(address);
+    if (maxLen != nullptr)
+    {
+        int len = std::strlen(memoryAddress);
+        *maxLen = len < 255 ? len : 254;
+    }
+    return memoryAddress;
 }
 
 Instruction *ProcessorModel::instructions() const
@@ -205,8 +221,8 @@ void ProcessorModel::resetModel()
     _xregister = 10;
     _yregister = 15;
     emit modelReset();
-    setMemoryByteAt(Assembly::__VEC_BRKV, Assembly::__JSR_brk_default_handler & 0xff);
-    setMemoryByteAt(Assembly::__VEC_BRKV + 1, (Assembly::__JSR_brk_default_handler >> 8) & 0xff);
+    setMemoryByteAt(Assembly::__VEC_BRKV, static_cast<uint8_t>(Assembly::__JSR_brk_default_handler));
+    setMemoryByteAt(Assembly::__VEC_BRKV + 1, static_cast<uint8_t>(Assembly::__JSR_brk_default_handler >> 8));
     _memoryModel->clearLastMemoryChanged();
     haveChangedState.clear();
     haveChangedState.trackingMemoryChanged = true;
@@ -225,17 +241,7 @@ void ProcessorModel::setCurrentRunMode(RunMode newCurrentRunMode)
 
 bool ProcessorModel::suppressSignalsForSpeed() const
 {
-    switch (_currentRunMode)
-    {
-    case TurboRun:
-    case Run:
-    case Continue:
-    case StepOver:
-    case StepOut:
-        return true;
-    default:
-        return false;
-    }
+    return _currentRunMode != NotRunning && _currentRunMode != StepInto;
 }
 
 bool ProcessorModel::trackingMemoryChanged() const
@@ -489,12 +495,18 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 if (runMode == StepOver && operation == Operation::JSR)
                 {
                     stopAtInstructionAddress = _programCounter + instructionInfo.bytes;
+                    if (instruction.operand == InternalJSRs::__JSR_outstr_inline)
+                    {
+                        uint8_t maxLen;
+                        memoryStrPointer(stopAtInstructionAddress, &maxLen);
+                        stopAtInstructionAddress += maxLen + 1;
+                    }
                     keepGoing = true;
                 }
                 else if (runMode == StepOut)
                 {
-                    uint16_t rtsAddress = memoryWordAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1));
-                    stopAtInstructionAddress = rtsAddress + 1;
+                    uint16_t rtsAddress = memoryWordAt(_stackBottom + static_cast<uint8_t>(_stackRegister + 1)) + 1;
+                    stopAtInstructionAddress = rtsAddress;
                     keepGoing = true;
                 }
             }
@@ -999,6 +1011,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_read_file(); break;
     case InternalJSRs::__JSR_outstr_fast:
         jsr_outstr_fast(); break;
+    case InternalJSRs::__JSR_outstr_inline:
+        jsr_outstr_inline(); break;
     case InternalJSRs::__JSR_get_elapsed_cycles:
         jsr_get_elapsed_cycles(); break;
     case InternalJSRs::__JSR_clear_elapsed_cycles:
@@ -1010,7 +1024,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
     {
         const InstructionInfo *instructionInfo(Assembly::findInstructionInfo(Operation::RTS, AddressingMode::Implied));
         elapsedCycles += instructionInfo->cycles;
-        instructionAddress = (pullFromStack() | (pullFromStack() << 8)) + 1;
+        uint16_t rtsAddress = (pullFromStack() | (pullFromStack() << 8)) + 1;
+        instructionAddress = rtsAddress;
         if (!suppressSignalsForSpeed())
             emit statusFlagsChanged();
     }
@@ -1032,14 +1047,12 @@ void ProcessorModel::jsr_brk_handler()
 void ProcessorModel::jsr_brk_default_handler()
 {
     setStatusFlags(pullFromStack());
-    uint16_t address = pullFromStack() | (pullFromStack() << 8);
-    uint8_t signatureByte = memoryByteAt(address - 1);
+    uint16_t rtiAddress = pullFromStack() | (pullFromStack() << 8);
+    uint8_t signatureByte = memoryByteAt(rtiAddress - 1);
     Q_UNUSED(signatureByte);
-    const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
-    int len = std::strlen(memoryAddress);
-    if (len > 255)
-        len = 255;
-    QString message(QString::fromLatin1(memoryAddress, len));
+    uint8_t maxLen;
+    const char *memoryAddress = memoryStrPointer(rtiAddress, &maxLen);
+    QString message(QString::fromLatin1(memoryAddress, maxLen));
     sendMessageToConsole(message);
 
     stop();
@@ -1175,9 +1188,22 @@ void ProcessorModel::jsr_read_file()
 void ProcessorModel::jsr_outstr_fast()
 {
     uint16_t address = _accumulator | (_xregister << 8);
-    const char *memoryAddress = reinterpret_cast<const char *>(_memory + address);
-    QString str(QString::fromLatin1(memoryAddress));
+    uint8_t maxLen;
+    const char *memoryAddress = memoryStrPointer(address, &maxLen);
+    QString str(QString::fromLatin1(memoryAddress, maxLen));
     emit sendStringToConsole(str);
+}
+
+void ProcessorModel::jsr_outstr_inline()
+{
+    uint16_t rtsAddress = pullFromStack() | (pullFromStack() << 8) + 1;
+    uint8_t maxLen;
+    const char *memoryAddress = memoryStrPointer(rtsAddress, &maxLen);
+    QString str(QString::fromLatin1(memoryAddress, maxLen));
+    emit sendStringToConsole(str);
+    rtsAddress += maxLen + 1 - 1;
+    pushToStack(static_cast<uint8_t>(rtsAddress >> 8));
+    pushToStack(static_cast<uint8_t>(rtsAddress));
 }
 
 void ProcessorModel::jsr_get_elapsed_cycles()
