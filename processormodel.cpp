@@ -989,6 +989,8 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         jsr_outch(); break;
     case InternalJSRs::__JSR_get_time:
         jsr_get_time(); break;
+    case InternalJSRs::__JSR_get_time_ms:
+        jsr_get_time_ms(); break;
     case InternalJSRs::__JSR_get_elapsed_time:
         jsr_get_elapsed_time(); break;
     case InternalJSRs::__JSR_clear_elapsed_time:
@@ -1066,7 +1068,17 @@ void ProcessorModel::jsr_outch()
 void ProcessorModel::jsr_get_time()
 {
     uint16_t address = _accumulator | (_xregister << 8);
-    uint16_t milliseconds = static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch());
+    uint32_t seconds = static_cast<uint32_t>(time(NULL));
+    setMemoryByteAt(address, static_cast<uint8_t>(seconds));
+    setMemoryByteAt(address + 1, static_cast<uint8_t>(seconds >> 8));
+    setMemoryByteAt(address + 2, static_cast<uint8_t>(seconds >> 16));
+    setMemoryByteAt(address + 3, static_cast<uint8_t>(seconds >> 24));
+}
+
+void ProcessorModel::jsr_get_time_ms()
+{
+    uint16_t address = _accumulator | (_xregister << 8);
+    uint32_t milliseconds = static_cast<uint32_t>(QDateTime::currentMSecsSinceEpoch());
     setMemoryByteAt(address, static_cast<uint8_t>(milliseconds));
     setMemoryByteAt(address + 1, static_cast<uint8_t>(milliseconds >> 8));
     setMemoryByteAt(address + 2, static_cast<uint8_t>(milliseconds >> 16));
@@ -1076,7 +1088,7 @@ void ProcessorModel::jsr_get_time()
 void ProcessorModel::jsr_get_elapsed_time()
 {
     uint16_t address = _accumulator | (_xregister << 8);
-    uint16_t milliseconds = static_cast<uint32_t>(elapsedTimer.elapsed());
+    uint32_t milliseconds = static_cast<uint32_t>(elapsedTimer.elapsed());
     setMemoryByteAt(address, static_cast<uint8_t>(milliseconds));
     setMemoryByteAt(address + 1, static_cast<uint8_t>(milliseconds >> 8));
     setMemoryByteAt(address + 2, static_cast<uint8_t>(milliseconds >> 16));

@@ -129,7 +129,7 @@ public:
     {
         static const QStringList list =
         {
-            ".byte", ".include", ".break", ".org",
+            ".byte", ".word", ".include", ".break", ".org",
         };
         return list;
     }
@@ -165,10 +165,10 @@ public:
 
     enum InternalJSRs { __JSR_terminate = 0x0000,
                         __JSR_brk_handler = 0xfffe, __JSR_brk_default_handler = 0xfffc, __JSR_outch = 0xfffa, __JSR_get_time = 0xfff8,
-                        __JSR_get_elapsed_time = 0xfff6, __JSR_clear_elapsed_time = 0xfff4, __JSR_process_events = 0xfff2, __JSR_inch = 0xfff0,
-                        __JSR_inkey = 0xffee,  __JSR_wait = 0xffec, __JSR_open_file = 0xffea, __JSR_close_file = 0xffe8,
-                        __JSR_rewind_file = 0xffe6, __JSR_read_file = 0xffe4, __JSR_outstr_fast = 0xffe2, __JSR_outstr_inline = 0xffe0,
-                        __JSR_get_elapsed_cycles = 0xffde, __JSR_clear_elapsed_cycles = 0xffdc,
+                        __JSR_get_time_ms = 0xfff6, __JSR_get_elapsed_time = 0xfff4, __JSR_clear_elapsed_time = 0xfff2, __JSR_process_events = 0xfff0,
+                        __JSR_inch = 0xffee, __JSR_inkey = 0xffec,  __JSR_wait = 0xffea, __JSR_open_file = 0xffe8,
+                        __JSR_close_file = 0xffe6, __JSR_rewind_file = 0xffe4, __JSR_read_file = 0xffe2, __JSR_outstr_fast = 0xffe0,
+                        __JSR_outstr_inline = 0xffde, __JSR_get_elapsed_cycles = 0xffdc, __JSR_clear_elapsed_cycles = 0xffda,
                         };
     enum InternalVECs { __VEC_BRKV = 0x0202, };
 

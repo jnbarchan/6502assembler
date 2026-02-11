@@ -10,7 +10,13 @@ _outnum_test:
     jsr _outnum
     lda #10
     jsr __outch
-    jsr _outnum
+
+    lda #16
+    sta dividend
+    lda #0
+    sta dividend+1
+    lda #4
+    jsr _outnum_min_width
     lda #10
     jsr __outch
 
@@ -22,7 +28,7 @@ _outnum_test:
     lda #10
     jsr __outch
 
-    lda #$ef
+    lda #$12
     sta dividend
     lda #$a9
     sta dividend+1
@@ -45,16 +51,29 @@ _outnum_test:
     rts  ; _outnum_test
     brk
 
+_outnum_min_width:
+    jsr _padnum_min_width
+    jmp _outstr_X  ; _outnum_min_width
 _outnum_commas:
-    lda #','
-    sta _OUTNUM_SEPARATOR
-    bne *+7
+    jsr _padnum_commas
+    jmp _outstr_X  ; _outnum_commas
 _outnum:
-    lda #0
-    sta _OUTNUM_SEPARATOR
     jsr _padnum
     jmp _outstr_X  ; _outnum
+_padnum_min_width:
+    sta _PADNUM_MIN_WIDTH
+    lda #0
+    beq _padnum.padnum_separator
+_padnum_commas:
+    lda #0
+    sta _PADNUM_MIN_WIDTH
+    lda #','
+    bne _padnum.padnum_separator
 _padnum:
+    lda #0
+    sta _PADNUM_MIN_WIDTH
+.padnum_separator:
+    sta _PADNUM_SEPARATOR
     lda #10
     sta divisor
     lda #0
@@ -67,7 +86,7 @@ _padnum:
     stx ZP_X_SAVE
 
     lda #3+1
-    sta _OUTNUM_SEPARATOR_COUNT
+    sta _PADNUM_SEPARATOR_COUNT
     jsr .next_digit
 
     ldx ZP_X_SAVE
@@ -78,13 +97,13 @@ _padnum:
     jsr _div16
     ldx ZP_X_SAVE
 
-    lda _OUTNUM_SEPARATOR
+    lda _PADNUM_SEPARATOR
     beq .no_separator
-    dec _OUTNUM_SEPARATOR_COUNT
+    dec _PADNUM_SEPARATOR_COUNT
     bne .no_separator
     lda #3+1
-    sta _OUTNUM_SEPARATOR_COUNT
-    lda _OUTNUM_SEPARATOR
+    sta _PADNUM_SEPARATOR_COUNT
+    lda _PADNUM_SEPARATOR
     sta PAD,X
     dex   
     
@@ -98,8 +117,16 @@ _padnum:
 
     lda quotient
     ora quotient+1
-    beq .done_digits
+    bne .more_digits
+    sec
+    lda #PAD_SIZE-1
+    sbc ZP_X_SAVE
+    sbc #1
+    cmp _PADNUM_MIN_WIDTH
+    bcc .more_digits
+    jmp .done_digits
 
+.more_digits:
     lda quotient
     sta dividend
     lda quotient+1
@@ -163,16 +190,29 @@ _padnum4hex:
     dex
     rts  ; .hex_digit
 
+_outnum32_min_width:
+    jsr _padnum_min_width
+    jmp _outstr_X  ; _outnum32_min_width
 _outnum32_commas:
-    lda #','
-    sta _OUTNUM_SEPARATOR
-    bne *+7
+    jsr _padnum32_commas
+    jmp _outstr_X  ; _outnum32_commas
 _outnum32:
-    lda #0
-    sta _OUTNUM_SEPARATOR
     jsr _padnum32
     jmp _outstr_X  ; _outnum32
+_padnum32_min_width:
+    sta _PADNUM_MIN_WIDTH
+    lda #0
+    beq _padnum32.padnum32_separator
+_padnum32_commas:
+    lda #0
+    sta _PADNUM_MIN_WIDTH
+    lda #','
+    bne _padnum32.padnum32_separator
 _padnum32:
+    lda #0
+    sta _PADNUM_MIN_WIDTH
+.padnum32_separator:
+    sta _PADNUM_SEPARATOR
     lda #10
     sta divisor_32
     lda #0
@@ -187,7 +227,7 @@ _padnum32:
     stx ZP_X_SAVE
 
     lda #3+1
-    sta _OUTNUM_SEPARATOR_COUNT
+    sta _PADNUM_SEPARATOR_COUNT
     jsr .next_digit
 
     ldx ZP_X_SAVE
@@ -198,13 +238,13 @@ _padnum32:
     jsr _div32
     ldx ZP_X_SAVE
 
-    lda _OUTNUM_SEPARATOR
+    lda _PADNUM_SEPARATOR
     beq .no_separator
-    dec _OUTNUM_SEPARATOR_COUNT
+    dec _PADNUM_SEPARATOR_COUNT
     bne .no_separator
     lda #3
-    sta _OUTNUM_SEPARATOR_COUNT
-    lda _OUTNUM_SEPARATOR
+    sta _PADNUM_SEPARATOR_COUNT
+    lda _PADNUM_SEPARATOR
     sta PAD,X
     dex   
     

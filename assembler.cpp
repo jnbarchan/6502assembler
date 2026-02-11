@@ -203,32 +203,38 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
         return;
 
     assemblerBreakpointProvider->clearBreakpoints();
-    _codeLabels.values.clear();
-    // struct InternalJSR { const char *label; InternalJSRs intValue; };
-    // InternalJSR intValues[]{
-    //                       {"__terminate", InternalJSRs::__JSR_terminate},
-    // };
-    _codeLabels.values["__terminate"] = InternalJSRs::__JSR_terminate;
-    _codeLabels.values["__brk_handler"] = InternalJSRs::__JSR_brk_handler;
-    _codeLabels.values["__brk_default_handler"] = InternalJSRs::__JSR_brk_default_handler;
-    _codeLabels.values["__outch"] = InternalJSRs::__JSR_outch;
-    _codeLabels.values["__get_time"] = InternalJSRs::__JSR_get_time;
-    _codeLabels.values["__get_elapsed_time"] = InternalJSRs::__JSR_get_elapsed_time;
-    _codeLabels.values["__clear_elapsed_time"] = InternalJSRs::__JSR_clear_elapsed_time;
-    _codeLabels.values["__process_events"] = InternalJSRs::__JSR_process_events;
-    _codeLabels.values["__inch"] = InternalJSRs::__JSR_inch;
-    _codeLabels.values["__inkey"] = InternalJSRs::__JSR_inkey;
-    _codeLabels.values["__wait"] = InternalJSRs::__JSR_wait;
-    _codeLabels.values["__open_file"] = InternalJSRs::__JSR_open_file;
-    _codeLabels.values["__close_file"] = InternalJSRs::__JSR_close_file;
-    _codeLabels.values["__rewind_file"] = InternalJSRs::__JSR_rewind_file;
-    _codeLabels.values["__read_file"] = InternalJSRs::__JSR_read_file;
-    _codeLabels.values["__outstr_fast"] = InternalJSRs::__JSR_outstr_fast;
-    _codeLabels.values["__outstr_inline"] = InternalJSRs::__JSR_outstr_inline;
-    _codeLabels.values["__get_elapsed_cycles"] = InternalJSRs::__JSR_get_elapsed_cycles;
-    _codeLabels.values["__clear_elapsed_cycles"] = InternalJSRs::__JSR_clear_elapsed_cycles;
 
-    _codeLabels.values["__BRKV"] = InternalVECs::__VEC_BRKV;
+    struct InternalJSR { const char *label; int intValue; };
+    const InternalJSR internals[]
+    {
+        {"__terminate", InternalJSRs::__JSR_terminate},
+        {"__brk_handler", InternalJSRs::__JSR_brk_handler},
+        {"__brk_default_handler", InternalJSRs::__JSR_brk_default_handler},
+        {"__outch", InternalJSRs::__JSR_outch},
+        {"__get_time", InternalJSRs::__JSR_get_time},
+        {"__get_time_ms", InternalJSRs::__JSR_get_time_ms},
+        {"__get_elapsed_time", InternalJSRs::__JSR_get_elapsed_time},
+        {"__clear_elapsed_time", InternalJSRs::__JSR_clear_elapsed_time},
+        {"__process_events", InternalJSRs::__JSR_process_events},
+        {"__inch", InternalJSRs::__JSR_inch},
+        {"__inkey", InternalJSRs::__JSR_inkey},
+        {"__wait", InternalJSRs::__JSR_wait},
+        {"__open_file", InternalJSRs::__JSR_open_file},
+        {"__close_file", InternalJSRs::__JSR_close_file},
+        {"__rewind_file", InternalJSRs::__JSR_rewind_file},
+        {"__read_file", InternalJSRs::__JSR_read_file},
+        {"__outstr_fast", InternalJSRs::__JSR_outstr_fast},
+        {"__outstr_inline", InternalJSRs::__JSR_outstr_inline},
+        {"__get_elapsed_cycles", InternalJSRs::__JSR_get_elapsed_cycles},
+        {"__clear_elapsed_cycles", InternalJSRs::__JSR_clear_elapsed_cycles},
+
+        {"__BRKV", InternalVECs::__VEC_BRKV},
+
+        {NULL, -1}
+    };
+    _codeLabels.values.clear();
+    for (const InternalJSR *internal = internals; internal->label != NULL; internal++)
+        _codeLabels.values[internal->label] = internal->intValue;
 
     setAssembleState(AssembleState::NotStarted);
 }
@@ -537,20 +543,21 @@ void Assembler::assembleDirective()
 {
     QString directive(currentToken);
 
-    if (directive == ".byte")
+    if (directive == ".byte" || directive == ".word")
     {
+        int size = directive == ".word" ? 2 : 1;
         do
         {
-            uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
+            uint8_t *memoryAddress = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
             getNextToken();
             bool ok;
-            if (tokenIsString())
+            if (size == 1 && tokenIsString())
             {
                 QString strValue = tokenToString(&ok);
                 if (!ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
                 int len = strValue.length();
-                std::memcpy(address, strValue.toLatin1().constData(), len);
+                std::memcpy(memoryAddress, strValue.toLatin1().constData(), len);
                 setLocationCounter(_locationCounter + len);
                 getNextToken();
             }
@@ -560,8 +567,12 @@ void Assembler::assembleDirective()
                 if (!value.ok)
                     throw AssemblerError(QString("Bad value: %1").arg(currentToken));
                 if (!value.isUndefined)
-                    *address = value.intValue & 0xff;
-                setLocationCounter(_locationCounter + 1);
+                {
+                    *memoryAddress++ = static_cast<uint8_t>(value.intValue);
+                    if (size > 1)
+                        *memoryAddress++ = static_cast<uint8_t>(value.intValue >> 8);
+                }
+                setLocationCounter(_locationCounter + size);
             }
         } while (currentToken == ",");
     }

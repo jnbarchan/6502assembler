@@ -191,6 +191,7 @@ private:
     void jsr_brk_default_handler();
     void jsr_outch();
     void jsr_get_time();
+    void jsr_get_time_ms();
     void jsr_get_elapsed_time();
     void jsr_clear_elapsed_time();
     void jsr_process_events();

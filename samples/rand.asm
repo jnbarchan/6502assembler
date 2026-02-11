@@ -24,6 +24,7 @@ _RND_TEST:
     sta _RND16_STATE_HIGH
     jsr _RND16_NEXT
     jsr _RND16_NEXT
+    jsr _RND16_SEED_FROM_TIME
     jsr _RND16_NEXT
     rts
 
@@ -70,9 +71,9 @@ _RND16_NEXT:
 ;; _RND16_STATE_HIGH: NOP   ; seed high byte (non-zero)
 
 _RND16_SEED_FROM_TIME:
-    jsr __get_time
-    sta _RND16_STATE_LOW
-    stx _RND16_STATE_HIGH
+    lda #<_RND16_STATE_LOW
+    ldx #>_RND16_STATE_LOW
+    jsr __get_time_ms
     rts
 
 _RND16_SEED_FROM_DEFAULT:
