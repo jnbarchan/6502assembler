@@ -754,3 +754,8 @@ QString CodeEditorInfoProvider::wordCompletion(const QString &word, int lineNumb
 {
     return emulator()->wordCompletion(word, "", lineNumber);
 }
+
+QStringListModel *CodeEditorInfoProvider::wordCompleterModel(int lineNumber) const
+{
+    return emulator()->wordCompleterModel("", lineNumber);
+}

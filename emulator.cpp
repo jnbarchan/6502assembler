@@ -23,6 +23,8 @@ Emulator::Emulator(QObject *parent)
     _assembler->setInstructions(_instructions);
     assemblerBreakpointProvider = new AssemblerBreakpointProvider(this);
     _assembler->setAssemblerBreakpointProvider(assemblerBreakpointProvider);
+
+    _wordCompleterModel = new QStringListModel(this);
 }
 
 Emulator::~Emulator()
@@ -143,20 +145,7 @@ QString Emulator::wordCompletion(const QString &word, const QString &filename, i
 {
     const CodeLabels &codeLabels(assembler()->codeLabels());
 
-    QString scopeLabel;
-    if (codeLabels.scopes.contains(filename))
-    {
-        const QList<ScopeLabel> &scopeLabels(codeLabels.scopes.value(filename));
-        for (int i = scopeLabels.length() - 1; i >= 0 && scopeLabel.isEmpty(); i--)
-        {
-            if (i > 0)
-                Q_ASSERT(scopeLabels.at(i - 1).lineNumber <= scopeLabels.at(i).lineNumber);
-            if (lineNumber >= scopeLabels.at(i).lineNumber)
-                scopeLabel = scopeLabels.at(i).label;
-        }
-    }
-    if (!scopeLabel.isEmpty())
-        scopeLabel.append('.');
+    QString scopeLabel = scopeLabelAtLine(filename, lineNumber);
 
     int wordLen = word.length();
     QString completion;
@@ -184,6 +173,46 @@ QString Emulator::wordCompletion(const QString &word, const QString &filename, i
         }
     }
     return completion;
+}
+
+QStringListModel *Emulator::wordCompleterModel(const QString &filename, int lineNumber) const
+{
+    const CodeLabels &codeLabels(assembler()->codeLabels());
+
+    QString scopeLabel = scopeLabelAtLine(filename, lineNumber);
+
+    QStringList words;
+    for (auto [label, value] : codeLabels.values.asKeyValueRange())
+    {
+        QString unscopedLabel(label);
+        if (!scopeLabel.isEmpty() && unscopedLabel.startsWith(scopeLabel))
+            unscopedLabel = unscopedLabel.mid(scopeLabel.length() - 1);
+        words.append(unscopedLabel);
+    }
+    _wordCompleterModel->setStringList(words);
+
+    return _wordCompleterModel;
+}
+
+QString Emulator::scopeLabelAtLine(const QString &filename, int lineNumber) const
+{
+    const CodeLabels &codeLabels(assembler()->codeLabels());
+
+    QString scopeLabel;
+    if (codeLabels.scopes.contains(filename))
+    {
+        const QList<ScopeLabel> &scopeLabels(codeLabels.scopes.value(filename));
+        for (int i = scopeLabels.length() - 1; i >= 0 && scopeLabel.isEmpty(); i--)
+        {
+            if (i > 0)
+                Q_ASSERT(scopeLabels.at(i - 1).lineNumber <= scopeLabels.at(i).lineNumber);
+            if (lineNumber >= scopeLabels.at(i).lineNumber)
+                scopeLabel = scopeLabels.at(i).label;
+        }
+    }
+    if (!scopeLabel.isEmpty())
+        scopeLabel.append('.');
+    return scopeLabel;
 }
 
 

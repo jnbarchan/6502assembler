@@ -2,9 +2,7 @@
 #define EMULATOR_H
 
 #include <QObject>
-#include <QQueue>
-#include <QSpinBox>
-#include <QTimer>
+#include <QStringListModel>
 
 #include "processormodel.h"
 #include "assembler.h"
@@ -47,6 +45,7 @@ private:
 
 public:
     QString wordCompletion(const QString &word, const QString &filename, int lineNumber) const;
+    QStringListModel *wordCompleterModel(const QString &filename, int lineNumber) const;
 
 private:
     ProcessorModel *_processorModel;
@@ -57,6 +56,10 @@ private:
 
     Assembler *_assembler;
     AssemblerBreakpointProvider *assemblerBreakpointProvider;
+
+    QStringListModel *_wordCompleterModel;
+
+    QString scopeLabelAtLine(const QString &filename, int lineNumber) const;
 };
 
 

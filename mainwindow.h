@@ -120,6 +120,7 @@ public:
     int findInstructionAddress(int blockNumber) const override;
 
     QString wordCompletion(const QString& word, int lineNumber) const override;
+    QStringListModel *wordCompleterModel(int lineNumber) const override;
 
 private:
     const Emulator *_emulator;

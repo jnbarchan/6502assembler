@@ -2,7 +2,9 @@
 #define CODEEDITOR_H
 
 #include <QApplication>
+#include <QCompleter>
 #include <QPlainTextEdit>
+#include <QStringListModel>
 
 class LineNumberArea;
 class ICodeEditorInfoProvider;
@@ -29,6 +31,9 @@ private:
     void handleShiftDeleteKey();
     void handleToggleCommentKey();
     bool handleTabKey();
+
+    QCompleter *completer;
+    void insertCompletion(const QString &completion);
 
 signals:
     void lineNumberClicked(int blockNumber);
@@ -115,6 +120,7 @@ public:
     virtual int findInstructionAddress(int blockNumber) const = 0;
 
     virtual QString wordCompletion(const QString& word, int lineNumber) const = 0;
+    virtual QStringListModel *wordCompleterModel(int lineNumber) const = 0;
 };
 
 

@@ -1,4 +1,6 @@
+#include <QAbstractItemView>
 #include <QPainter>
+#include <QScrollBar>
 #include <QTextBlock>
 #include <QToolTip>
 
@@ -11,6 +13,13 @@
 CodeEditor::CodeEditor(QWidget *parent)
     : QPlainTextEdit{parent}
 {
+    completer = new QCompleter(this);
+    completer->setWidget(this);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    completer->setCaseSensitivity(Qt::CaseSensitive);
+    QObject::connect(completer, QOverload<const QString &>::of(&QCompleter::activated),
+                     this, &CodeEditor::insertCompletion);
+
     lineNumberArea = new LineNumberArea(this);
     lineNumberArea->setCursor(Qt::PointingHandCursor);
     codeEditorInfoProvider = nullptr;
@@ -153,6 +162,7 @@ bool CodeEditor::handleTabKey()
     QTextCursor tc = textCursor();
     if (tc.hasSelection())
         return false;
+
     QTextBlock block = tc.block();
     int endPos = tc.position() - block.position();
     int startPos = endPos;
@@ -163,11 +173,31 @@ bool CodeEditor::handleTabKey()
     QString word = block.text().mid(startPos, endPos - startPos);
     if (word.isEmpty())
         return false;
-    QString completion = codeEditorInfoProvider->wordCompletion(word, block.blockNumber());
-    if (!completion.isEmpty())
-        tc.insertText(completion);
+
+    QString onlyCompletion = codeEditorInfoProvider->wordCompletion(word, block.blockNumber());
+    if (!onlyCompletion.isEmpty())
+        tc.insertText(onlyCompletion);
     else
-        QApplication::beep();
+    {
+        completer->setModel(codeEditorInfoProvider->wordCompleterModel(block.blockNumber()));
+        QAbstractItemView *popup = completer->popup();
+        if (word != completer->completionPrefix())
+        {
+            completer->setCompletionPrefix(word);
+            popup->setCurrentIndex(completer->completionModel()->index(0, 0));
+        }
+        if (!completer->setCurrentRow(0))
+            QApplication::beep();
+        else if (!completer->setCurrentRow(1))
+            tc.insertText(completer->currentCompletion().mid(completer->completionPrefix().length()));
+        else
+        {
+            QRect cr = cursorRect();
+            cr.setWidth(popup->sizeHintForColumn(0) + popup->verticalScrollBar()->sizeHint().width());
+            completer->complete(cr); // popup it up!
+        }
+    }
+
     return true;
 }
 
@@ -194,6 +224,17 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
             return;
     }
     QPlainTextEdit::keyPressEvent(e);
+}
+
+
+void CodeEditor::insertCompletion(const QString &completion)
+{
+    QTextCursor tc = textCursor();
+    int extra = completion.length() - completer->completionPrefix().length();
+    tc.movePosition(QTextCursor::Left);
+    tc.movePosition(QTextCursor::EndOfWord);
+    tc.insertText(completion.right(extra));
+    setTextCursor(tc);
 }
 
 
