@@ -402,14 +402,7 @@ copy_time_to_dividend_32:
     rts  ; copy_time_to_dividend_32
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-_assert:
-    beq *+3
-    rts  ; _assert
-    brk
-    .byte 0, "Assertion failed.", 0
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     
 
+.include "assert.asm"
 .include "outnum.asm"

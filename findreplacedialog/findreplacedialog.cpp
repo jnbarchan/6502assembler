@@ -43,6 +43,8 @@ FindReplaceDialog::FindReplaceDialog(QWidget *parent) : QDialog(parent)
 
     replaceLabel = new QLabel(tr("Replace with: "));
     replaceField = new QLineEdit;
+    // jon
+    replaceField->setFixedWidth(lineEdit->width());
     replaceLabel->setBuddy(replaceField);
 
     caseCheckBox = new QCheckBox(tr("Match &case"));
@@ -128,6 +130,7 @@ void FindReplaceDialog::initFindWhat()
     QString text = Editor->textCursor().selectedText();
     if (!text.isEmpty() && !text.contains(u8"\u2029"))
         lineEdit->setText(text);
+    lineEdit->setFocus();
 }
 
 void FindReplaceDialog::find(){

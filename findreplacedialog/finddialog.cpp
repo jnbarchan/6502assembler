@@ -199,6 +199,7 @@ void FindDialog::initFindWhat()
     QString text = Editor->textCursor().selectedText();
     if (!text.isEmpty() && !text.contains(u8"\u2029"))
         lineEdit->setText(text);
+    lineEdit->setFocus();
 }
 
 void FindDialog::regexMode(){

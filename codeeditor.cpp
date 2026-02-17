@@ -184,7 +184,6 @@ bool CodeEditor::handleTabKey()
         if (word != completer->completionPrefix())
         {
             completer->setCompletionPrefix(word);
-            popup->setCurrentIndex(completer->completionModel()->index(0, 0));
         }
         if (!completer->setCurrentRow(0))
             QApplication::beep();
@@ -192,6 +191,7 @@ bool CodeEditor::handleTabKey()
             tc.insertText(completer->currentCompletion().mid(completer->completionPrefix().length()));
         else
         {
+            popup->setCurrentIndex(completer->completionModel()->index(0, 0));
             QRect cr = cursorRect();
             cr.setWidth(popup->sizeHintForColumn(0) + popup->verticalScrollBar()->sizeHint().width());
             completer->complete(cr); // popup it up!
@@ -203,6 +203,22 @@ bool CodeEditor::handleTabKey()
 
 void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
 {
+    if (completer->popup()->isVisible())
+    {
+        // The following keys are forwarded by the completer to the widget
+        switch (e->key())
+        {
+        case Qt::Key_Enter:
+        case Qt::Key_Return:
+        case Qt::Key_Escape:
+        case Qt::Key_Tab:
+        case Qt::Key_Backtab:
+            e->ignore();
+            return; // let the completer do default behavior
+        default:
+            break;
+        }
+    }
     if (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter)
     {
         handleReturnKey();
