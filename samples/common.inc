@@ -31,6 +31,10 @@ operand1_32 = ZP_MATH_32_A
 operand2_32 = ZP_MATH_32_B
 result_32   = ZP_MATH_32_RES
 
+dest  = operand1
+src   = operand2
+count = result
+
 ZP_A_SAVE = $40
 ZP_X_SAVE = $41
 ZP_Y_SAVE = $42

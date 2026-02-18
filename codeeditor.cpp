@@ -182,9 +182,7 @@ bool CodeEditor::handleTabKey()
         completer->setModel(codeEditorInfoProvider->wordCompleterModel(block.blockNumber()));
         QAbstractItemView *popup = completer->popup();
         if (word != completer->completionPrefix())
-        {
             completer->setCompletionPrefix(word);
-        }
         if (!completer->setCurrentRow(0))
             QApplication::beep();
         else if (!completer->setCurrentRow(1))
@@ -216,6 +214,7 @@ void CodeEditor::keyPressEvent(QKeyEvent *e) /*override*/
             e->ignore();
             return; // let the completer do default behavior
         default:
+            completer->popup()->hide();
             break;
         }
     }

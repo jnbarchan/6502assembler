@@ -2,10 +2,6 @@
 
 .include "common.inc"
 
-dest  = operand1
-src   = operand2
-count = result
-
 testmem = MEM_USER_0+$1000
 testmem_size = $100
 testmem16 = testmem + testmem_size
