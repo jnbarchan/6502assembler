@@ -34,11 +34,15 @@ public:
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
     void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
+    bool isChr() const;
+    void setIsChr(bool newIsChr);
+
 protected:
     void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const override;
 
 private:
     int _fixedDigits, _integerBase;
+    bool _isChr;
 };
 
 #endif // MEMORYVIEW_H

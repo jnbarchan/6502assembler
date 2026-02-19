@@ -443,6 +443,7 @@ _memmove16:
     jmp _memcpy16
 .downward:
     ; dest >= src
+    ldy #0
     ; src += count
     clc
     lda src
@@ -470,12 +471,12 @@ _memmove16:
     dec count+1
     dec count
     
-    ; src++
+    ; src--
     lda src
     bne *+4
     dec src+1
     dec src
-    ; dest++
+    ; dest--
     lda dest
     bne *+4
     dec dest+1

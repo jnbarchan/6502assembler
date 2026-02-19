@@ -480,8 +480,8 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 keepGoing = false;
 
         int instructionCount = 0;
-        const int processEventsEverySoOften = /*0*/ 100000;
-        const int processEventsForVerticalSync = 0 /*50*/;
+        const int processEventsEverySoOften = 0 /*100000*/;
+        const int processEventsForVerticalSync = /*0*/ (10 * 20);
         QDeadlineTimer verticalSync(processEventsForVerticalSync);
 
         while (!stopRun() && keepGoing)
@@ -523,7 +523,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
             bool processEvents = false;
             if (processEventsForVerticalSync != 0 && verticalSync.hasExpired())
             {
-                verticalSync.setDeadline(processEventsForVerticalSync);
+                verticalSync.setRemainingTime(processEventsForVerticalSync);
                 processEvents = true;
             }
             if (processEventsEverySoOften != 0 && instructionCount % processEventsEverySoOften == 0)

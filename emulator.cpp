@@ -268,28 +268,28 @@ QVariant WatchModel::data(const QModelIndex &index, int role /*= Qt::DisplayRole
     if (!index.isValid())
         return QVariant();
     uint16_t memoryAddress = watchInfos.at(index.row()).memoryAddress;
-    QModelIndex memoryIndex;
     if (index.column() >= 2)
-        memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
+    {
+        QModelIndex memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
+        return memoryModel->data(memoryIndex, role);
+    }
     switch (role)
     {
     case Qt::TextAlignmentRole:
-        return QVariant((index.column() == 0 ? Qt::AlignLeft : Qt::AlignCenter) | Qt::AlignVCenter);
+        if (index.column() == 0)
+            return QVariant(Qt::AlignLeft | Qt::AlignVCenter);
+        else if (index.column() == 1)
+            return QVariant(Qt::AlignCenter | Qt::AlignVCenter);
+        break;
     case Qt::DisplayRole:
     case Qt::EditRole: {
         uint16_t address = watchInfos.at(index.row()).memoryAddress;
-        switch (index.column())
-        {
-        case 0: return watchInfos.at(index.row()).symbol;
-        case 1: return address;
-        default: return memoryModel->data(memoryIndex, role);
-        }
+        if (index.column() == 0)
+            return watchInfos.at(index.row()).symbol;
+        else if (index.column() == 1)
+            return address;
         break;
     }
-    case Qt::ForegroundRole:
-        if (index.column() >= 2)
-            return memoryModel->data(memoryIndex, role);
-        break;
     default:
         break;
     }
@@ -315,9 +315,11 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
     if (!index.isValid())
         return false;
     uint16_t memoryAddress = watchInfos.at(index.row()).memoryAddress;
-    QModelIndex memoryIndex;
     if (index.column() >= 2)
-        memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
+    {
+        QModelIndex memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
+        return memoryModel->setData(memoryIndex, value, role);
+    }
     if (role == Qt::DisplayRole || role == Qt::EditRole)
     {
         if (index.column() == 0)
@@ -355,20 +357,18 @@ bool WatchModel::setData(const QModelIndex &index, const QVariant &value, int ro
             }
             return true;
         }
-        else
-        {
-            bool ok;
-            int val = value.toUInt(&ok);
-            if (!ok)
-                return false;
-            return memoryModel->setData(memoryIndex, static_cast<uint8_t>(val), role);
-        }
     }
     return false;
 }
 
 Qt::ItemFlags WatchModel::flags(const QModelIndex &index) const
 {
+    if (index.column() >= 2)
+    {
+        uint16_t memoryAddress = watchInfos.at(index.row()).memoryAddress;
+        QModelIndex memoryIndex = memoryModel->addressToIndex(memoryAddress + index.column() - 2);
+        return memoryModel->flags(memoryIndex);
+    }
     Qt::ItemFlags f(QAbstractTableModel::flags(index));
     f |= Qt::ItemFlag::ItemIsEditable;
     return f;

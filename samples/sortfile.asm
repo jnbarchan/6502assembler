@@ -32,8 +32,7 @@ test_sortfile:
     brk
 
 .filename:
-;    .byte "../../samples/scratchfile.txt", 0
-    .byte "../../samples/scratchfile2.txt", 0
+    .byte "../../samples/scratchfile.txt", 0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

@@ -24,6 +24,7 @@ MemoryViewItemDelegate::MemoryViewItemDelegate(QObject *parent) : QStyledItemDel
 {
     _fixedDigits = 2;
     _integerBase = 16;
+    _isChr = false;
 }
 
 int MemoryViewItemDelegate::fixedDigits() const
@@ -46,6 +47,17 @@ void MemoryViewItemDelegate::setIntegerBase(int newIntegerBase)
     _integerBase = newIntegerBase;
 }
 
+bool MemoryViewItemDelegate::isChr() const
+{
+    return _isChr;
+}
+
+void MemoryViewItemDelegate::setIsChr(bool newIsChr)
+{
+    _isChr = newIsChr;
+}
+
+
 void MemoryViewItemDelegate::setOptionTextForNumber(QStyleOptionViewItem *option, const QModelIndex &index, int fixedDigits, int integerBase) const
 {
     QVariant value(index.data());
@@ -58,6 +70,7 @@ void MemoryViewItemDelegate::setOptionTextForNumber(QStyleOptionViewItem *option
 QWidget *MemoryViewItemDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const /*override*/
 {
     NumberBaseSpinBox *spn = new NumberBaseSpinBox(parent);
+    spn->setIsChr(_isChr);
     spn->setFixedDigits(_fixedDigits);
     spn->setDisplayIntegerBase(_integerBase);
     spn->setRange(0, 0xff);
@@ -81,5 +94,10 @@ void MemoryViewItemDelegate::updateEditorGeometry(QWidget *editor, const QStyleO
 void MemoryViewItemDelegate::initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const /*override*/
 {
     QStyledItemDelegate::initStyleOption(option, index);
-    setOptionTextForNumber(option, index, _fixedDigits, _integerBase);
+    if (_fixedDigits > 0)
+        option->displayAlignment = (option->displayAlignment & ~Qt::AlignHorizontal_Mask) | Qt::AlignHCenter;
+    if (_isChr)
+        option->text = QChar(index.data().toChar());
+    else
+        setOptionTextForNumber(option, index, _fixedDigits, _integerBase);
 }

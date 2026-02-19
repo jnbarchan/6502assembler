@@ -389,6 +389,16 @@
                 <number>0</number>
                </property>
                <item>
+                <widget class="QRadioButton" name="rbNumBaseChr">
+                 <property name="text">
+                  <string>chr.</string>
+                 </property>
+                 <attribute name="buttonGroup">
+                  <string notr="true">rbgNumBase</string>
+                 </attribute>
+                </widget>
+               </item>
+               <item>
                 <widget class="QRadioButton" name="rbNumBaseBin">
                  <property name="sizePolicy">
                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">

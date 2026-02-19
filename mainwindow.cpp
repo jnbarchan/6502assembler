@@ -418,8 +418,15 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 /*slot*/ void MainWindow::rbgNumBaseClicked(QAbstractButton *rb)
 {
+    bool isChr = false;
     int fixedDigits, integerBase;
-    if (rb == ui->rbNumBaseBin)
+    if (rb == ui->rbNumBaseChr)
+    {
+        isChr = true;
+        fixedDigits = 1;
+        integerBase = 10;
+    }
+    else if (rb == ui->rbNumBaseBin)
     {
         fixedDigits = 8;
         integerBase = 2;
@@ -438,10 +445,12 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         return;
     for (NumberBaseSpinBox *spn : { ui->spnAccumulator, ui->spnXRegister, ui->spnYRegister })
     {
+        spn->setIsChr(isChr);
         spn->setFixedDigits(fixedDigits);
         spn->setDisplayIntegerBase(integerBase);
     }
 
+    tvMemoryViewItemDelegate->setIsChr(isChr);
     tvMemoryViewItemDelegate->setFixedDigits(fixedDigits);
     tvMemoryViewItemDelegate->setIntegerBase(integerBase);
     int digitSize = ui->tvMemory->font().pointSize() * 9 / 10;
@@ -453,6 +462,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             ui->tvMemory->update(model->index(row, col));
     scrollToLastMemoryModelDataChangedIndex();
 
+    tvWatchViewItemDelegate->setIsChr(isChr);
     tvWatchViewItemDelegate->setFixedDigits(fixedDigits);
     tvWatchViewItemDelegate->setIntegerBase(integerBase);
     digitSize = ui->tvWatch->font().pointSize();

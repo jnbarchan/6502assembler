@@ -323,7 +323,7 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
             QString number = QString::number(blockNumber + 1);
             painter.setPen(Qt::black);
             painter.drawText(10, top, lineNumberArea->width() - 20, fontMetrics().height(),
-                             Qt::AlignRight, number);
+                             Qt::AlignRight | Qt::AlignVCenter, number);
             if (codeEditorInfoProvider != nullptr)
             {
                 ICodeEditorInfoProvider::BreakpointInfo breakpointInfo = codeEditorInfoProvider->findBreakpointInfo(blockNumber);
