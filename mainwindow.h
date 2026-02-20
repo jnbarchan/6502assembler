@@ -79,6 +79,7 @@ private slots:
     void currentInstructionAddressChanged(uint16_t instructionAddress);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
     void registerChanged(QSpinBox *spn, int value);
+    void statusFlagsChanged(int value);
 
 private:
     Ui::MainWindow *ui;
@@ -103,6 +104,7 @@ private:
     void openFromFile(QString fileName);
     void saveToFile(QString fileName);
     bool checkSaveFile();
+    void showStatusFlagsHeader(uint8_t value, uint8_t prevValue);
     void scrollToLastMemoryModelDataChangedIndex() const;
     void setRunStopButton(bool run);
     void assembleAndRun(ProcessorModel::RunMode runMode);

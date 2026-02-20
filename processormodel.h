@@ -123,12 +123,12 @@ signals:
     void modelReset();
     void isRunningChanged();
     void stopRunChanged();
-    void accumulatorChanged();
-    void xregisterChanged();
-    void yregisterChanged();
-    void programCounterChanged();
-    void stackRegisterChanged();
-    void statusFlagsChanged();
+    void accumulatorChanged(uint8_t accumulator);
+    void xregisterChanged(uint8_t xregister);
+    void yregisterChanged(uint8_t yregister);
+    void programCounterChanged(uint16_t programCounter);
+    void stackRegisterChanged(uint8_t stackRegister);
+    void statusFlagsChanged(uint8_t statusFlags);
     void currentInstructionAddressChanged(uint16_t instructionAddress);
 
 private:

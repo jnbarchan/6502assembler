@@ -69,12 +69,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(processorModel(), &ProcessorModel::sendCharToConsole, this, &MainWindow::sendCharToConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::requestCharFromConsole, this, &MainWindow::requestCharFromConsole, processorModelConnectionType);
     connect(processorModel(), &ProcessorModel::endRequestCharFromConsole, this, &MainWindow::endRequestCharFromConsole, processorModelConnectionType);
-    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, [this]() { registerChanged(ui->spnStatusFlags, processorModel()->statusFlags()); }, changedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this]() { registerChanged(ui->spnProgramCounter, processorModel()->programCounter()); }, changedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this]() { registerChanged(ui->spnStackRegister, processorModel()->stackRegister()); }, changedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this]() { registerChanged(ui->spnAccumulator, processorModel()->accumulator()); }, changedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this]() { registerChanged(ui->spnXRegister, processorModel()->xregister()); }, changedSignalsConnectionType);
-    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this]() { registerChanged(ui->spnYRegister, processorModel()->yregister()); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::statusFlagsChanged, this, &MainWindow::statusFlagsChanged, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::programCounterChanged, this, [this](uint16_t programCounter) { registerChanged(ui->spnProgramCounter, programCounter); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::stackRegisterChanged, this, [this](uint8_t stackRegister) { registerChanged(ui->spnStackRegister, stackRegister); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::accumulatorChanged, this, [this](uint8_t accumulator) { registerChanged(ui->spnAccumulator, accumulator); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::xregisterChanged, this, [this](uint8_t xregister) { registerChanged(ui->spnXRegister, xregister); }, changedSignalsConnectionType);
+    connect(processorModel(), &ProcessorModel::yregisterChanged, this, [this](uint8_t yregister) { registerChanged(ui->spnYRegister, yregister); }, changedSignalsConnectionType);
     connect(processorModel(), &ProcessorModel::modelReset, this, &MainWindow::modelReset, processorModelConnectionType);
     modelReset();
 
@@ -285,6 +285,24 @@ bool MainWindow::checkSaveFile()
     default:
         return false;
     }
+}
+
+
+void MainWindow::showStatusFlagsHeader(uint8_t value, uint8_t prevValue)
+{
+    static const QStringList flagLetters{"N", "V", "-", "B", "D", "I", "Z", "C"};
+    if (value == prevValue)
+        return;
+    QStringList flagLettersShown(flagLetters);
+    for (int bitNum = 0; bitNum < 8; bitNum++)
+    {
+        uint8_t bitMask = 1 << (7 - bitNum);
+        if (value & bitMask)
+            flagLettersShown[bitNum] = QString("<font color='red'>%1</font>").arg(flagLetters.at(bitNum));
+    }
+    QString header = flagLettersShown.join("");
+    ui->lblStatusFlagsHeader->setText(header);
+    ui->lblStatusFlagsHeader->setTextFormat(Qt::RichText);
 }
 
 
@@ -608,6 +626,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     ui->spnXRegister->setValue(processorModel()->xregister());
     ui->spnYRegister->setValue(processorModel()->yregister());
     ui->spnStatusFlags->setValue(processorModel()->statusFlags());
+    showStatusFlagsHeader(processorModel()->statusFlags(), 0);
 }
 
 /*slot*/ void MainWindow::reset()
@@ -740,6 +759,15 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             spnLastChangedColor = spn;
         }
     }
+}
+
+/*slot*/ void MainWindow::statusFlagsChanged(int value)
+{
+    int prevValue = ui->spnStatusFlags->value();
+
+    ui->spnStatusFlags->setValue(value);
+
+    showStatusFlagsHeader(value, prevValue);
 }
 
 

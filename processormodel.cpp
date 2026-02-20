@@ -49,7 +49,7 @@ void ProcessorModel::setAccumulator(uint8_t newAccumulator)
     if (suppressSignalsForSpeed())
         haveChangedState.accumulator = true;
     else
-        emit accumulatorChanged();
+        emit accumulatorChanged(_accumulator);
 }
 
 uint8_t ProcessorModel::xregister() const
@@ -63,7 +63,7 @@ void ProcessorModel::setXregister(uint8_t newXregister)
     if (suppressSignalsForSpeed())
         haveChangedState.xregister = true;
     else
-        emit xregisterChanged();
+        emit xregisterChanged(_xregister);
 }
 
 uint8_t ProcessorModel::yregister() const
@@ -77,7 +77,7 @@ void ProcessorModel::setYregister(uint8_t newYregister)
     if (suppressSignalsForSpeed())
         haveChangedState.yregister = true;
     else
-        emit yregisterChanged();
+        emit yregisterChanged(_yregister);
 }
 
 uint8_t ProcessorModel::stackRegister() const
@@ -91,7 +91,7 @@ void ProcessorModel::setStackRegister(uint8_t newStackRegister)
     if (suppressSignalsForSpeed())
         haveChangedState.stackRegister = true;
     else
-        emit stackRegisterChanged();
+        emit stackRegisterChanged(_stackRegister);
 }
 
 uint8_t ProcessorModel::pullFromStack()
@@ -208,7 +208,7 @@ void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
         haveChangedState.programCounter = true;
     else
     {
-        emit programCounterChanged();
+        emit programCounterChanged(_programCounter);
         emit currentInstructionAddressChanged(_programCounter);
     }
 }
@@ -273,15 +273,15 @@ void ProcessorModel::memoryChanged(const QModelIndex &topLeft, const QModelIndex
 void ProcessorModel::catchUpSuppressedSignals()
 {
     if (haveChangedState.stackRegister)
-        emit stackRegisterChanged();
+        emit stackRegisterChanged(_stackRegister);
     if (haveChangedState.accumulator)
-        emit accumulatorChanged();
+        emit accumulatorChanged(_accumulator);
     if (haveChangedState.xregister)
-        emit xregisterChanged();
+        emit xregisterChanged(_xregister);
     if (haveChangedState.yregister)
-        emit yregisterChanged();
+        emit yregisterChanged(_yregister);
     if (haveChangedState.statusFlags)
-        emit statusFlagsChanged();
+        emit statusFlagsChanged(_statusFlags);
     if (haveChangedState.programCounter)
         emit currentInstructionAddressChanged(_programCounter);
     HaveChangedState::MemoryChanged memoryChanged1(haveChangedState.memoryChangedForegroundOnly);
@@ -951,7 +951,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         if (suppressSignalsForSpeed())
             haveChangedState.statusFlags = true;
         else
-            emit statusFlagsChanged();
+            emit statusFlagsChanged(_statusFlags);
         break;
     }
 }
@@ -1029,7 +1029,7 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
         uint16_t rtsAddress = (pullFromStack() | (pullFromStack() << 8)) + 1;
         instructionAddress = rtsAddress;
         if (!suppressSignalsForSpeed())
-            emit statusFlagsChanged();
+            emit statusFlagsChanged(_statusFlags);
     }
     setProgramCounter(instructionAddress);
 }
