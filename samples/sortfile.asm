@@ -8,7 +8,7 @@ this_line = PAD+$200
 
 next_word = PAD
 sorted_words_start = MEM_USER_0+$1000
-sorted_words_end = sorted_words_start+$1000
+sorted_words_end = sorted_words_start+$2000
 
 this_line_reached = $70
 next_word_len = $72
@@ -18,10 +18,12 @@ insert_word_at = $78
 
 test_sortfile:
 
-;    jsr _clear_elapsed_time_cycles
-;    jsr test_sortfile_1
-;    jsr _elapsed_cycles
-;    jsr _elapsed_time
+    jsr _clear_elapsed_time_cycles
+    jsr test_sortfile_1
+    jsr _elapsed_cycles
+    jsr _elapsed_time
+    
+    jsr __process_events
     
     jsr _clear_elapsed_time_cycles
     jsr test_sortfile_2
