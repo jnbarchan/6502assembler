@@ -20,6 +20,8 @@ CodeEditor::CodeEditor(QWidget *parent)
     QObject::connect(completer, QOverload<const QString &>::of(&QCompleter::activated),
                      this, &CodeEditor::insertCompletion);
 
+    connect(this, &QPlainTextEdit::selectionChanged, this, &CodeEditor::addAllMatchesToExtraSelections);
+
     lineNumberArea = new LineNumberArea(this);
     lineNumberArea->setCursor(Qt::PointingHandCursor);
     codeEditorInfoProvider = nullptr;
@@ -44,16 +46,20 @@ void CodeEditor::moveCursorToEnd()
 
 void CodeEditor::highlightCurrentBlock(QTextBlock &block)
 {
+    const QColor color(255, 220, 180); // light orange
+    QList<QTextEdit::ExtraSelection> selections(extraSelections());
+    selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
     QTextCursor cursor(block), savedTextCursor(textCursor());
     QTextEdit::ExtraSelection selection;
     cursor.movePosition(QTextCursor::StartOfLine);
     selection.cursor = cursor;
-    selection.format.setBackground(QColor(255, 220, 180)); // light orange
+    selection.format.setBackground(color); // light orange
     selection.format.setProperty(QTextFormat::FullWidthSelection, true);
-    setExtraSelections({ selection });
+    selections.append(selection);
+    setExtraSelections(selections);
     setTextCursor(cursor);
     centerCursor();
-    // setTextCursor(savedTextCursor);
+    setTextCursor(savedTextCursor);
 }
 
 void CodeEditor::unhighlightCurrentBlock()
@@ -250,6 +256,27 @@ void CodeEditor::insertCompletion(const QString &completion)
     tc.movePosition(QTextCursor::EndOfWord);
     tc.insertText(completion.right(extra));
     setTextCursor(tc);
+}
+
+/*slot*/ void CodeEditor::addAllMatchesToExtraSelections()
+{
+    const QColor color("#ccdfec"); // light blue
+    QList<QTextEdit::ExtraSelection> selections(extraSelections());
+    selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
+    setExtraSelections(selections);
+    QTextCursor tc = textCursor();
+    QString selectedText = tc.selectedText();
+    if (selectedText.isEmpty())
+        return;
+    QTextEdit::ExtraSelection selection;
+    selection.format.setBackground(color);
+    tc.movePosition(QTextCursor::Start);
+    while (!(tc = document()->find(selectedText, tc)).isNull())
+    {
+        selection.cursor = tc;
+        selections.append(selection);
+    }
+    setExtraSelections(selections);
 }
 
 

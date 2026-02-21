@@ -35,6 +35,9 @@ private:
     QCompleter *completer;
     void insertCompletion(const QString &completion);
 
+private slots:
+    void addAllMatchesToExtraSelections();
+
 signals:
     void lineNumberClicked(int blockNumber);
 
