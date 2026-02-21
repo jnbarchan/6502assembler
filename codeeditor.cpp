@@ -271,7 +271,7 @@ void CodeEditor::insertCompletion(const QString &completion)
     QTextEdit::ExtraSelection selection;
     selection.format.setBackground(color);
     tc.movePosition(QTextCursor::Start);
-    while (!(tc = document()->find(selectedText, tc)).isNull())
+    while (!(tc = document()->find(selectedText, tc, {QTextDocument::FindCaseSensitively})).isNull())
     {
         selection.cursor = tc;
         selections.append(selection);
