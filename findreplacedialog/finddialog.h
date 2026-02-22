@@ -61,9 +61,13 @@ public:
     // jon
     void initFindWhat();
 
+signals:
+    void foundMatch(const QTextCursor &textCursor);
+
 private slots:
     void find();
     void regexMode();
+
 private:
     bool lastMatch = false;
     QPlainTextEdit *myEditor;

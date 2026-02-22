@@ -59,6 +59,9 @@ public:
     // jon
     void initFindWhat();
 
+signals:
+    void foundMatch(const QTextCursor &textCursor);
+
 private slots:
     void find();
     void replace();

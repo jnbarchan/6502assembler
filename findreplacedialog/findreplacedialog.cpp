@@ -165,6 +165,9 @@ void FindReplaceDialog::find(){
     else
         lastMatch = Editor->find(query, findFlags);
 
+    if (lastMatch)
+        emit foundMatch(Editor->textCursor());
+
     // if(regexCheckBox->isChecked()){
     //     re = QRegularExpression(query);
     //     if(backwardCheckBox->isChecked()){

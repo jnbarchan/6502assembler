@@ -30,6 +30,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->actionAssembleOnly->setIcon(QIcon("/usr/share/qtcreator/doc/qtcreator/images/front-advanced.png"));
 
+    ui->actionFold->setShortcut(QKeySequence("Ctrl+<"));
+    ui->actionUnfold->setShortcut(QKeySequence("Ctrl+>"));
+
     QSplitter *horizontalSplitter = new QSplitter(this);
     horizontalSplitter->setChildrenCollapsible(false);
     horizontalSplitter->addWidget(ui->codeEditor);
@@ -128,6 +131,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->actionFind, &QAction::triggered, this, &MainWindow::showFindDialog);
     connect(ui->actionFindReplace, &QAction::triggered, this, &MainWindow::showFindReplaceDialog);
+    connect(ui->actionFold, &QAction::triggered, ui->codeEditor, &CodeEditor::fold);
+    connect(ui->actionUnfold, &QAction::triggered, ui->codeEditor, &CodeEditor::unfold);
+    connect(ui->actionToggleFoldAll, &QAction::triggered, ui->codeEditor, &CodeEditor::toggleFoldAll);
 
     ui->btnAssemble->setDefaultAction(ui->actionAssembleOnly);
     ui->btnAssemble->setText("Assemble");
@@ -540,12 +546,18 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 }
 
 
+/*slot*/ void MainWindow::ensureUnfolded(const QTextCursor &textCursor)
+{
+    ui->codeEditor->ensureUnfolded(textCursor.block().blockNumber());
+}
+
 /*slot*/ void MainWindow::showFindDialog()
 {
     if (findDialog == nullptr)
     {
         findDialog = new FindDialog(ui->codeEditor);
         findDialog->setEditor(ui->codeEditor);
+        connect(findDialog, &FindDialog::foundMatch, this, &MainWindow::ensureUnfolded);
     }
     findDialog->initFindWhat();
     findDialog->show();
@@ -557,6 +569,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     {
         findReplaceDialog = new FindReplaceDialog(ui->codeEditor);
         findReplaceDialog->setEditor(ui->codeEditor);
+        connect(findReplaceDialog, &FindReplaceDialog::foundMatch, this, &MainWindow::ensureUnfolded);
     }
     findReplaceDialog->initFindWhat();
     findReplaceDialog->show();
@@ -715,7 +728,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     const QTextDocument *document(ui->codeEditor->document());
     if (lineNumber >= document->blockCount())
         lineNumber = document->blockCount() - 1;
-    QTextBlock block(document->findBlockByLineNumber(lineNumber));
+    QTextBlock block(document->findBlockByNumber(lineNumber));
     ui->codeEditor->highlightCurrentBlock(block);
 }
 
@@ -796,4 +809,16 @@ QString CodeEditorInfoProvider::wordCompletion(const QString &word, int lineNumb
 QStringListModel *CodeEditorInfoProvider::wordCompleterModel(int lineNumber) const
 {
     return emulator()->wordCompleterModel("", lineNumber);
+}
+
+QList<QPair<int, int> > CodeEditorInfoProvider::foldableBlocks() const
+{
+    return emulator()->foldableBlocks("");
+}
+
+ICodeEditorInfoProvider::BlockFoldingInfo CodeEditorInfoProvider::findBlockFoldingInfo(int blockNumber) const
+{
+    ICodeEditorInfoProvider::BlockFoldingInfo bfInfo;
+    emulator()->findFoldableBlock("", blockNumber, bfInfo.startBlockNumber, bfInfo.endBlockNumber);
+    return bfInfo;
 }

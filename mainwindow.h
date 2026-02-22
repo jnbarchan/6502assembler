@@ -57,6 +57,7 @@ private slots:
     void openFile();
     void saveFile();
     void saveFileAs();
+    void ensureUnfolded(const QTextCursor &textCursor);
     void showFindDialog();
     void showFindReplaceDialog();
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
@@ -123,6 +124,9 @@ public:
 
     QString wordCompletion(const QString& word, int lineNumber) const override;
     QStringListModel *wordCompleterModel(int lineNumber) const override;
+
+    QList<QPair<int, int> > foldableBlocks() const override;
+    ICodeEditorInfoProvider::BlockFoldingInfo findBlockFoldingInfo(int blockNumber) const override;
 
 private:
     const Emulator *_emulator;

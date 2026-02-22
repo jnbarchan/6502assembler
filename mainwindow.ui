@@ -795,6 +795,10 @@
     </property>
     <addaction name="actionFind"/>
     <addaction name="actionFindReplace"/>
+    <addaction name="separator"/>
+    <addaction name="actionFold"/>
+    <addaction name="actionUnfold"/>
+    <addaction name="actionToggleFoldAll"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -886,6 +890,30 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+H</string>
+   </property>
+  </action>
+  <action name="actionToggleFoldAll">
+   <property name="text">
+    <string>Toggle Fold All</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+F</string>
+   </property>
+  </action>
+  <action name="actionFold">
+   <property name="text">
+    <string>Fold</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+,</string>
+   </property>
+  </action>
+  <action name="actionUnfold">
+   <property name="text">
+    <string>Unfold</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+.</string>
    </property>
   </action>
  </widget>

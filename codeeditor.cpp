@@ -26,7 +26,9 @@ CodeEditor::CodeEditor(QWidget *parent)
     lineNumberArea->setCursor(Qt::PointingHandCursor);
     codeEditorInfoProvider = nullptr;
 
-    connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
+    connect(this, &CodeEditor::foldIndicatorClicked, this, &CodeEditor::toggleFold);
+
+    connect(this, &QPlainTextEdit::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
 
     updateLineNumberAreaWidth(0);
@@ -37,23 +39,16 @@ void CodeEditor::setCodeEditorInfoProvider(const ICodeEditorInfoProvider *provid
     codeEditorInfoProvider = provider;
 }
 
-void CodeEditor::moveCursorToEnd()
-{
-    QTextCursor cursor(textCursor());
-    cursor.movePosition(QTextCursor::End);
-    setTextCursor(cursor);
-}
-
 void CodeEditor::highlightCurrentBlock(QTextBlock &block)
 {
-    const QColor color(255, 220, 180); // light orange
+    const QColor &color(currentBlockHighlightColor);
     QList<QTextEdit::ExtraSelection> selections(extraSelections());
     selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
     QTextCursor cursor(block), savedTextCursor(textCursor());
     QTextEdit::ExtraSelection selection;
     cursor.movePosition(QTextCursor::StartOfLine);
     selection.cursor = cursor;
-    selection.format.setBackground(color); // light orange
+    selection.format.setBackground(color);
     selection.format.setProperty(QTextFormat::FullWidthSelection, true);
     selections.append(selection);
     setExtraSelections(selections);
@@ -64,8 +59,10 @@ void CodeEditor::highlightCurrentBlock(QTextBlock &block)
 
 void CodeEditor::unhighlightCurrentBlock()
 {
-    if (!extraSelections().isEmpty())
-        setExtraSelections({});
+    const QColor &color(currentBlockHighlightColor);
+    QList<QTextEdit::ExtraSelection> selections(extraSelections());
+    selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
+    setExtraSelections(selections);
 }
 
 void CodeEditor::handleReturnKey()
@@ -258,9 +255,10 @@ void CodeEditor::insertCompletion(const QString &completion)
     setTextCursor(tc);
 }
 
+
 /*slot*/ void CodeEditor::addAllMatchesToExtraSelections()
 {
-    const QColor color("#ccdfec"); // light blue
+    const QColor &color(allMatchesColor);
     QList<QTextEdit::ExtraSelection> selections(extraSelections());
     selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
     setExtraSelections(selections);
@@ -280,6 +278,92 @@ void CodeEditor::insertCompletion(const QString &completion)
 }
 
 
+void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
+{
+    if (codeEditorInfoProvider == nullptr)
+        return;
+    if (!fromBlock.isValid())
+        return;
+    int blockNumber = fromBlock.blockNumber();
+    ICodeEditorInfoProvider::BlockFoldingInfo blockFoldingInfo = codeEditorInfoProvider->findBlockFoldingInfo(blockNumber);
+    if (blockFoldingInfo.startBlockNumber < 0)
+        return;
+    blockNumber = blockFoldingInfo.startBlockNumber;
+    QTextBlock startBlock = document()->findBlockByNumber(blockNumber);
+    QTextBlock block = startBlock.next();
+    while (block.isValid() && (blockFoldingInfo.endBlockNumber < 0 || block.blockNumber() <= blockFoldingInfo.endBlockNumber))
+    {
+        block.setVisible(!fold);
+        block.setLineCount(!fold ? 1 : 0);
+        block = block.next();
+    }
+
+    document()->markContentsDirty(startBlock.position(), block.position());
+
+    QTextBlock anchorBlock = firstVisibleBlock();
+    QPointF anchorOffset = blockBoundingGeometry(anchorBlock).translated(contentOffset()).topLeft();
+    int anchorNumber = anchorBlock.blockNumber();
+    qreal anchorY = anchorOffset.y();
+
+    QPlainTextDocumentLayout *layout = static_cast<QPlainTextDocumentLayout *>(document()->documentLayout());
+    emit layout->documentSizeChanged(layout->documentSize());
+
+    QTextBlock newAnchor = document()->findBlockByNumber(anchorNumber);
+    if (!newAnchor.isVisible())
+        newAnchor = newAnchor.previous();
+    qreal newY = blockBoundingGeometry(newAnchor).translated(contentOffset()).top();
+    verticalScrollBar()->setValue(verticalScrollBar()->value() + int(newY - anchorY));
+
+    QTextCursor tc(textCursor());
+    while (tc.block().isValid() && !tc.block().isVisible())
+        if (!tc.movePosition(QTextCursor::Up))
+            break;
+    setTextCursor(tc);
+}
+
+/*slot*/ void CodeEditor::ensureUnfolded(int blockNumber)
+{
+    QTextBlock block = document()->findBlockByNumber(blockNumber);
+    if (!block.isVisible())
+        foldUnfold(false, block);
+}
+
+/*slot*/ void CodeEditor::toggleFold(int blockNumber)
+{
+    QTextBlock block = document()->findBlockByNumber(blockNumber);
+    foldUnfold(block.next().isVisible(), block);
+}
+
+/*slot*/ void CodeEditor::fold()
+{
+    foldUnfold(true, textCursor().block());
+}
+
+/*slot*/ void CodeEditor::unfold()
+{
+    foldUnfold(false, textCursor().block());
+}
+
+/*slot*/ void CodeEditor::toggleFoldAll()
+{
+    if (codeEditorInfoProvider == nullptr)
+        return;
+    QList<QPair<int, int> > foldableBlocks = codeEditorInfoProvider->foldableBlocks();
+    bool fold = false;
+    for (const QPair<int, int> &blockStartEnd : foldableBlocks)
+    {
+        QTextBlock block = document()->findBlockByNumber(blockStartEnd.first);
+        if (block.isVisible() && block.next().isValid() && block.next().isVisible())
+            fold = true;
+    }
+    for (const QPair<int, int> &blockStartEnd : foldableBlocks)
+    {
+        QTextBlock block = document()->findBlockByNumber(blockStartEnd.first);
+        foldUnfold(fold, block);
+    }
+}
+
+
 int CodeEditor::lineNumberAreaWidth()
 {
     int digits = 1;
@@ -289,7 +373,7 @@ int CodeEditor::lineNumberAreaWidth()
         max /= 10;
         ++digits;
     }
-    int space = 15 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits + 10;
+    int space = 15 + fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits + 18;
     return space;
 }
 
@@ -349,8 +433,9 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
         {
             QString number = QString::number(blockNumber + 1);
             painter.setPen(Qt::black);
-            painter.drawText(10, top, lineNumberArea->width() - 20, fontMetrics().height(),
+            painter.drawText(10, top, lineNumberArea->width() - 28, fontMetrics().height(),
                              Qt::AlignRight | Qt::AlignVCenter, number);
+
             if (codeEditorInfoProvider != nullptr)
             {
                 ICodeEditorInfoProvider::BreakpointInfo breakpointInfo = codeEditorInfoProvider->findBreakpointInfo(blockNumber);
@@ -358,6 +443,13 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
                 {
                     painter.setBrush(Qt::darkRed);
                     painter.drawEllipse(2, top + 2, 10, 10);
+                }
+
+                ICodeEditorInfoProvider::BlockFoldingInfo blockFoldingInfo = codeEditorInfoProvider->findBlockFoldingInfo(blockNumber);
+                if (blockFoldingInfo.startBlockNumber == blockNumber)
+                {
+                    QTextBlock nextBlock = block.next();
+                    lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), !nextBlock.isVisible());
                 }
             }
         }
@@ -372,16 +464,19 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 void CodeEditor::lineNumberAreaMousePressEvent(QMouseEvent *event)
 {
     QTextCursor cursor = cursorForPosition(event->pos());
-    emit lineNumberClicked(cursor.blockNumber());
+    if (event->pos().x() >= lineNumberArea->width() - 14)
+        emit foldIndicatorClicked(cursor.blockNumber());
+    else
+        emit lineNumberClicked(cursor.blockNumber());
 }
 
 void CodeEditor::lineNumberAreaToolTipEvent(QHelpEvent *helpEvent)
 {
-    QString text;
     if (codeEditorInfoProvider == nullptr)
         return;
     QTextCursor cursor = cursorForPosition(helpEvent->pos());
     int instructionAddress = codeEditorInfoProvider->findInstructionAddress(cursor.blockNumber());
+    QString text;
     if (instructionAddress >= 0)
         text = QString("%1").arg(instructionAddress, 4, 16, QChar('0'));
     if (!text.isEmpty())
@@ -389,3 +484,20 @@ void CodeEditor::lineNumberAreaToolTipEvent(QHelpEvent *helpEvent)
     else
         QToolTip::hideText();
 }
+
+
+//
+// LineNumberArea Class
+//
+
+void LineNumberArea::drawFoldIndicator(QPainter &painter, const QRect &rect, bool folded)
+{
+    QStyleOption opt;
+    opt.rect = rect.adjusted(2, 2, -2, -2);
+    opt.state = QStyle::State_Enabled | QStyle::State_Active;
+
+    QStyle::PrimitiveElement pe = folded ? QStyle::PE_IndicatorArrowRight : QStyle::PE_IndicatorArrowDown;
+
+    style()->drawPrimitive(pe, &opt, &painter);
+}
+

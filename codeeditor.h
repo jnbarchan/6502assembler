@@ -19,7 +19,6 @@ public:
     explicit CodeEditor(QWidget *parent = nullptr);
 
     void setCodeEditorInfoProvider(const ICodeEditorInfoProvider *provider);
-    void moveCursorToEnd();
     void highlightCurrentBlock(QTextBlock &block);
     void unhighlightCurrentBlock();
 
@@ -40,6 +39,7 @@ private slots:
 
 signals:
     void lineNumberClicked(int blockNumber);
+    void foldIndicatorClicked(int blockNumber);
 
 public:
     void lineNumberAreaPaintEvent(QPaintEvent *event);
@@ -51,6 +51,11 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    void foldUnfold(bool fold, const QTextBlock &fromBlock);
+
+    const QColor currentBlockHighlightColor = QColor(255, 220, 180);  // light orange
+    const QColor allMatchesColor = QColor("#ccdfec");  // light blue
+
     LineNumberArea *lineNumberArea;
     const ICodeEditorInfoProvider *codeEditorInfoProvider;
 
@@ -59,6 +64,12 @@ private slots:
     void updateLineNumberArea(const QRect &rect, int dy);
 
 public slots:
+    void ensureUnfolded(int blockNumber);
+    void toggleFold(int blockNumber);
+    void fold();
+    void unfold();
+    void toggleFoldAll();
+
     void lineNumberAreaBreakpointUpdated(int blockNumber);
 };
 
@@ -77,6 +88,8 @@ public:
     {
         return QSize(codeEditor->lineNumberAreaWidth(), 0);
     }
+
+    void drawFoldIndicator(QPainter &painter, const QRect &rect, bool folded);
 
 protected:
     void paintEvent(QPaintEvent *event) override
@@ -114,16 +127,26 @@ private:
 class ICodeEditorInfoProvider
 {
 public:
-    struct BreakpointInfo {
+    virtual ~ICodeEditorInfoProvider() = default;
+
+    struct BreakpointInfo
+    {
         uint16_t instructionAddress;
     };
 
-    virtual ~ICodeEditorInfoProvider() = default;
     virtual BreakpointInfo findBreakpointInfo(int blockNumber) const = 0;
     virtual int findInstructionAddress(int blockNumber) const = 0;
 
     virtual QString wordCompletion(const QString& word, int lineNumber) const = 0;
     virtual QStringListModel *wordCompleterModel(int lineNumber) const = 0;
+
+    struct BlockFoldingInfo
+    {
+        int startBlockNumber = -1, endBlockNumber = -1;
+    };
+
+    virtual QList<QPair<int, int> > foldableBlocks() const = 0;
+    virtual BlockFoldingInfo findBlockFoldingInfo(int blockNumber) const = 0;
 };
 
 
