@@ -140,44 +140,28 @@ bool Emulator::breakpointAt(uint16_t instructionAddress)
     return _breakpoints.contains(instructionAddress);
 }
 
-QList<QPair<int, int> > Emulator::foldableBlocks(const QString &filename) const
+
+QList<int> Emulator::foldableBlocks(const QString &filename) const
 {
     const CodeLabels &codeLabels(assembler()->codeLabels());
 
-    QList<QPair<int, int> > foldables;
+    QList<int> foldables;
     if (!codeLabels.scopes.contains(filename))
         return foldables;
     const QList<ScopeLabel> &scopeLabels(codeLabels.scopes.value(filename));
     for (int i = 0; i < scopeLabels.length(); i++)
     {
-        QPair<int, int> startEnd;
-        startEnd.first = scopeLabels.at(i).lineNumber;
-        if (i == scopeLabels.length() - 1)
-            startEnd.second = -1;
-        else
+        int start;
+        start = scopeLabels.at(i).lineNumber;
+        if (i < scopeLabels.length() - 1)
         {
-            startEnd.second = scopeLabels.at(i + 1).lineNumber - 1;
-            if (startEnd.second == startEnd.first)
+            int end = scopeLabels.at(i + 1).lineNumber - 1;
+            if (start == end)
                 continue;
         }
-        foldables.append(startEnd);
+        foldables.append(start);
     }
     return foldables;
-}
-
-
-void Emulator::findFoldableBlock(const QString &filename, int lineNumber, int &startBlockNumber, int &endBlockNumber) const
-{
-    startBlockNumber = endBlockNumber = -1;
-    QList<QPair<int, int> > foldables = foldableBlocks(filename);
-    for (QPair<int, int> &foldable : foldables)
-        if (foldable.first <= lineNumber
-            && (foldable.second < 0 || foldable.second >= lineNumber))
-        {
-            startBlockNumber = foldable.first;
-            endBlockNumber = foldable.second;
-            return;
-        }
 }
 
 

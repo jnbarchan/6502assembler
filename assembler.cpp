@@ -60,7 +60,7 @@ void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
     if (currentFile.lineNumber == newCurrentCodeLineNumber)
         return;
     currentFile.lineNumber = newCurrentCodeLineNumber;
-    emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
+    // emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
 }
 
 uint8_t *Assembler::memory() const
@@ -272,6 +272,7 @@ void Assembler::assemble()
     }
     catch (const AssemblerError &e)
     {
+        emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
         assemblerErrorMessage(QString(e.what()));
         cleanup();
         setAssembleState(NotStarted);

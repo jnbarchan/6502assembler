@@ -38,8 +38,7 @@ public:
     void clearAssemblerBreakpoints();
     bool breakpointAt(uint16_t instructionAddress);
 
-    QList<QPair<int, int> > foldableBlocks(const QString &filename) const;
-    void findFoldableBlock(const QString &filename, int lineNumber, int &startBlockNumber, int &endBlockNumber) const;
+    QList<int> foldableBlocks(const QString &filename) const;
 
 signals:
     void breakpointChanged(int instructionAddress);

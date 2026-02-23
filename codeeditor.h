@@ -5,6 +5,7 @@
 #include <QCompleter>
 #include <QPlainTextEdit>
 #include <QStringListModel>
+#include <QTextBlock>
 
 class LineNumberArea;
 class ICodeEditorInfoProvider;
@@ -19,7 +20,7 @@ public:
     explicit CodeEditor(QWidget *parent = nullptr);
 
     void setCodeEditorInfoProvider(const ICodeEditorInfoProvider *provider);
-    void highlightCurrentBlock(QTextBlock &block);
+    void highlightCurrentBlock(int blockNumber);
     void unhighlightCurrentBlock();
 
 protected:
@@ -35,7 +36,7 @@ private:
     void insertCompletion(const QString &completion);
 
 private slots:
-    void addAllMatchesToExtraSelections();
+    void addAllSelectedMatchesToExtraSelections();
 
 signals:
     void lineNumberClicked(int blockNumber);
@@ -51,6 +52,12 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    struct TextBlockFoldData : public QTextBlockUserData
+    {
+        bool isFoldHeader = true;
+        bool folded = false;
+    };
+    void postFoldUnfoldAdjust();
     void foldUnfold(bool fold, const QTextBlock &fromBlock);
 
     const QColor currentBlockHighlightColor = QColor(255, 220, 180);  // light orange
@@ -64,6 +71,7 @@ private slots:
     void updateLineNumberArea(const QRect &rect, int dy);
 
 public slots:
+    void setFoldableBlocks(const QList<int> &foldableBlocks);
     void ensureUnfolded(int blockNumber);
     void toggleFold(int blockNumber);
     void fold();
@@ -139,14 +147,6 @@ public:
 
     virtual QString wordCompletion(const QString& word, int lineNumber) const = 0;
     virtual QStringListModel *wordCompleterModel(int lineNumber) const = 0;
-
-    struct BlockFoldingInfo
-    {
-        int startBlockNumber = -1, endBlockNumber = -1;
-    };
-
-    virtual QList<QPair<int, int> > foldableBlocks() const = 0;
-    virtual BlockFoldingInfo findBlockFoldingInfo(int blockNumber) const = 0;
 };
 
 

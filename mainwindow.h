@@ -125,9 +125,6 @@ public:
     QString wordCompletion(const QString& word, int lineNumber) const override;
     QStringListModel *wordCompleterModel(int lineNumber) const override;
 
-    QList<QPair<int, int> > foldableBlocks() const override;
-    ICodeEditorInfoProvider::BlockFoldingInfo findBlockFoldingInfo(int blockNumber) const override;
-
 private:
     const Emulator *_emulator;
     const Emulator *emulator() const { return _emulator; }

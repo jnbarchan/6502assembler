@@ -20,7 +20,7 @@ CodeEditor::CodeEditor(QWidget *parent)
     QObject::connect(completer, QOverload<const QString &>::of(&QCompleter::activated),
                      this, &CodeEditor::insertCompletion);
 
-    connect(this, &QPlainTextEdit::selectionChanged, this, &CodeEditor::addAllMatchesToExtraSelections);
+    connect(this, &QPlainTextEdit::selectionChanged, this, &CodeEditor::addAllSelectedMatchesToExtraSelections);
 
     lineNumberArea = new LineNumberArea(this);
     lineNumberArea->setCursor(Qt::PointingHandCursor);
@@ -39,12 +39,14 @@ void CodeEditor::setCodeEditorInfoProvider(const ICodeEditorInfoProvider *provid
     codeEditorInfoProvider = provider;
 }
 
-void CodeEditor::highlightCurrentBlock(QTextBlock &block)
+void CodeEditor::highlightCurrentBlock(int blockNumber)
 {
     const QColor &color(currentBlockHighlightColor);
     QList<QTextEdit::ExtraSelection> selections(extraSelections());
     selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
-    QTextCursor cursor(block), savedTextCursor(textCursor());
+
+    QTextBlock block = document()->findBlockByNumber(blockNumber);
+    QTextCursor cursor(block);
     QTextEdit::ExtraSelection selection;
     cursor.movePosition(QTextCursor::StartOfLine);
     selection.cursor = cursor;
@@ -54,7 +56,6 @@ void CodeEditor::highlightCurrentBlock(QTextBlock &block)
     setExtraSelections(selections);
     setTextCursor(cursor);
     centerCursor();
-    setTextCursor(savedTextCursor);
 }
 
 void CodeEditor::unhighlightCurrentBlock()
@@ -62,6 +63,7 @@ void CodeEditor::unhighlightCurrentBlock()
     const QColor &color(currentBlockHighlightColor);
     QList<QTextEdit::ExtraSelection> selections(extraSelections());
     selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
+
     setExtraSelections(selections);
 }
 
@@ -256,11 +258,12 @@ void CodeEditor::insertCompletion(const QString &completion)
 }
 
 
-/*slot*/ void CodeEditor::addAllMatchesToExtraSelections()
+/*slot*/ void CodeEditor::addAllSelectedMatchesToExtraSelections()
 {
     const QColor &color(allMatchesColor);
     QList<QTextEdit::ExtraSelection> selections(extraSelections());
     selections.removeIf([color](const QTextEdit::ExtraSelection &extraSelection) { return extraSelection.format.background().color() == color; });
+
     setExtraSelections(selections);
     QTextCursor tc = textCursor();
     QString selectedText = tc.selectedText();
@@ -278,28 +281,46 @@ void CodeEditor::insertCompletion(const QString &completion)
 }
 
 
-void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
+/*slot*/ void CodeEditor::setFoldableBlocks(const QList<int> &foldableBlocks)
 {
-    if (codeEditorInfoProvider == nullptr)
+    if (foldableBlocks.isEmpty())  // try to keep whatever we have, e.g. after error
         return;
-    if (!fromBlock.isValid())
-        return;
-    int blockNumber = fromBlock.blockNumber();
-    ICodeEditorInfoProvider::BlockFoldingInfo blockFoldingInfo = codeEditorInfoProvider->findBlockFoldingInfo(blockNumber);
-    if (blockFoldingInfo.startBlockNumber < 0)
-        return;
-    blockNumber = blockFoldingInfo.startBlockNumber;
-    QTextBlock startBlock = document()->findBlockByNumber(blockNumber);
-    QTextBlock block = startBlock.next();
-    while (block.isValid() && (blockFoldingInfo.endBlockNumber < 0 || block.blockNumber() <= blockFoldingInfo.endBlockNumber))
+    QTextBlock firstBlockChanged, lastBlockChanged;
+    bool visible = true;
+    for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
     {
-        block.setVisible(!fold);
-        block.setLineCount(!fold ? 1 : 0);
-        block = block.next();
+        TextBlockFoldData *foldData = nullptr;
+        if (foldableBlocks.contains(block.blockNumber()))
+        {
+            foldData = dynamic_cast<TextBlockFoldData *>(block.userData());
+            if (foldData == nullptr)
+                foldData = new TextBlockFoldData();
+            Q_ASSERT(foldData->isFoldHeader);
+        }
+        block.setUserData(foldData);
+
+        if (foldData)
+            visible = true;
+        if (block.isVisible() != visible)
+        {
+            block.setVisible(visible);
+            block.setLineCount(visible ? 1 : 0);
+            if (!firstBlockChanged.isValid())
+                firstBlockChanged = block;
+            lastBlockChanged = block;
+        }
+        if (foldData)
+            visible = !foldData->folded;
     }
+    if (firstBlockChanged.isValid())
+    {
+        document()->markContentsDirty(firstBlockChanged.position(), lastBlockChanged.position());
+        postFoldUnfoldAdjust();
+    }
+}
 
-    document()->markContentsDirty(startBlock.position(), block.position());
-
+void CodeEditor::postFoldUnfoldAdjust()
+{
     QTextBlock anchorBlock = firstVisibleBlock();
     QPointF anchorOffset = blockBoundingGeometry(anchorBlock).translated(contentOffset()).topLeft();
     int anchorNumber = anchorBlock.blockNumber();
@@ -319,6 +340,30 @@ void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
         if (!tc.movePosition(QTextCursor::Up))
             break;
     setTextCursor(tc);
+}
+
+void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
+{
+    if (!fromBlock.isValid())
+        return;
+    TextBlockFoldData *foldData = nullptr;
+    QTextBlock startBlock = fromBlock;
+    while (startBlock.isValid() && ((foldData = dynamic_cast<TextBlockFoldData *>(startBlock.userData())) == nullptr || !foldData->isFoldHeader))
+        startBlock = startBlock.previous();
+    if (foldData == nullptr || !foldData->isFoldHeader)
+        return;
+
+    foldData->folded = fold;
+    QTextBlock block = startBlock.next();
+    while (block.isValid() && ((foldData = dynamic_cast<TextBlockFoldData *>(block.userData())) == nullptr || !foldData->isFoldHeader))
+    {
+        block.setVisible(!fold);
+        block.setLineCount(!fold ? 1 : 0);
+        block = block.next();
+    }
+
+    document()->markContentsDirty(startBlock.position(), block.position());
+    postFoldUnfoldAdjust();
 }
 
 /*slot*/ void CodeEditor::ensureUnfolded(int blockNumber)
@@ -346,21 +391,14 @@ void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
 
 /*slot*/ void CodeEditor::toggleFoldAll()
 {
-    if (codeEditorInfoProvider == nullptr)
-        return;
-    QList<QPair<int, int> > foldableBlocks = codeEditorInfoProvider->foldableBlocks();
     bool fold = false;
-    for (const QPair<int, int> &blockStartEnd : foldableBlocks)
-    {
-        QTextBlock block = document()->findBlockByNumber(blockStartEnd.first);
-        if (block.isVisible() && block.next().isValid() && block.next().isVisible())
+    TextBlockFoldData *foldData;;
+    for (QTextBlock block = document()->firstBlock(); block.isValid() && !fold; block = block.next())
+        if ((foldData = dynamic_cast<TextBlockFoldData *>(block.userData())) != nullptr && foldData->isFoldHeader && !foldData->folded)
             fold = true;
-    }
-    for (const QPair<int, int> &blockStartEnd : foldableBlocks)
-    {
-        QTextBlock block = document()->findBlockByNumber(blockStartEnd.first);
-        foldUnfold(fold, block);
-    }
+    for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
+        if ((foldData = dynamic_cast<TextBlockFoldData *>(block.userData())) != nullptr && foldData->isFoldHeader && foldData->folded != fold)
+            foldUnfold(fold, block);
 }
 
 
@@ -445,12 +483,15 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
                     painter.drawEllipse(2, top + 2, 10, 10);
                 }
 
-                ICodeEditorInfoProvider::BlockFoldingInfo blockFoldingInfo = codeEditorInfoProvider->findBlockFoldingInfo(blockNumber);
-                if (blockFoldingInfo.startBlockNumber == blockNumber)
-                {
-                    QTextBlock nextBlock = block.next();
-                    lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), !nextBlock.isVisible());
-                }
+                // ICodeEditorInfoProvider::BlockFoldingInfo blockFoldingInfo = codeEditorInfoProvider->findBlockFoldingInfo(blockNumber);
+                // if (blockFoldingInfo.startBlockNumber == blockNumber)
+                // {
+                //     QTextBlock nextBlock = block.next();
+                //     lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), !nextBlock.isVisible());
+                // }
+                TextBlockFoldData *foldData = dynamic_cast<TextBlockFoldData *>(block.userData());
+                if (foldData && foldData->isFoldHeader)
+                    lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), foldData->folded);
             }
         }
 

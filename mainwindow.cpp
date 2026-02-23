@@ -348,6 +348,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         assembler()->setCode(codeStream);
 
         assembler()->assemble();
+
         if (!assembler()->needsAssembling())
         {
             currentCodeLineNumberChanged("", -1);
@@ -357,6 +358,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
         processorModel()->memoryModel()->notifyAllDataChanged();
         watchModel->recalculateAllSymbols();
+        ui->codeEditor->setFoldableBlocks(emulator()->foldableBlocks(""));
+
         if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
             return;
     }
@@ -725,11 +728,9 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         ui->codeEditor->unhighlightCurrentBlock();
         return;
     }
-    const QTextDocument *document(ui->codeEditor->document());
-    if (lineNumber >= document->blockCount())
-        lineNumber = document->blockCount() - 1;
-    QTextBlock block(document->findBlockByNumber(lineNumber));
-    ui->codeEditor->highlightCurrentBlock(block);
+    lineNumber = std::min(lineNumber, ui->codeEditor->document()->blockCount() - 1);
+    ui->codeEditor->ensureUnfolded(lineNumber);
+    ui->codeEditor->highlightCurrentBlock(lineNumber);
 }
 
 /*slot*/ void MainWindow::currentInstructionAddressChanged(uint16_t instructionAddress)
@@ -809,16 +810,4 @@ QString CodeEditorInfoProvider::wordCompletion(const QString &word, int lineNumb
 QStringListModel *CodeEditorInfoProvider::wordCompleterModel(int lineNumber) const
 {
     return emulator()->wordCompleterModel("", lineNumber);
-}
-
-QList<QPair<int, int> > CodeEditorInfoProvider::foldableBlocks() const
-{
-    return emulator()->foldableBlocks("");
-}
-
-ICodeEditorInfoProvider::BlockFoldingInfo CodeEditorInfoProvider::findBlockFoldingInfo(int blockNumber) const
-{
-    ICodeEditorInfoProvider::BlockFoldingInfo bfInfo;
-    emulator()->findFoldableBlock("", blockNumber, bfInfo.startBlockNumber, bfInfo.endBlockNumber);
-    return bfInfo;
 }
