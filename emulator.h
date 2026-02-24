@@ -23,28 +23,46 @@ public:
     explicit Emulator(QObject *parent = nullptr);
     ~Emulator();
 
+    struct Breakpoint
+    {
+        QString filename;
+        int lineNumber = -1;
+        uint16_t instructionAddress = 0;
+
+        Breakpoint() {}
+        Breakpoint(const QString &_filename, int _lineNumber, uint16_t _instructionAddress)
+        {
+            filename = _filename;
+            lineNumber = _lineNumber;
+            instructionAddress = _instructionAddress;
+        }
+    };
+
     ProcessorModel *processorModel() const { return _processorModel; };
 
     Assembler *assembler() const { return _assembler; };
 
     const uint16_t runStartAddress() const;
     void mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const;
-    int mapFileLineNumberToInstructionAddress(const QString &filename, int lineNumber, bool exact = false) const;
+    uint16_t mapFileLineNumberToInstructionAddress(const QString &filename, int lineNumber, bool exact = false) const;
 
-    int findBreakpoint(const QString &filename, int lineNumber) const;
+    const Breakpoint *findBreakpoint(const QString &filename, int lineNumber) const;
+    void addBreakpoint(const QString &filename, int lineNumber);
     void toggleBreakpoint(const QString &filename, int lineNumber);
     void clearBreakpoints();
-    void addAssemblerBreakpoint(uint16_t instructionAddress);
-    void clearAssemblerBreakpoints();
-    bool breakpointAt(uint16_t instructionAddress);
+    bool breakpointAtInstructionAddress(uint16_t instructionAddress) const;
+    QList<int> breakpointLineNumbers(const QString &filename) const;
+    void setRuntimeBreakpoints(const QString &filename, const QList<int> &lineNumbers);
+    void clearBreakpointInstructionAddresses();
 
     QList<int> foldableBlocks(const QString &filename) const;
 
 signals:
-    void breakpointChanged(int instructionAddress);
+    void breakpointChanged(const QString &filename, int lineNumber);
 
 private:
-    int findBreakpointIndex(uint16_t instructionAddress) const;
+    int findBreakpointInstructionAddressIndex(uint16_t instructionAddress) const;
+    void insertIntoBreakpoints(const Breakpoint &breakpoint);
 
 public:
     QString wordCompletion(const QString &word, const QString &filename, int lineNumber) const;
@@ -54,7 +72,7 @@ private:
     ProcessorModel *_processorModel;
     uint8_t *_memory;
     Instruction *_instructions;
-    QList<uint16_t> _breakpoints;
+    QList<Breakpoint> _breakpoints;
     IProcessorBreakpointProvider *processorBreakpointProvider;
 
     Assembler *_assembler;
@@ -78,7 +96,7 @@ private:
     Emulator *_emulator;
     Emulator *emulator() const { return _emulator; }
     void clearBreakpoints() override;
-    void addBreakpoint(uint16_t instructionAddress) override;
+    void addBreakpoint(const QString &filename, int lineNumber) override;
 };
 
 

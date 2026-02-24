@@ -60,7 +60,6 @@ void Assembler::setCurrentCodeLineNumber(int newCurrentCodeLineNumber)
     if (currentFile.lineNumber == newCurrentCodeLineNumber)
         return;
     currentFile.lineNumber = newCurrentCodeLineNumber;
-    // emit currentCodeLineNumberChanged(currentFile.filename, currentFile.lineNumber);
 }
 
 uint8_t *Assembler::memory() const
@@ -179,6 +178,15 @@ void Assembler::assignLabelValue(const QString &scopedLabel, bool isLabel, Expre
     }
 }
 
+void Assembler::addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln)
+{
+    int i = 0;
+    while (i < _instructionsCodeFileLineNumbers.size() && _instructionsCodeFileLineNumbers.at(i)._locationCounter <= cfln._locationCounter)
+        i++;
+    _instructionsCodeFileLineNumbers.insert(i, cfln);
+}
+
+
 void Assembler::cleanup(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(currentFile.stream);
@@ -202,8 +210,13 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     if (assemblePass2)
         return;
 
-    assemblerBreakpointProvider->clearBreakpoints();
+    resetLabelsAndBreakpoints();
 
+    setAssembleState(AssembleState::NotStarted);
+}
+
+void Assembler::resetLabelsAndBreakpoints()
+{
     struct InternalJSR { const char *label; int intValue; };
     const InternalJSR internals[]
     {
@@ -236,17 +249,8 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     for (const InternalJSR *internal = internals; internal->label != NULL; internal++)
         _codeLabels.values[internal->label] = internal->intValue;
 
-    setAssembleState(AssembleState::NotStarted);
+    assemblerBreakpointProvider->clearBreakpoints();
 }
-
-void Assembler::addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln)
-{
-    int i = 0;
-    while (i < _instructionsCodeFileLineNumbers.size() && _instructionsCodeFileLineNumbers.at(i)._locationCounter <= cfln._locationCounter)
-        i++;
-    _instructionsCodeFileLineNumbers.insert(i, cfln);
-}
-
 
 void Assembler::restart(bool assemblePass2 /*= false*/)
 {
@@ -592,7 +596,7 @@ void Assembler::assembleDirective()
     }
     else if (directive == ".break")
     {
-        assemblerBreakpointProvider->addBreakpoint(_locationCounter);
+        assemblerBreakpointProvider->addBreakpoint(currentFile.filename, currentFile.lineNumber);
         getNextToken();
     }
     else if (directive == ".org")

@@ -75,7 +75,7 @@ private slots:
     void stepOver();
     void stepOut();
     void codeEditorLineNumberClicked(int blockNumber);
-    void breakpointChanged(int instructionAddress);
+    void breakpointChanged(const QString &filename, int lineNumber);
     void currentCodeLineNumberChanged(const QString &filename, int lineNumber);
     void currentInstructionAddressChanged(uint16_t instructionAddress);
     void memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles = QList<int>());
@@ -120,7 +120,7 @@ class CodeEditorInfoProvider : public ICodeEditorInfoProvider
 public:
     CodeEditorInfoProvider(const Emulator *emulator) : _emulator(emulator) {}
     ICodeEditorInfoProvider::BreakpointInfo findBreakpointInfo(int blockNumber) const override;
-    int findInstructionAddress(int blockNumber) const override;
+    uint16_t findInstructionAddress(int blockNumber) const override;
 
     QString wordCompletion(const QString& word, int lineNumber) const override;
     QStringListModel *wordCompleterModel(int lineNumber) const override;

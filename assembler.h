@@ -90,6 +90,7 @@ public:
 
     void setCode(QTextStream *codeStream);
 
+    void resetLabelsAndBreakpoints();
     void restart(bool assemblePass2 = false);
     void assemble();
 
@@ -191,7 +192,7 @@ class IAssemblerBreakpointProvider
 public:
     virtual ~IAssemblerBreakpointProvider() = default;
     virtual void clearBreakpoints() = 0;
-    virtual void addBreakpoint(uint16_t instructionAddress) = 0;
+    virtual void addBreakpoint(const QString &filename, int lineNumber) = 0;
 };
 
 #endif // ASSEMBLER_H

@@ -281,54 +281,43 @@ void CodeEditor::insertCompletion(const QString &completion)
 }
 
 
-/*slot*/ void CodeEditor::setFoldableBlocks(const QList<int> &foldableBlocks)
+CodeEditor::CodeEditorTextBlockUserData *CodeEditor::makeTextBlockUserData(QTextBlock block)
 {
-    if (foldableBlocks.isEmpty())  // try to keep whatever we have, e.g. after error
-        return;
-    QTextBlock firstBlockChanged, lastBlockChanged;
-    bool visible = true;
-    for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
+    CodeEditorTextBlockUserData *userData = static_cast<CodeEditorTextBlockUserData *>(block.userData());
+    if (userData == nullptr)
     {
-        TextBlockFoldData *foldData = nullptr;
-        if (foldableBlocks.contains(block.blockNumber()))
-        {
-            foldData = dynamic_cast<TextBlockFoldData *>(block.userData());
-            if (foldData == nullptr)
-                foldData = new TextBlockFoldData();
-            Q_ASSERT(foldData->isFoldHeader);
-        }
-        block.setUserData(foldData);
-
-        if (foldData)
-            visible = true;
-        if (block.isVisible() != visible)
-        {
-            block.setVisible(visible);
-            block.setLineCount(visible ? 1 : 0);
-            if (!firstBlockChanged.isValid())
-                firstBlockChanged = block;
-            lastBlockChanged = block;
-        }
-        if (foldData)
-            visible = !foldData->folded;
+        userData = new CodeEditorTextBlockUserData;
+        block.setUserData(userData);
     }
-    if (firstBlockChanged.isValid())
-    {
-        document()->markContentsDirty(firstBlockChanged.position(), lastBlockChanged.position());
-        postFoldUnfoldAdjust();
-    }
+    return userData;
 }
+
+CodeEditor::TextBlockFoldData *CodeEditor::blockFoldData(const QTextBlock &block) const
+{
+    if (!block.isValid())
+        return nullptr;
+    CodeEditorTextBlockUserData *blockUserData = static_cast<CodeEditorTextBlockUserData *>(block.userData());
+    return blockUserData != nullptr ? &blockUserData->foldData : nullptr;
+}
+
+CodeEditor::TextBlockBreakpointData *CodeEditor::blockBreakpointData(const QTextBlock &block) const
+{
+    if (!block.isValid())
+        return nullptr;
+    CodeEditorTextBlockUserData *blockUserData = static_cast<CodeEditorTextBlockUserData *>(block.userData());
+    return blockUserData != nullptr ? &blockUserData->breakpointData : nullptr;
+}
+
 
 void CodeEditor::postFoldUnfoldAdjust()
 {
+    QPlainTextDocumentLayout *layout = static_cast<QPlainTextDocumentLayout *>(document()->documentLayout());
+    emit layout->documentSizeChanged(layout->documentSize());
+
     QTextBlock anchorBlock = firstVisibleBlock();
     QPointF anchorOffset = blockBoundingGeometry(anchorBlock).translated(contentOffset()).topLeft();
     int anchorNumber = anchorBlock.blockNumber();
     qreal anchorY = anchorOffset.y();
-
-    QPlainTextDocumentLayout *layout = static_cast<QPlainTextDocumentLayout *>(document()->documentLayout());
-    emit layout->documentSizeChanged(layout->documentSize());
-
     QTextBlock newAnchor = document()->findBlockByNumber(anchorNumber);
     if (!newAnchor.isVisible())
         newAnchor = newAnchor.previous();
@@ -348,22 +337,49 @@ void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
         return;
     TextBlockFoldData *foldData = nullptr;
     QTextBlock startBlock = fromBlock;
-    while (startBlock.isValid() && ((foldData = dynamic_cast<TextBlockFoldData *>(startBlock.userData())) == nullptr || !foldData->isFoldHeader))
+    while (startBlock.isValid() && ((foldData = blockFoldData(startBlock)) == nullptr || !foldData->isFoldHeader))
         startBlock = startBlock.previous();
     if (foldData == nullptr || !foldData->isFoldHeader)
         return;
 
     foldData->folded = fold;
     QTextBlock block = startBlock.next();
-    while (block.isValid() && ((foldData = dynamic_cast<TextBlockFoldData *>(block.userData())) == nullptr || !foldData->isFoldHeader))
+    while (block.isValid() && ((foldData = blockFoldData(block)) == nullptr || !foldData->isFoldHeader))
     {
         block.setVisible(!fold);
         block.setLineCount(!fold ? 1 : 0);
         block = block.next();
     }
 
-    document()->markContentsDirty(startBlock.position(), block.position());
+    int startPos = startBlock.position();
+    int endPos = block.isValid() ? block.position() : document()->lastBlock().position() + document()->lastBlock().length();
+    document()->markContentsDirty(startPos, endPos - startPos);
     postFoldUnfoldAdjust();
+}
+
+void CodeEditor::setFoldableBlocks(const QList<int> &foldableBlocks)
+{
+    bool changedFolding = false;
+    bool visible = true;
+    for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
+    {
+        CodeEditorTextBlockUserData *userData = makeTextBlockUserData(block);
+        TextBlockFoldData &foldData(userData->foldData);
+        foldData.isFoldHeader = foldableBlocks.contains(block.blockNumber());
+        if (foldData.isFoldHeader)
+            visible = true;
+        if (block.isVisible() != visible)
+        {
+            block.setVisible(visible);
+            block.setLineCount(visible ? 1 : 0);
+            changedFolding = true;
+        }
+        if (foldData.isFoldHeader)
+            visible = !foldData.folded;
+    }
+    document()->markContentsDirty(0, document()->lastBlock().position() + document()->lastBlock().length());
+    if (changedFolding)
+        postFoldUnfoldAdjust();
 }
 
 /*slot*/ void CodeEditor::ensureUnfolded(int blockNumber)
@@ -394,15 +410,39 @@ void CodeEditor::foldUnfold(bool fold, const QTextBlock &fromBlock)
     bool fold = false;
     TextBlockFoldData *foldData;;
     for (QTextBlock block = document()->firstBlock(); block.isValid() && !fold; block = block.next())
-        if ((foldData = dynamic_cast<TextBlockFoldData *>(block.userData())) != nullptr && foldData->isFoldHeader && !foldData->folded)
+        if ((foldData = blockFoldData(block)) != nullptr && foldData->isFoldHeader && !foldData->folded)
             fold = true;
     for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
-        if ((foldData = dynamic_cast<TextBlockFoldData *>(block.userData())) != nullptr && foldData->isFoldHeader && foldData->folded != fold)
+        if ((foldData = blockFoldData(block)) != nullptr && foldData->isFoldHeader && foldData->folded != fold)
             foldUnfold(fold, block);
 }
 
 
-int CodeEditor::lineNumberAreaWidth()
+QList<int> CodeEditor::breakpointBlocks() const
+{
+    QList<int> blockNumbers;
+    for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
+    {
+        CodeEditorTextBlockUserData *userData = static_cast<CodeEditorTextBlockUserData *>(block.userData());
+        if (userData && userData->breakpointData.hasBreakpoint)
+            blockNumbers.append(block.blockNumber());
+    }
+    return blockNumbers;
+}
+
+void CodeEditor::setBreakpointBlocks(const QList<int> &breakpointBlocks)
+{
+    for (QTextBlock block = document()->firstBlock(); block.isValid(); block = block.next())
+    {
+        CodeEditorTextBlockUserData *userData = makeTextBlockUserData(block);
+        TextBlockBreakpointData &breakpointData(userData->breakpointData);
+        breakpointData.hasBreakpoint = breakpointBlocks.contains(block.blockNumber());
+    }
+    lineNumberArea->update();
+}
+
+
+int CodeEditor::lineNumberAreaWidth() const
 {
     int digits = 1;
     int max = qMax(1, blockCount());
@@ -431,7 +471,7 @@ int CodeEditor::lineNumberAreaWidth()
         updateLineNumberAreaWidth(0);
 }
 
-/*slot*/ void CodeEditor::lineNumberAreaBreakpointUpdated(int blockNumber)
+/*slot*/ void CodeEditor::lineNumberAreaBreakpointUpdated(int blockNumber, bool hasBreakpoint)
 {
     if (blockNumber < 0)
     {
@@ -441,6 +481,11 @@ int CodeEditor::lineNumberAreaWidth()
     QTextBlock block = document()->findBlockByNumber(blockNumber);
     if (!block.isValid())
         return;
+
+    CodeEditorTextBlockUserData *userData = makeTextBlockUserData(block);
+    TextBlockBreakpointData &breakpointData(userData->breakpointData);
+    breakpointData.hasBreakpoint = hasBreakpoint;
+
     int top = blockBoundingGeometry(block).top() + contentOffset().y();
     int height = blockBoundingRect(block).height();
     QRect rect(0, top - 5, lineNumberAreaWidth(), height + 10);
@@ -458,7 +503,7 @@ void CodeEditor::resizeEvent(QResizeEvent *e) /*override*/
 void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
 {
     QPainter painter(lineNumberArea);
-    painter.fillRect(event->rect(), QColor(Qt::lightGray).lighter(120));
+    painter.fillRect(event->rect(), QColor(Qt::lightGray).lighter(125));
 
     QTextBlock block = firstVisibleBlock();
     int blockNumber = block.blockNumber();
@@ -469,30 +514,15 @@ void CodeEditor::lineNumberAreaPaintEvent(QPaintEvent *event)
     {
         if (block.isVisible() && bottom >= event->rect().top())
         {
-            QString number = QString::number(blockNumber + 1);
-            painter.setPen(Qt::black);
-            painter.drawText(10, top, lineNumberArea->width() - 28, fontMetrics().height(),
-                             Qt::AlignRight | Qt::AlignVCenter, number);
+            lineNumberArea->drawLineNumber(painter, QRect(10, top, lineNumberArea->width() - 28, fontMetrics().height()), blockNumber + 1);
 
-            if (codeEditorInfoProvider != nullptr)
-            {
-                ICodeEditorInfoProvider::BreakpointInfo breakpointInfo = codeEditorInfoProvider->findBreakpointInfo(blockNumber);
-                if (breakpointInfo.instructionAddress > 0)
-                {
-                    painter.setBrush(Qt::darkRed);
-                    painter.drawEllipse(2, top + 2, 10, 10);
-                }
+            TextBlockFoldData *foldData = blockFoldData(block);
+            if (foldData && foldData->isFoldHeader)
+                lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), foldData->folded);
 
-                // ICodeEditorInfoProvider::BlockFoldingInfo blockFoldingInfo = codeEditorInfoProvider->findBlockFoldingInfo(blockNumber);
-                // if (blockFoldingInfo.startBlockNumber == blockNumber)
-                // {
-                //     QTextBlock nextBlock = block.next();
-                //     lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), !nextBlock.isVisible());
-                // }
-                TextBlockFoldData *foldData = dynamic_cast<TextBlockFoldData *>(block.userData());
-                if (foldData && foldData->isFoldHeader)
-                    lineNumberArea->drawFoldIndicator(painter, QRect(lineNumberArea->width() - 14, top, 12, fontMetrics().height()), foldData->folded);
-            }
+            TextBlockBreakpointData *breakpointData = blockBreakpointData(block);
+            if (breakpointData && breakpointData->hasBreakpoint)
+                lineNumberArea->drawBreakpointIndicator(painter, QRect(2, top + 2, 10, 10));
         }
 
         block = block.next();
@@ -516,9 +546,9 @@ void CodeEditor::lineNumberAreaToolTipEvent(QHelpEvent *helpEvent)
     if (codeEditorInfoProvider == nullptr)
         return;
     QTextCursor cursor = cursorForPosition(helpEvent->pos());
-    int instructionAddress = codeEditorInfoProvider->findInstructionAddress(cursor.blockNumber());
+    uint16_t instructionAddress = codeEditorInfoProvider->findInstructionAddress(cursor.blockNumber());
     QString text;
-    if (instructionAddress >= 0)
+    if (instructionAddress > 0)
         text = QString("%1").arg(instructionAddress, 4, 16, QChar('0'));
     if (!text.isEmpty())
         QToolTip::showText(helpEvent->globalPos(), text, this);
@@ -542,3 +572,15 @@ void LineNumberArea::drawFoldIndicator(QPainter &painter, const QRect &rect, boo
     style()->drawPrimitive(pe, &opt, &painter);
 }
 
+void LineNumberArea::drawLineNumber(QPainter &painter, const QRect &rect, int lineNumber)
+{
+    QString number = QString::number(lineNumber);
+    painter.setPen(Qt::gray);
+    painter.drawText(rect, Qt::AlignRight | Qt::AlignVCenter, number);
+}
+
+void LineNumberArea::drawBreakpointIndicator(QPainter &painter, const QRect &rect)
+{
+    painter.setBrush(Qt::darkRed);
+    painter.drawEllipse(rect);
+}

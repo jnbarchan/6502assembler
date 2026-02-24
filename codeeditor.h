@@ -23,6 +23,11 @@ public:
     void highlightCurrentBlock(int blockNumber);
     void unhighlightCurrentBlock();
 
+    void setFoldableBlocks(const QList<int> &foldableBlocks);
+
+    QList<int> breakpointBlocks() const;
+    void setBreakpointBlocks(const QList<int> &breakpointBlocks);
+
 protected:
     void keyPressEvent(QKeyEvent *e) override;
 
@@ -44,7 +49,7 @@ signals:
 
 public:
     void lineNumberAreaPaintEvent(QPaintEvent *event);
-    int lineNumberAreaWidth();
+    int lineNumberAreaWidth() const;
     void lineNumberAreaMousePressEvent(QMouseEvent *event);
     void lineNumberAreaToolTipEvent(QHelpEvent *helpEvent);
 
@@ -52,11 +57,24 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    struct TextBlockFoldData : public QTextBlockUserData
+    struct TextBlockFoldData
     {
-        bool isFoldHeader = true;
+        bool isFoldHeader = false;
         bool folded = false;
     };
+    struct TextBlockBreakpointData
+    {
+        bool hasBreakpoint = false;
+    };
+    struct CodeEditorTextBlockUserData : public QTextBlockUserData
+    {
+        TextBlockFoldData foldData;
+        TextBlockBreakpointData breakpointData;
+    };
+    CodeEditorTextBlockUserData *makeTextBlockUserData(QTextBlock block);
+    TextBlockFoldData *blockFoldData(const QTextBlock &block) const;
+    TextBlockBreakpointData *blockBreakpointData(const QTextBlock &block) const;
+
     void postFoldUnfoldAdjust();
     void foldUnfold(bool fold, const QTextBlock &fromBlock);
 
@@ -71,14 +89,13 @@ private slots:
     void updateLineNumberArea(const QRect &rect, int dy);
 
 public slots:
-    void setFoldableBlocks(const QList<int> &foldableBlocks);
     void ensureUnfolded(int blockNumber);
     void toggleFold(int blockNumber);
     void fold();
     void unfold();
     void toggleFoldAll();
 
-    void lineNumberAreaBreakpointUpdated(int blockNumber);
+    void lineNumberAreaBreakpointUpdated(int blockNumber, bool hasBreakpoint);
 };
 
 
@@ -98,6 +115,8 @@ public:
     }
 
     void drawFoldIndicator(QPainter &painter, const QRect &rect, bool folded);
+    void drawLineNumber(QPainter &painter, const QRect &rect, int lineNumber);
+    void drawBreakpointIndicator(QPainter &painter, const QRect &rect);
 
 protected:
     void paintEvent(QPaintEvent *event) override
@@ -143,7 +162,7 @@ public:
     };
 
     virtual BreakpointInfo findBreakpointInfo(int blockNumber) const = 0;
-    virtual int findInstructionAddress(int blockNumber) const = 0;
+    virtual uint16_t findInstructionAddress(int blockNumber) const = 0;
 
     virtual QString wordCompletion(const QString& word, int lineNumber) const = 0;
     virtual QStringListModel *wordCompleterModel(int lineNumber) const = 0;

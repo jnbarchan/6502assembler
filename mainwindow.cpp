@@ -246,8 +246,9 @@ void MainWindow::openFromFile(QString fileName)
         setCurrentFileNameToSave(fileName);
     }
     reset();
-    if (_autoAssembleOnFileOpen)
-        assembleOnly();
+    assembler()->resetLabelsAndBreakpoints();
+    // if (_autoAssembleOnFileOpen)
+    //     assembleOnly();
 }
 
 void MainWindow::saveToFile(QString fileName)
@@ -349,16 +350,18 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
         assembler()->assemble();
 
+        processorModel()->memoryModel()->notifyAllDataChanged();
         if (!assembler()->needsAssembling())
         {
+            watchModel->recalculateAllSymbols();
+            ui->codeEditor->setFoldableBlocks(emulator()->foldableBlocks(""));
+            emulator()->setRuntimeBreakpoints("", ui->codeEditor->breakpointBlocks());
+            ui->codeEditor->setBreakpointBlocks(emulator()->breakpointLineNumbers(""));
+
             currentCodeLineNumberChanged("", -1);
             ui->codeEditor->setTextCursor(savedTextCursor);
             ui->codeEditor->centerCursor();
         }
-
-        processorModel()->memoryModel()->notifyAllDataChanged();
-        watchModel->recalculateAllSymbols();
-        ui->codeEditor->setFoldableBlocks(emulator()->foldableBlocks(""));
 
         if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)
             return;
@@ -514,7 +517,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
     setHaveDoneReset(false);
     ui->codeEditor->unhighlightCurrentBlock();
-    emulator()->clearBreakpoints();
+    emulator()->clearBreakpointInstructionAddresses();
 }
 
 /*slot*/ void MainWindow::openFile()
@@ -701,21 +704,14 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 /*slot*/ void MainWindow::codeEditorLineNumberClicked(int blockNumber)
 {
     emulator()->toggleBreakpoint("", blockNumber);
-    ui->codeEditor->lineNumberAreaBreakpointUpdated(blockNumber);
 }
 
-/*slot*/ void MainWindow::breakpointChanged(int instructionAddress)
+/*slot*/ void MainWindow::breakpointChanged(const QString &filename, int lineNumber)
 {
-    if (instructionAddress < 0)
-        ui->codeEditor->lineNumberAreaBreakpointUpdated(-1);
-    else
-    {
-        QString filename;
-        int lineNumber;
-        emulator()->mapInstructionAddressToFileLineNumber(instructionAddress, filename, lineNumber);
-        if (filename.isEmpty())
-            ui->codeEditor->lineNumberAreaBreakpointUpdated(lineNumber);
-    }
+    if (lineNumber < 0)
+        ui->codeEditor->lineNumberAreaBreakpointUpdated(-1, false);
+    else if (filename.isEmpty() && lineNumber >= 0)
+        ui->codeEditor->lineNumberAreaBreakpointUpdated(lineNumber, emulator()->findBreakpoint(filename, lineNumber));
 }
 
 
@@ -791,13 +787,15 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
 ICodeEditorInfoProvider::BreakpointInfo CodeEditorInfoProvider::findBreakpointInfo(int blockNumber) const
 {
-    int instructionAddress = emulator()->findBreakpoint("", blockNumber);
+    const Emulator::Breakpoint *breakpoint = emulator()->findBreakpoint("", blockNumber);
     ICodeEditorInfoProvider::BreakpointInfo bpInfo;
-    bpInfo.instructionAddress = instructionAddress >= 0 ? instructionAddress : 0;
+    bpInfo.instructionAddress = 0;
+    if (breakpoint)
+        bpInfo.instructionAddress = breakpoint->instructionAddress;
     return bpInfo;
 }
 
-int CodeEditorInfoProvider::findInstructionAddress(int blockNumber) const
+uint16_t CodeEditorInfoProvider::findInstructionAddress(int blockNumber) const
 {
     return emulator()->mapFileLineNumberToInstructionAddress("", blockNumber, true);
 }
