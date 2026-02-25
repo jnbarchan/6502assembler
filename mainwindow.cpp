@@ -247,8 +247,8 @@ void MainWindow::openFromFile(QString fileName)
     }
     reset();
     assembler()->resetLabelsAndBreakpoints();
-    // if (_autoAssembleOnFileOpen)
-    //     assembleOnly();
+    if (_autoAssembleOnFileOpen)
+        assembleOnly();
 }
 
 void MainWindow::saveToFile(QString fileName)

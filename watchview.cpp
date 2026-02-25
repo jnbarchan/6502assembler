@@ -1,4 +1,6 @@
+#include <QDragEnterEvent>
 #include <QHeaderView>
+#include <QMimeData>
 #include <QTimer>
 
 #include "numberbasespinbox.h"
@@ -15,6 +17,12 @@ WatchView::WatchView(QWidget *parent /*= nullptr*/)
     horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
     QTimer::singleShot(0, this, [this](){ resizeColumnsToContents(); horizontalHeader()->resizeSection(0, 200); });
+
+    setAcceptDrops(true);
+    setDropIndicatorShown(true);
+    // setDragDropMode(DropOnly);
+    // setDefaultDropAction(Qt::CopyAction);
+    viewport()->setAcceptDrops(true);
 }
 
 void WatchView::setModel(QAbstractItemModel *model)
@@ -42,6 +50,35 @@ void WatchView::setModel(QAbstractItemModel *model)
     }
     if (textWidth > horizontalHeader()->sectionSize(0))
         horizontalHeader()->resizeSection(0, textWidth);
+}
+
+void WatchView::dragEnterEvent(QDragEnterEvent *event)
+{
+    QTableView::dragEnterEvent(event);
+    if (event->mimeData()->hasText())
+        event->accept();
+}
+
+void WatchView::dragMoveEvent(QDragMoveEvent *event)
+{
+    QTableView::dragMoveEvent(event);
+    if (event->mimeData()->hasText())
+        event->accept();
+}
+
+void WatchView::dropEvent(QDropEvent *event)
+{
+    // choose CopyAction instead of MoveAction
+    if (event->dropAction() == Qt::MoveAction)
+        event->setDropAction(Qt::CopyAction);
+    QTableView::dropEvent(event);
+    // QTableView::dropEvent(event) calls event->acceptProposedAction(), undoing our setDropAction(Qt::CopyAction) above
+    // choose CopyAction instead of MoveAction
+    // this is required so that the source of the drag (e.g. the CodeEditor) does not *move* (i.e. remove) the selected text
+    if (event->dropAction() == Qt::MoveAction)
+        event->setDropAction(Qt::CopyAction);
+    if (event->mimeData()->hasText())
+        event->accept();
 }
 
 

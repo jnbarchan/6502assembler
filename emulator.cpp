@@ -1,3 +1,5 @@
+#include <QMimeData>
+
 #include "emulator.h"
 
 using CodeFileLineNumber = Assembler::CodeFileLineNumber;
@@ -422,7 +424,39 @@ Qt::ItemFlags WatchModel::flags(const QModelIndex &index) const
     }
     Qt::ItemFlags f(QAbstractTableModel::flags(index));
     f |= Qt::ItemFlag::ItemIsEditable;
+    if (index.column() == 0)
+        f |= Qt::ItemIsDropEnabled;
     return f;
+}
+
+Qt::DropActions WatchModel::supportedDropActions() const
+{
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+bool WatchModel::canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const
+{
+    if (!parent.isValid())
+        return false;
+    Q_UNUSED(row)
+    Q_UNUSED(column)
+    int dropRow = parent.row(), dropColumn = parent.column();
+    Q_UNUSED(dropRow)
+    return dropColumn == 0 && data->hasText();
+}
+
+bool WatchModel::dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent)
+{
+    if (!parent.isValid())
+        return false;
+    if (!canDropMimeData(data, action, row, column, parent))
+        return false;
+    if (action == Qt::IgnoreAction)
+        return true;
+    int dropRow = parent.row(), dropColumn = parent.column();
+    QString text = data->text();
+    bool success = setData(index(dropRow, dropColumn), text);
+    return success;
 }
 
 void WatchModel::recalculateAllSymbols()
