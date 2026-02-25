@@ -135,7 +135,8 @@ private:
     uint8_t _memoryData[64 * 1024];
     uint8_t *_memory;
     MemoryModel *_memoryModel;
-    const uint16_t _stackBottom = 0x0100;
+    static constexpr uint16_t _stackBottom = 0x0100;
+    static constexpr uint8_t _stackInitial = 0xfd;
     uint8_t _stackRegister;
     uint8_t _accumulator, _xregister, _yregister;
     uint8_t _statusFlags;

@@ -215,7 +215,7 @@ void ProcessorModel::setProgramCounter(uint16_t newProgramCounter)
 
 void ProcessorModel::resetModel()
 {
-    _stackRegister = 0xfd;
+    _stackRegister = _stackInitial;
     _statusFlags = (0x00 & ~StatusFlags::Break);
     _accumulator = 5;
     _xregister = 10;
@@ -461,7 +461,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
 
         if (startedNewRun)
         {
-            setStackRegister(0xfd);
+            setStackRegister(_stackInitial);
             uint16_t returnAddress = Assembly::__JSR_terminate - 1;
             pushToStack(static_cast<uint8_t>(returnAddress >> 8));
             pushToStack(static_cast<uint8_t>(returnAddress));
@@ -602,24 +602,19 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     case AddressingMode::IndexedIndirectX:
     case AddressingMode::IndirectIndexedY:
         _argAddress = operand;
-        if (mode == AddressingMode::Absolute)
-            ;
-        else if (mode == AddressingMode::ZeroPage)
-            _argAddress = static_cast<uint8_t>(_argAddress);
-        else if (mode == AddressingMode::AbsoluteX)
-            _argAddress += _xregister;
-        else if (mode == AddressingMode::ZeroPageX)
-            _argAddress = static_cast<uint8_t>(_argAddress + _xregister);
-        else if (mode == AddressingMode::AbsoluteY)
-            _argAddress += _yregister;
-        else if (mode == AddressingMode::ZeroPageY)
-            _argAddress = static_cast<uint8_t>(_argAddress + _yregister);
-        else if (mode == AddressingMode::Indirect)
-            _argAddress = memoryWordAt(_argAddress);
-        else if (mode == AddressingMode::IndexedIndirectX)
-            _argAddress = memoryZPWordAt(_argAddress + _xregister);
-        else if (mode == AddressingMode::IndirectIndexedY)
-            _argAddress = memoryZPWordAt(_argAddress) + _yregister;
+        switch (mode)
+        {
+        case AddressingMode::Absolute: break;
+        case AddressingMode::AbsoluteX: _argAddress += _xregister; break;
+        case AddressingMode::AbsoluteY: _argAddress += _yregister; break;
+        case AddressingMode::ZeroPage: _argAddress = static_cast<uint8_t>(_argAddress); break;
+        case AddressingMode::ZeroPageX: _argAddress = static_cast<uint8_t>(_argAddress + _xregister); break;
+        case AddressingMode::ZeroPageY: _argAddress = static_cast<uint8_t>(_argAddress + _yregister); break;
+        case AddressingMode::Indirect: _argAddress = memoryWordAt(_argAddress); break;
+        case AddressingMode::IndexedIndirectX: _argAddress = memoryZPWordAt(_argAddress + _xregister); break;
+        case AddressingMode::IndirectIndexedY: _argAddress = memoryZPWordAt(_argAddress) + _yregister; break;
+        default: break;
+        }
         switch (operation)
         {
         case Operation::STA: case Operation::STX: case Operation::STY:

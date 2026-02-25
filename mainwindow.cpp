@@ -377,19 +377,19 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         processorModel()->setProgramCounter(emulator()->runStartAddress());
     }
 
-    if (runMode == ProcessorModel::StepInto && !startedNewRun)
+    if ((runMode == ProcessorModel::StepInto || runMode == ProcessorModel::StepOver) && !startedNewRun)
     {
         const Instruction *instruction = processorModel()->nextInstructionToExecute();
         if (instruction != nullptr)
         {
             const InstructionInfo &instructionInfo(instruction->getInstructionInfo());
-            if (instructionInfo.operation == Operation::JSR)
+            if (instructionInfo.operation == Operation::JSR || instructionInfo.operation == Operation::JMP)
             {
                 QString filename;
                 int lineNumber;
                 emulator()->mapInstructionAddressToFileLineNumber(instruction->operand, filename, lineNumber);
-                if (!filename.isEmpty())
-                    runMode = ProcessorModel::StepOver;
+                if (!filename.isEmpty() || lineNumber < 0)
+                    runMode = instructionInfo.operation == Operation::JSR ? ProcessorModel::StepOver : ProcessorModel::StepOut;
             }
         }
     }
@@ -735,7 +735,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     int lineNumber;
     emulator()->mapInstructionAddressToFileLineNumber(instructionAddress, filename, lineNumber);
     if (filename.isEmpty())
-        currentCodeLineNumberChanged(filename, lineNumber >= 0 ? lineNumber : ui->codeEditor->blockCount());
+        currentCodeLineNumberChanged(filename, lineNumber);
 }
 
 /*slot*/ void MainWindow::memoryModelDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles /*= QList<int>()*/)
