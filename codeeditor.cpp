@@ -311,13 +311,14 @@ CodeEditor::TextBlockBreakpointData *CodeEditor::blockBreakpointData(const QText
 
 void CodeEditor::postFoldUnfoldAdjust()
 {
-    QPlainTextDocumentLayout *layout = static_cast<QPlainTextDocumentLayout *>(document()->documentLayout());
-    emit layout->documentSizeChanged(layout->documentSize());
-
     QTextBlock anchorBlock = firstVisibleBlock();
     QPointF anchorOffset = blockBoundingGeometry(anchorBlock).translated(contentOffset()).topLeft();
     int anchorNumber = anchorBlock.blockNumber();
     qreal anchorY = anchorOffset.y();
+
+    QPlainTextDocumentLayout *layout = static_cast<QPlainTextDocumentLayout *>(document()->documentLayout());
+    emit layout->documentSizeChanged(layout->documentSize());
+
     QTextBlock newAnchor = document()->findBlockByNumber(anchorNumber);
     if (!newAnchor.isVisible())
         newAnchor = newAnchor.previous();
