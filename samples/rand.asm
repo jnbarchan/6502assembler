@@ -26,6 +26,19 @@ _RND_TEST:
     jsr _RND16_NEXT
     jsr _RND16_SEED_FROM_TIME
     jsr _RND16_NEXT
+
+    lda #$34
+    sta _RND16_STATE_LOW
+    lda #$12
+    sta _RND16_STATE_HIGH
+    lda #$87
+    sta _RND32_STATE_HIGH2
+    lda #$AB
+    sta _RND32_STATE_HIGH3
+    jsr _RND32_NEXT
+    jsr _RND32_NEXT
+    jsr _RND32_SEED_FROM_TIME
+    jsr _RND32_NEXT
     rts
 
 _RND8_NEXT:
@@ -46,8 +59,6 @@ _RND8_NEXT:
 ; _RND_STATE_LOW / _RND_STATE_HIGH: current state
 ; Returns: A = low byte, X = high byte of next random number
 ; -------------------------------------------------------
-
-;;        .org $8000
 
 ;; _RND16_STATE_LOW:  .byte $34   ; seed low byte (non-zero)
 ;; _RND16_STATE_HIGH: .byte $12   ; seed high byte (non-zero)
@@ -82,3 +93,52 @@ _RND16_SEED_FROM_DEFAULT:
     lda #0
     sta _RND16_STATE_HIGH
     rts
+
+; -------------------------------------------------------
+; 32-bit Galois LFSR PRNG for 6502, but only return half of it
+; _RND_STATE_0..3: current state
+; Returns: A = low byte, X = high byte of next random number
+; -------------------------------------------------------
+
+_RND32_NEXT:
+        LSR _RND32_STATE_HIGH3
+        ROR _RND32_STATE_HIGH2
+        ROR _RND16_STATE_HIGH
+        ROR _RND16_STATE_LOW
+        BCC .no_feedback
+
+        ; feedback taps
+        LDA _RND32_STATE_HIGH3
+        EOR #$80
+        STA _RND32_STATE_HIGH3
+
+        LDA _RND16_STATE_HIGH
+        EOR #$20
+        STA _RND16_STATE_HIGH
+
+        LDA _RND16_STATE_LOW
+        EOR #$03
+        STA _RND16_STATE_LOW
+
+.no_feedback:
+        ; ---- returned value ----
+        LDA _RND16_STATE_LOW
+        LDX _RND16_STATE_HIGH
+        RTS
+
+_RND32_SEED_FROM_TIME:
+    lda #<_RND16_STATE_LOW
+    ldx #>_RND16_STATE_LOW
+    jsr __get_time_ms
+    rts
+
+_RND32_SEED_FROM_DEFAULT:
+    lda #1
+    sta _RND16_STATE_LOW
+    lda #0
+    sta _RND16_STATE_HIGH
+    sta _RND32_STATE_HIGH2
+    sta _RND32_STATE_HIGH3
+    rts
+
+       
