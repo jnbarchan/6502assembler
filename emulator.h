@@ -55,6 +55,18 @@ public:
     void setRuntimeBreakpoints(const QString &filename, const QList<int> &lineNumbers);
     void clearBreakpointInstructionAddresses();
 
+    struct ProfilingLabelHitCount
+    {
+        uint16_t address;
+        QString label;
+        int hitCount = 0;
+        ProfilingLabelHitCount(uint16_t _address, const QString &_label) { address = _address; label = _label; }
+    };
+    bool profilingEnabled() const;
+
+    void startProfiling();
+    void getProfilingStatistics(QList<ProfilingLabelHitCount> &labelHitCounts);
+
     QList<int> foldableBlocks(const QString &filename) const;
 
 signals:
@@ -77,6 +89,8 @@ private:
 
     Assembler *_assembler;
     AssemblerBreakpointProvider *assemblerBreakpointProvider;
+
+    bool _profilingEnabled;
 
     QStringListModel *_wordCompleterModel;
 

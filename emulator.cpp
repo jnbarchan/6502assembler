@@ -5,6 +5,7 @@
 using CodeFileLineNumber = Assembler::CodeFileLineNumber;
 using CodeLabels = Assembler::CodeLabels;
 using ScopeLabel = Assembler::ScopeLabel;
+using Profiling = ProcessorModel::Profiling;
 
 //
 // Emulator Class
@@ -27,6 +28,8 @@ Emulator::Emulator(QObject *parent)
     _assembler->setAssemblerBreakpointProvider(assemblerBreakpointProvider);
 
     _wordCompleterModel = new QStringListModel(this);
+
+    _profilingEnabled = true;//TEMPORARY
 }
 
 Emulator::~Emulator()
@@ -167,6 +170,68 @@ void Emulator::clearBreakpointInstructionAddresses()
 {
     for (Breakpoint &breakpoint : _breakpoints)
         breakpoint.instructionAddress = 0;
+}
+
+
+bool Emulator::profilingEnabled() const
+{
+    return _profilingEnabled;
+}
+
+void Emulator::startProfiling()
+{
+    if (!_profilingEnabled)
+        return;
+    const Assembler::LocationCounterRange &locationCounterRange(assembler()->locationCounterRange());
+    _processorModel->setProfilingRange(locationCounterRange.lowest, locationCounterRange.highest);
+    _processorModel->startProfiling();
+}
+
+void Emulator::getProfilingStatistics(QList<ProfilingLabelHitCount> &labelHitCounts)
+{
+    labelHitCounts.clear();
+    const Profiling &profiling(_processorModel->profiling());
+    if (!_profilingEnabled || !profiling.on)
+        return;
+    const CodeLabels &codeLabels(assembler()->codeLabels());
+    QStringList allScopeLabels = assembler()->allScopeLabels();
+
+    const QMap<QString, Assembler::ExpressionValue> &labelValues(codeLabels.values);
+    for (const QString &label : labelValues.keys())
+    {
+        if (!label.contains('.') && !allScopeLabels.contains(label))
+            continue;
+        const Assembler::ExpressionValue &expressionValue(labelValues.value(label));
+        if (!expressionValue.isValid())
+            continue;
+        if (expressionValue.intValue < profiling.programCounterLow || expressionValue.intValue >= profiling.programCounterHigh)
+            continue;
+        uint16_t address = expressionValue.intValue;
+        labelHitCounts.append(ProfilingLabelHitCount(address, label));
+    }
+    std::sort(labelHitCounts.begin(), labelHitCounts.end(), [](const ProfilingLabelHitCount &a, const ProfilingLabelHitCount &b) { return a.address < b.address; });
+
+    int labelHitCountIndex = 0;
+    uint16_t programCounterLow, programCounterHigh;
+    for (uint16_t pc = profiling.programCounterLow; pc < profiling.programCounterHigh; pc++)
+    {
+        while (labelHitCountIndex + 1 < labelHitCounts.length() && labelHitCounts.at(labelHitCountIndex + 1).address <= pc)
+            labelHitCountIndex++;
+        int hits = profiling.hitCounts[pc - profiling.programCounterLow];
+        if (hits == 0)
+            continue;
+        labelHitCounts[labelHitCountIndex].hitCount += hits;
+    }
+    labelHitCounts.removeIf([](const ProfilingLabelHitCount &labelHitCount) { return labelHitCount.hitCount == 0; });
+
+    // QList<QPair<QString,int> > labelHitCountsByValue;
+    // for (auto it = labelHitCounts.cbegin(); it != labelHitCounts.cend(); ++it)
+    //     labelHitCountsByValue.append({ it.key(), it.value() });
+    // std::sort(labelHitCountsByValue.begin(), labelHitCountsByValue.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
+    // for (const auto &[key, value] : labelHitCountsByValue)
+    //     qDebug("Hit: \"%s\": %s", qPrintable(key), qPrintable(QString("%L1").arg(value)));
+    for (const ProfilingLabelHitCount &labelHitCount : labelHitCounts)
+        qDebug("%x: %s: %s", labelHitCount.address, qPrintable(labelHitCount.label), qPrintable(QString("%L1").arg(labelHitCount.hitCount)));
 }
 
 

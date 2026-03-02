@@ -70,6 +70,20 @@ public:
         QMap<QString, QList<ScopeLabel> > scopes;
     };
 
+    struct LocationCounterRange
+    {
+        uint16_t lowest, highest;
+
+        void init() { lowest = 0xffff; highest = 0x0; }
+        void update(uint16_t locationCounter)
+        {
+            if (locationCounter < lowest)
+                lowest = locationCounter;
+            if (locationCounter > highest)
+                highest = locationCounter;
+        }
+    };
+
     const uint16_t defaultLocationCounter() const;
 
     const Instruction *instructions() const;
@@ -84,11 +98,15 @@ public:
     uint16_t locationCounter() const;
     void setLocationCounter(uint16_t newLocationCounter);
 
+    const LocationCounterRange &locationCounterRange() const { return _locationCounterRange; };
+
     const CodeLabels &codeLabels() const;
     ExpressionValue codeLabelValue(const QString &key) const;
     void setCodeLabelValue(const QString &key, ExpressionValue value);
 
     void setCode(QTextStream *codeStream);
+
+    QStringList allScopeLabels() const;
 
     void resetLabelsAndBreakpoints();
     void restart(bool assemblePass2 = false);
@@ -130,10 +148,12 @@ private:
     CodeLineState currentLine;
     QString &currentToken /* = currentLine.currentToken */;
 
+    const uint16_t _defaultLocationCounter = 0xc000;
+    uint16_t _locationCounter;
+    LocationCounterRange _locationCounterRange;
+
     uint8_t *_memory;
     Instruction *_instructions;
-    uint16_t _locationCounter;
-    const uint16_t _defaultLocationCounter = 0xc000;
     QList<CodeFileLineNumber> _instructionsCodeFileLineNumbers;
     IAssemblerBreakpointProvider *assemblerBreakpointProvider;
 

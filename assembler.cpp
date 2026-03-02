@@ -178,6 +178,21 @@ void Assembler::assignLabelValue(const QString &scopedLabel, bool isLabel, Expre
     }
 }
 
+QStringList Assembler::allScopeLabels() const
+{
+    QStringList labels;
+    for (const auto &[key, value] : _codeLabels.scopes.asKeyValueRange())
+    {
+        const QList<ScopeLabel> &scopeLabels(value);
+        for (const ScopeLabel &scopeLabel : scopeLabels)
+        {
+            Q_ASSERT(!labels.contains(scopeLabel.label));
+            labels.append(scopeLabel.label);
+        }
+    }
+    return labels;
+}
+
 void Assembler::addInstructionsCodeFileLineNumber(const CodeFileLineNumber &cfln)
 {
     int i = 0;
@@ -286,8 +301,11 @@ void Assembler::assemble()
 
 void Assembler::assemblePass()
 {
-    setLocationCounter(_defaultLocationCounter);
     _instructionsCodeFileLineNumbers.clear();
+    setLocationCounter(_defaultLocationCounter);
+
+    _locationCounterRange.init();
+
     Operation operation;
     AddressingMode mode;
     uint16_t intValue;
@@ -308,6 +326,7 @@ void Assembler::assemblePass()
             uint8_t *address = reinterpret_cast<uint8_t *>(_instructions) + _locationCounter;
             Instruction *instruction = reinterpret_cast<Instruction *>(address);
             *instruction = Instruction(instructionInfo->opcodeByte, intValue);
+            _locationCounterRange.update(_locationCounter);
             address[0] = instructionInfo->opcodeByte;
             if (bytes > 1)
             {
@@ -316,10 +335,12 @@ void Assembler::assemblePass()
                     address[2] = static_cast<uint8_t>(intValue >> 8);
             }
             setLocationCounter(_locationCounter + bytes);
+            _locationCounterRange.update(_locationCounter);
         }
         setCurrentCodeLineNumber(currentFile.lineNumber + 1);
         assembleNextStatement(operation, mode, intValue, hasOperation, eof);
     }
+
     for (int i = 1; i < _instructionsCodeFileLineNumbers.size(); i++)
         Q_ASSERT(_instructionsCodeFileLineNumbers.at(i)._locationCounter > _instructionsCodeFileLineNumbers.at(i - 1)._locationCounter);
 }

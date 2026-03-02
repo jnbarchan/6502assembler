@@ -8,6 +8,7 @@
 
 #include "emulator.h"
 #include "syntaxhighlighter.h"
+#include "profilingstatisticswindow.h"
 
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
@@ -49,6 +50,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     findDialog = nullptr;
     findReplaceDialog = nullptr;
+
+    profilingStatisticsWindow = nullptr;
 
     codeStream = nullptr;
     _haveDoneReset = false;
@@ -375,6 +378,8 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
         processorModel()->setStartNewRun(true);
         startedNewRun = true;
         processorModel()->setProgramCounter(emulator()->runStartAddress());
+        if (emulator()->profilingEnabled())
+            emulator()->startProfiling();
     }
 
     if ((runMode == ProcessorModel::StepInto || runMode == ProcessorModel::StepOver) && !startedNewRun)
@@ -415,6 +420,19 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
 
     if (!stepOneStatementOnly)
         setRunStopButton(true);
+
+    if (emulator()->profilingEnabled() && processorModel()->stopRun())
+    {
+        QList<Emulator::ProfilingLabelHitCount> labelHitCounts;
+        emulator()->getProfilingStatistics(labelHitCounts);
+        if (!labelHitCounts.isEmpty())
+        {
+            if (profilingStatisticsWindow == nullptr)
+                profilingStatisticsWindow = new ProfilingStatisticsWindow(this);
+            profilingStatisticsWindow->setLabelHitCounts(labelHitCounts);
+            showProfilingStatisticsWindow();
+        }
+    }
 }
 
 
@@ -579,6 +597,13 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     }
     findReplaceDialog->initFindWhat();
     findReplaceDialog->show();
+}
+
+/*slot*/ void MainWindow::showProfilingStatisticsWindow()
+{
+    if (profilingStatisticsWindow == nullptr)
+        profilingStatisticsWindow = new ProfilingStatisticsWindow(this);
+    profilingStatisticsWindow->show();
 }
 
 

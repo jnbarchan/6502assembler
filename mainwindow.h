@@ -17,6 +17,7 @@ QT_END_NAMESPACE
 
 class FindDialog;
 class FindReplaceDialog;
+class ProfilingStatisticsWindow;
 
 class MemoryViewItemDelegate;
 class WatchViewItemDelegate;
@@ -60,6 +61,7 @@ private slots:
     void ensureUnfolded(const QTextCursor &textCursor);
     void showFindDialog();
     void showFindReplaceDialog();
+    void showProfilingStatisticsWindow();
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
     void sendStringToConsole(const QString &str);
     void sendCharToConsole(char ch);
@@ -86,6 +88,7 @@ private:
     Ui::MainWindow *ui;
     FindDialog *findDialog;
     FindReplaceDialog *findReplaceDialog;
+    ProfilingStatisticsWindow *profilingStatisticsWindow;
     QByteArray codeBytes;
     QTextStream *codeStream;
     bool _haveDoneReset;

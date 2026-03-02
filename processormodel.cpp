@@ -229,6 +229,41 @@ void ProcessorModel::resetModel()
 }
 
 
+void ProcessorModel::setProfilingRange(uint16_t lowest, uint16_t highest)
+{
+    _profiling.programCounterLow = lowest;
+    _profiling.programCounterHigh = highest;
+}
+
+void ProcessorModel::startProfiling()
+{
+    allocateProfilingHitCounts();
+    _profiling.on = _profiling.hitCounts != NULL;
+}
+
+void ProcessorModel::allocateProfilingHitCounts()
+{
+    if (_profiling.hitCounts != NULL)
+    {
+        delete[] _profiling.hitCounts;
+        _profiling.hitCounts = NULL;
+    }
+    if (_profiling.programCounterHigh == 0x0 || _profiling.programCounterLow == 0xffff)
+        return;
+    int size = _profiling.programCounterHigh - _profiling.programCounterLow;
+    Q_ASSERT(size >= 0 && size < 0x8000);
+    _profiling.hitCounts = new int[size];
+    std::memset(_profiling.hitCounts, 0, size * sizeof(int));
+}
+
+void ProcessorModel::profilingHit(uint16_t programCounter)
+{
+    if (_profiling.hitCounts == NULL || programCounter < _profiling.programCounterLow || programCounter >= _profiling.programCounterHigh)
+        return;
+    _profiling.hitCounts[programCounter - _profiling.programCounterLow]++;
+}
+
+
 ProcessorModel::RunMode ProcessorModel::currentRunMode() const
 {
     return _currentRunMode;
@@ -628,6 +663,9 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
     default:
         throw ExecutionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(mode)));
     }
+
+    if (_profiling.on)
+        profilingHit(_programCounter);
 
     setProgramCounter(_programCounter + instructionInfo.bytes);
 
@@ -1350,3 +1388,4 @@ ExecutionError::ExecutionError(const QString &msg)
 {
 
 }
+

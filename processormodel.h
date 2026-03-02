@@ -86,6 +86,18 @@ public:
     uint16_t programCounter() const;
     void setProgramCounter(uint16_t newProgramCounter);
 
+    struct Profiling
+    {
+        bool on = false;
+        uint16_t programCounterLow, programCounterHigh;
+        int *hitCounts = NULL;
+
+        ~Profiling() { delete[] hitCounts; hitCounts = NULL; }
+    };
+    const Profiling &profiling() const { return _profiling; }
+    void setProfilingRange(uint16_t lowest, uint16_t highest);
+    void startProfiling();
+
     bool suppressSignalsForSpeed() const;
     bool trackingMemoryChanged() const;
     void memoryChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight, bool foregroundOnly = false);
@@ -159,25 +171,30 @@ private:
                 bottomRightRow = bottomRightColumn = -1;
             }
         } memoryChanged, memoryChangedForegroundOnly;
-        bool trackingMemoryChanged;
+        bool trackingMemoryChanged = true;
 
         void clear()
         {
             stackRegister = accumulator = xregister = yregister = statusFlags = programCounter = false;
             memoryChanged.clear();
             memoryChangedForegroundOnly.clear();
+            trackingMemoryChanged = true;
         }
     };
     HaveChangedState haveChangedState;
 
+    Profiling _profiling;
+
     bool _startNewRun, _stopRun, _isRunning;
-    RunMode _currentRunMode;
+    RunMode _currentRunMode = NotRunning;
 
     QFile userFile;
     QElapsedTimer elapsedTimer;
     uint32_t elapsedCycles;
 
     void resetModel();
+    void allocateProfilingHitCounts();
+    void profilingHit(uint16_t programCounter);
     void setCurrentRunMode(RunMode newCurrentRunMode);
     void catchUpSuppressedSignals();
     void debugMessage(const QString &message) const;
