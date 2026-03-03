@@ -48,6 +48,8 @@ MainWindow::MainWindow(QWidget *parent)
     horizontalSplitter->setStretchFactor(1, 0);
     ui->mainLayout->addWidget(verticalSplitter);
 
+    _autoAssembleOnFileOpen = true;//TEMPORARY
+
     findDialog = nullptr;
     findReplaceDialog = nullptr;
 

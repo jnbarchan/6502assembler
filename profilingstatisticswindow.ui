@@ -22,6 +22,12 @@
        <pointsize>10</pointsize>
       </font>
      </property>
+     <attribute name="verticalHeaderMinimumSectionSize">
+      <number>14</number>
+     </attribute>
+     <attribute name="verticalHeaderDefaultSectionSize">
+      <number>20</number>
+     </attribute>
      <column>
       <property name="text">
        <string>Label</string>
@@ -42,22 +48,31 @@
        <pointsize>10</pointsize>
       </font>
      </property>
+     <property name="styleSheet">
+      <string notr="true">QTreeView::item { border: 0.5px ; border-style: solid ; border-color: lightgray ;}</string>
+     </property>
+     <property name="columnCount">
+      <number>3</number>
+     </property>
+     <attribute name="headerStretchLastSection">
+      <bool>false</bool>
+     </attribute>
      <column>
       <property name="text">
-       <string>Scope Label</string>
+       <string>Label/Sublabel</string>
       </property>
      </column>
      <column>
       <property name="text">
-       <string>Sub Label</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Hits</string>
+       <string>Hits Self</string>
       </property>
       <property name="textAlignment">
        <set>AlignLeading|AlignVCenter</set>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Hits Total</string>
       </property>
      </column>
     </widget>

@@ -89,12 +89,15 @@ public:
     struct Profiling
     {
         bool on = false;
+        int granularityShift = 0;
         uint16_t programCounterLow, programCounterHigh;
         int *hitCounts = NULL;
 
         ~Profiling() { delete[] hitCounts; hitCounts = NULL; }
+        void setGranularityShift(int shift) { granularityShift = shift; }
+        int granularitySize() const { return 1 << granularityShift; }
     };
-    const Profiling &profiling() const { return _profiling; }
+    Profiling &profiling() { return _profiling; }
     void setProfilingRange(uint16_t lowest, uint16_t highest);
     void startProfiling();
 

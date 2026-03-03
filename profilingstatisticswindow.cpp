@@ -13,6 +13,8 @@ ProfilingStatisticsWindow::ProfilingStatisticsWindow(QWidget *parent)
     ui->setupUi(this);
 
     ui->twFlat->setItemDelegateForColumn(1, new NumberItemDelegate);
+    ui->twTree->setItemDelegateForColumn(1, new NumberItemDelegate);
+    ui->twTree->setItemDelegateForColumn(2, new NumberItemDelegate);
 
     _labelHitCounts.clear();
     ui->twFlat->clearContents();
@@ -36,20 +38,79 @@ void ProfilingStatisticsWindow::populateFlatTable()
     ui->twFlat->setSortingEnabled(false);
     ui->twFlat->sortByColumn(1, Qt::SortOrder::DescendingOrder);
     ui->twFlat->clearContents();
+
     QAbstractItemModel *model(ui->twFlat->model());
     for (int row = 0; row < _labelHitCounts.count(); row++)
     {
         ui->twFlat->insertRow(row);
-        model->setData(model->index(row, 0), _labelHitCounts.at(row).label);
+        const QString &label(_labelHitCounts.at(row).label);
+        model->setData(model->index(row, 0), label);
+        QColor qColor(label.indexOf('.') > 0 ? Qt::darkMagenta : Qt::magenta);
+        model->setData(model->index(row, 0), qColor, Qt::ForegroundRole);
         model->setData(model->index(row, 1), _labelHitCounts.at(row).hitCount);
     }
+
     ui->twFlat->setSortingEnabled(true);
     ui->twFlat->resizeColumnsToContents();
 }
 
 void ProfilingStatisticsWindow::populateTree()
 {
+    ui->twTree->setSortingEnabled(false);
+    ui->twTree->sortByColumn(2, Qt::SortOrder::DescendingOrder);
     ui->twTree->clear();
+
+    for (int row = 0; row < _labelHitCounts.count(); row++)
+    {
+        QString scopeLabel, subLabel;
+        scopeLabel = _labelHitCounts.at(row).label;
+        int split = scopeLabel.indexOf('.');
+        if (split > 0)
+        {
+            subLabel = scopeLabel.mid(split);
+            scopeLabel = scopeLabel.left(split);
+        }
+        Q_ASSERT(!scopeLabel.isEmpty());
+
+        QTreeWidgetItem *topLevelItem = nullptr;
+        for (int i = 0; i < ui->twTree->topLevelItemCount() && topLevelItem == nullptr; i++)
+            if (ui->twTree->topLevelItem(i)->text(0) == scopeLabel)
+                topLevelItem = ui->twTree->topLevelItem(i);
+        if (topLevelItem == nullptr)
+        {
+            topLevelItem = new QTreeWidgetItem(ui->twTree);
+            topLevelItem->setText(0, scopeLabel);
+            topLevelItem->setForeground(0, Qt::magenta);
+            topLevelItem->setData(1, Qt::EditRole, 0);
+        }
+        if (subLabel.isEmpty())
+            topLevelItem->setData(1, Qt::EditRole, _labelHitCounts.at(row).hitCount);
+        else
+        {
+            QTreeWidgetItem *childItem = new QTreeWidgetItem(topLevelItem);
+            childItem->setText(0, subLabel);
+            childItem->setForeground(0, Qt::darkMagenta);
+            childItem->setData(1, Qt::EditRole, _labelHitCounts.at(row).hitCount);
+        }
+    }
+    for (int i = 0; i < ui->twTree->topLevelItemCount(); i++)
+    {
+        QTreeWidgetItem *topLevelItem = ui->twTree->topLevelItem(i);
+        int totalHits = topLevelItem->data(1, Qt::EditRole).toInt();
+        for (int j = 0; j < topLevelItem->childCount(); j++)
+        {
+            QTreeWidgetItem *childItem = topLevelItem->child(j);
+            int hits = childItem->data(1, Qt::EditRole).toInt();
+            childItem->setData(2, Qt::EditRole, hits);
+            totalHits += hits;
+        }
+        topLevelItem->setData(2, Qt::EditRole, totalHits);
+    }
+
+    ui->twTree->setSortingEnabled(true);
+    ui->twTree->collapseAll();
+    for (int i = 0; i < ui->twTree->columnCount(); i++)
+        ui->twTree->resizeColumnToContents(i);
 }
 
 
@@ -63,15 +124,11 @@ QString NumberItemDelegate::displayText(const QVariant &value, const QLocale &lo
     int val = value.toInt(&ok);
     if (ok)
     {
-        //TEMPORARY
-        // Bit odd?  My widget locale seems to have OmitGroupSeparator set, preventing 1,000s being shown with their comma
-        // QLocale systemLocale = QLocale::system();
+        // locale.numberOptions() has QLocale::OmitGroupSeparator set
+        // void QAbstractItemView::initViewItemOption(QStyleOptionViewItem *option) const explicitly sets:
+        //     option->locale = locale();
+        //     option->locale.setNumberOptions(QLocale::OmitGroupSeparator);
         QLocale defaultLocale = QLocale();
-
-        // qDebug() << locale.toString(val) << locale.numberOptions();
-        // qDebug() << systemLocale.toString(val) << systemLocale.numberOptions();
-        // qDebug() << defaultLocale.toString(val) << defaultLocale.numberOptions();
-
         return defaultLocale.toString(val);
     }
     return QStyledItemDelegate::displayText(value, locale);

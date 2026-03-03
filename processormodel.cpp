@@ -251,7 +251,9 @@ void ProcessorModel::allocateProfilingHitCounts()
     if (_profiling.programCounterHigh == 0x0 || _profiling.programCounterLow == 0xffff)
         return;
     int size = _profiling.programCounterHigh - _profiling.programCounterLow;
-    Q_ASSERT(size >= 0 && size < 0x8000);
+    size >>= _profiling.granularityShift;
+    size++;
+    Q_ASSERT(size > 0 && size < 0x8000);
     _profiling.hitCounts = new int[size];
     std::memset(_profiling.hitCounts, 0, size * sizeof(int));
 }
@@ -260,7 +262,9 @@ void ProcessorModel::profilingHit(uint16_t programCounter)
 {
     if (_profiling.hitCounts == NULL || programCounter < _profiling.programCounterLow || programCounter >= _profiling.programCounterHigh)
         return;
-    _profiling.hitCounts[programCounter - _profiling.programCounterLow]++;
+    int index = programCounter - _profiling.programCounterLow;
+    index >>= _profiling.granularityShift;
+    _profiling.hitCounts[index]++;
 }
 
 
@@ -988,6 +992,7 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         break;
     }
 }
+
 
 void ProcessorModel::setNZStatusFlags(uint8_t value)
 {

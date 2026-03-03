@@ -183,6 +183,7 @@ void Emulator::startProfiling()
     if (!_profilingEnabled)
         return;
     const Assembler::LocationCounterRange &locationCounterRange(assembler()->locationCounterRange());
+    _processorModel->profiling().setGranularityShift(1);//TEMPORARY
     _processorModel->setProfilingRange(locationCounterRange.lowest, locationCounterRange.highest);
     _processorModel->startProfiling();
 }
@@ -213,25 +214,18 @@ void Emulator::getProfilingStatistics(QList<ProfilingLabelHitCount> &labelHitCou
 
     int labelHitCountIndex = 0;
     uint16_t programCounterLow, programCounterHigh;
-    for (uint16_t pc = profiling.programCounterLow; pc < profiling.programCounterHigh; pc++)
+    for (uint16_t pc = profiling.programCounterLow; pc < profiling.programCounterHigh; pc += profiling.granularitySize())
     {
         while (labelHitCountIndex + 1 < labelHitCounts.length() && labelHitCounts.at(labelHitCountIndex + 1).address <= pc)
             labelHitCountIndex++;
-        int hits = profiling.hitCounts[pc - profiling.programCounterLow];
+        int index = pc - profiling.programCounterLow;
+        index >>= profiling.granularityShift;
+        int hits = profiling.hitCounts[index];
         if (hits == 0)
             continue;
         labelHitCounts[labelHitCountIndex].hitCount += hits;
     }
     labelHitCounts.removeIf([](const ProfilingLabelHitCount &labelHitCount) { return labelHitCount.hitCount == 0; });
-
-    // QList<QPair<QString,int> > labelHitCountsByValue;
-    // for (auto it = labelHitCounts.cbegin(); it != labelHitCounts.cend(); ++it)
-    //     labelHitCountsByValue.append({ it.key(), it.value() });
-    // std::sort(labelHitCountsByValue.begin(), labelHitCountsByValue.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
-    // for (const auto &[key, value] : labelHitCountsByValue)
-    //     qDebug("Hit: \"%s\": %s", qPrintable(key), qPrintable(QString("%L1").arg(value)));
-    for (const ProfilingLabelHitCount &labelHitCount : labelHitCounts)
-        qDebug("%x: %s: %s", labelHitCount.address, qPrintable(labelHitCount.label), qPrintable(QString("%L1").arg(labelHitCount.hitCount)));
 }
 
 

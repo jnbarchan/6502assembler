@@ -101,7 +101,7 @@ private:
     CodeEditorInfoProvider *codeEditorInfoProvider;
     WatchModel *watchModel;
 
-    bool _autoAssembleOnFileOpen = true;
+    bool _autoAssembleOnFileOpen;
 
     void updateWindowTitle();
     QString scratchFileName() const;
