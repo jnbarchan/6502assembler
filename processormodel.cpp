@@ -238,15 +238,15 @@ void ProcessorModel::setProfilingRange(uint16_t lowest, uint16_t highest)
 void ProcessorModel::startProfiling()
 {
     allocateProfilingHitCounts();
-    _profiling.on = _profiling.hitCounts != NULL;
+    _profiling.on = _profiling.counts != NULL;
 }
 
 void ProcessorModel::allocateProfilingHitCounts()
 {
-    if (_profiling.hitCounts != NULL)
+    if (_profiling.counts != NULL)
     {
-        delete[] _profiling.hitCounts;
-        _profiling.hitCounts = NULL;
+        delete[] _profiling.counts;
+        _profiling.counts = NULL;
     }
     if (_profiling.programCounterHigh == 0x0 || _profiling.programCounterLow == 0xffff)
         return;
@@ -254,17 +254,18 @@ void ProcessorModel::allocateProfilingHitCounts()
     size >>= _profiling.granularityShift;
     size++;
     Q_ASSERT(size > 0 && size < 0x8000);
-    _profiling.hitCounts = new int[size];
-    std::memset(_profiling.hitCounts, 0, size * sizeof(int));
+    _profiling.counts = new Profiling::HitCycleCounts[size];
+    std::memset(_profiling.counts, 0, size * sizeof(Profiling::HitCycleCounts));
 }
 
-void ProcessorModel::profilingHit(uint16_t programCounter)
+void ProcessorModel::profilingHit(uint16_t programCounter, int instructionCycles)
 {
-    if (_profiling.hitCounts == NULL || programCounter < _profiling.programCounterLow || programCounter >= _profiling.programCounterHigh)
+    if (_profiling.counts == NULL || programCounter < _profiling.programCounterLow || programCounter >= _profiling.programCounterHigh)
         return;
     int index = programCounter - _profiling.programCounterLow;
     index >>= _profiling.granularityShift;
-    _profiling.hitCounts[index]++;
+    _profiling.counts[index].hits++;
+    _profiling.counts[index].cycles += instructionCycles;
 }
 
 
@@ -668,17 +669,15 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
         throw ExecutionError(QString("Unimplemented operand addressing mode: %1").arg(Assembly::AddressingModeValueToString(mode)));
     }
 
-    if (_profiling.on)
-        profilingHit(_programCounter);
-
+    uint16_t instructionProgramCounter = _programCounter;
     setProgramCounter(_programCounter + instructionInfo.bytes);
+    currentInstructionCycles = instructionInfo.cycles;
 
     const uint8_t argValue{_argValue};
     const uint16_t argAddress{_argAddress};
     uint8_t tempValue8, origTempValue8;
     uint16_t tempValue16;
 
-    elapsedCycles += instructionInfo.cycles;
     if (mode == AddressingMode::AbsoluteX || mode == AddressingMode::AbsoluteY || mode == AddressingMode::IndirectIndexedY)
         switch (operation)
         {
@@ -991,6 +990,11 @@ void ProcessorModel::executeNextInstruction(const Instruction &instruction)
             emit statusFlagsChanged(_statusFlags);
         break;
     }
+
+    elapsedCycles += currentInstructionCycles;
+    if (_profiling.on)
+        profilingHit(instructionProgramCounter, currentInstructionCycles);
+
 }
 
 
@@ -1002,9 +1006,9 @@ void ProcessorModel::setNZStatusFlags(uint8_t value)
 
 void ProcessorModel::branchTo(uint16_t instructionAddress)
 {
-    elapsedCycles++;
+    currentInstructionCycles++;
     if ((instructionAddress &0xff00) != (_programCounter & 0xff00))
-        elapsedCycles++;
+        currentInstructionCycles++;
     jumpTo(instructionAddress);
 }
 
@@ -1063,7 +1067,7 @@ void ProcessorModel::jumpTo(uint16_t instructionAddress)
     if (internal)
     {
         const InstructionInfo *instructionInfo(Assembly::findInstructionInfo(Operation::RTS, AddressingMode::Implied));
-        elapsedCycles += instructionInfo->cycles;
+        currentInstructionCycles += instructionInfo->cycles;
         uint16_t rtsAddress = (pullFromStack() | (pullFromStack() << 8)) + 1;
         instructionAddress = rtsAddress;
         if (!suppressSignalsForSpeed())

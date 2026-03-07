@@ -447,10 +447,25 @@ _memmove16:
     bne .next
     beq .next_256
 .done_256:
-    ; src+1 --, dest+1 --
-    dec src+1
-    dec dest+1
-    jmp _memmove.downward  ; _memcpy16
+    ; src -= count
+    sec
+    lda src
+    sbc count
+    sta src
+    lda src+1
+    sbc #0
+    sta src+1
+    ; dest -= count
+    sec
+    lda dest
+    sbc count
+    sta dest
+    lda dest+1
+    sbc #0
+    sta dest+1
+
+    ldy count
+    jmp _memmove.downward  ; _memmove16
     
 _memmove:
     ; (dest)[0..Y-1] = (src)[0..Y-1]

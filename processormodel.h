@@ -91,9 +91,10 @@ public:
         bool on = false;
         int granularityShift = 0;
         uint16_t programCounterLow, programCounterHigh;
-        int *hitCounts = NULL;
+        struct HitCycleCounts { int hits, cycles; };
+        HitCycleCounts *counts = NULL;
 
-        ~Profiling() { delete[] hitCounts; hitCounts = NULL; }
+        ~Profiling() { delete[] counts; counts = NULL; }
         void setGranularityShift(int shift) { granularityShift = shift; }
         int granularitySize() const { return 1 << granularityShift; }
     };
@@ -193,11 +194,11 @@ private:
 
     QFile userFile;
     QElapsedTimer elapsedTimer;
-    uint32_t elapsedCycles;
+    uint32_t currentInstructionCycles, elapsedCycles;
 
     void resetModel();
     void allocateProfilingHitCounts();
-    void profilingHit(uint16_t programCounter);
+    void profilingHit(uint16_t programCounter, int instructionCycles);
     void setCurrentRunMode(RunMode newCurrentRunMode);
     void catchUpSuppressedSignals();
     void debugMessage(const QString &message) const;

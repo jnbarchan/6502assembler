@@ -220,12 +220,12 @@ void Emulator::getProfilingStatistics(QList<ProfilingLabelHitCount> &labelHitCou
             labelHitCountIndex++;
         int index = pc - profiling.programCounterLow;
         index >>= profiling.granularityShift;
-        int hits = profiling.hitCounts[index];
-        if (hits == 0)
-            continue;
+        int hits = profiling.counts[index].hits;
+        int cycles = profiling.counts[index].cycles;
         labelHitCounts[labelHitCountIndex].hitCount += hits;
+        labelHitCounts[labelHitCountIndex].cycleCount += cycles;
     }
-    labelHitCounts.removeIf([](const ProfilingLabelHitCount &labelHitCount) { return labelHitCount.hitCount == 0; });
+    labelHitCounts.removeIf([](const ProfilingLabelHitCount &labelHitCount) { return labelHitCount.hitCount == 0 && labelHitCount.cycleCount == 0; });
 }
 
 

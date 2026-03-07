@@ -59,7 +59,7 @@ public:
     {
         uint16_t address;
         QString label;
-        int hitCount = 0;
+        int hitCount = 0, cycleCount = 0;
         ProfilingLabelHitCount(uint16_t _address, const QString &_label) { address = _address; label = _label; }
     };
     bool profilingEnabled() const;

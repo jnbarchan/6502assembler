@@ -13,8 +13,11 @@ ProfilingStatisticsWindow::ProfilingStatisticsWindow(QWidget *parent)
     ui->setupUi(this);
 
     ui->twFlat->setItemDelegateForColumn(1, new NumberItemDelegate);
+    ui->twFlat->setItemDelegateForColumn(2, new NumberItemDelegate);
     ui->twTree->setItemDelegateForColumn(1, new NumberItemDelegate);
     ui->twTree->setItemDelegateForColumn(2, new NumberItemDelegate);
+    ui->twTree->setItemDelegateForColumn(3, new NumberItemDelegate);
+    ui->twTree->setItemDelegateForColumn(4, new NumberItemDelegate);
 
     _labelHitCounts.clear();
     ui->twFlat->clearContents();
@@ -36,7 +39,7 @@ void ProfilingStatisticsWindow::setLabelHitCounts(const QList<ProfilingLabelHitC
 void ProfilingStatisticsWindow::populateFlatTable()
 {
     ui->twFlat->setSortingEnabled(false);
-    ui->twFlat->sortByColumn(1, Qt::SortOrder::DescendingOrder);
+    ui->twFlat->sortByColumn(2, Qt::SortOrder::DescendingOrder);
     ui->twFlat->clearContents();
 
     QAbstractItemModel *model(ui->twFlat->model());
@@ -48,6 +51,7 @@ void ProfilingStatisticsWindow::populateFlatTable()
         QColor qColor(label.indexOf('.') > 0 ? Qt::darkMagenta : Qt::magenta);
         model->setData(model->index(row, 0), qColor, Qt::ForegroundRole);
         model->setData(model->index(row, 1), _labelHitCounts.at(row).hitCount);
+        model->setData(model->index(row, 2), _labelHitCounts.at(row).cycleCount);
     }
 
     ui->twFlat->setSortingEnabled(true);
@@ -57,7 +61,7 @@ void ProfilingStatisticsWindow::populateFlatTable()
 void ProfilingStatisticsWindow::populateTree()
 {
     ui->twTree->setSortingEnabled(false);
-    ui->twTree->sortByColumn(2, Qt::SortOrder::DescendingOrder);
+    ui->twTree->sortByColumn(4, Qt::SortOrder::DescendingOrder);
     ui->twTree->clear();
 
     for (int row = 0; row < _labelHitCounts.count(); row++)
@@ -82,29 +86,39 @@ void ProfilingStatisticsWindow::populateTree()
             topLevelItem->setText(0, scopeLabel);
             topLevelItem->setForeground(0, Qt::magenta);
             topLevelItem->setData(1, Qt::EditRole, 0);
+            topLevelItem->setData(2, Qt::EditRole, 0);
         }
         if (subLabel.isEmpty())
+        {
             topLevelItem->setData(1, Qt::EditRole, _labelHitCounts.at(row).hitCount);
+            topLevelItem->setData(2, Qt::EditRole, _labelHitCounts.at(row).cycleCount);
+        }
         else
         {
             QTreeWidgetItem *childItem = new QTreeWidgetItem(topLevelItem);
             childItem->setText(0, subLabel);
             childItem->setForeground(0, Qt::darkMagenta);
             childItem->setData(1, Qt::EditRole, _labelHitCounts.at(row).hitCount);
+            childItem->setData(2, Qt::EditRole, _labelHitCounts.at(row).cycleCount);
         }
     }
     for (int i = 0; i < ui->twTree->topLevelItemCount(); i++)
     {
         QTreeWidgetItem *topLevelItem = ui->twTree->topLevelItem(i);
         int totalHits = topLevelItem->data(1, Qt::EditRole).toInt();
+        int totalCycles = topLevelItem->data(2, Qt::EditRole).toInt();
         for (int j = 0; j < topLevelItem->childCount(); j++)
         {
             QTreeWidgetItem *childItem = topLevelItem->child(j);
             int hits = childItem->data(1, Qt::EditRole).toInt();
-            childItem->setData(2, Qt::EditRole, hits);
+            childItem->setData(3, Qt::EditRole, hits);
             totalHits += hits;
+            int cycles = childItem->data(2, Qt::EditRole).toInt();
+            childItem->setData(4, Qt::EditRole, cycles);
+            totalCycles += cycles;
         }
-        topLevelItem->setData(2, Qt::EditRole, totalHits);
+        topLevelItem->setData(3, Qt::EditRole, totalHits);
+        topLevelItem->setData(4, Qt::EditRole, totalCycles);
     }
 
     ui->twTree->setSortingEnabled(true);
