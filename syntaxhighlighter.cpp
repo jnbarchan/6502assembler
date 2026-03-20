@@ -16,7 +16,7 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
 void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
 {
     static const QRegularExpression commentRegex(";.*");
-    static const QRegularExpression directiveRegex1("^\\s*[a-z_][a-z_0-9]*\\s*=");
+    static const QRegularExpression directiveRegex1("^\\s*[a-z_]\\w*\\s*=");
     static const QRegularExpression directiveRegex2 = []{
         QStringList list;
         for (const QString &str : Assembly::directives())
@@ -24,16 +24,17 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         QString pattern = QStringLiteral("^\\s*(") + list.join('|') + QStringLiteral(")\\b");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
-    static const QRegularExpression labelDefinitionRegex("^\\s*(\\.?[a-z_][a-z_0-9]*):", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression labelDefinitionRegex("^\\s*(\\.?[a-z_]\\w*):", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression labelBranchJumpRegex = []{
         QStringList list;
         QMetaEnum me = Assembly::OperationsMetaEnum();
         for (Assembly::Operation operation : Assembly::branchJumpOperations())
             list.append(QRegularExpression::escape(me.valueToKey(operation)));
         QString pattern = QStringLiteral("\\b(?:") + list.join('|') + QStringLiteral(")\\b");
-        pattern += QStringLiteral("\\s+(\\.?[a-z_][a-z_0-9]*)(\\.[a-z_][a-z_0-9]*)?");
+        pattern += QStringLiteral("\\s+(\\.?[a-z_]\\w*)(\\.[a-z_]\\w*)?");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
+    static const QRegularExpression macroDefinitionRegex("^\\s*\\.macro\\s+([a-z_]\\w*)", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression operationRegex = []{
         QStringList list;
         QMetaEnum me = Assembly::OperationsMetaEnum();
@@ -66,6 +67,8 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     internalLabelBranchJumpFormat.setForeground(color);
     QTextCharFormat localLabelBranchJumpFormat;
     localLabelBranchJumpFormat.setForeground(localLabelDefinitionFormat.foreground());
+
+    QTextCharFormat macroDefinitionFormat(labelDefinitionFormat);
 
     QTextCharFormat operationFormat;
     operationFormat.setFontWeight(QFont::Bold);
@@ -108,6 +111,10 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         if (match.hasCaptured(2))
             setFormat(match.capturedStart(2), match.capturedLength(2), localLabelBranchJumpFormat);
     }
+
+    match = macroDefinitionRegex.match(code);
+    if (match.hasMatch())
+        setFormat(match.capturedStart(1), match.capturedLength(1), macroDefinitionFormat);
 
     match = operationRegex.match(code);
     if (match.hasMatch())
