@@ -29,7 +29,7 @@ Emulator::Emulator(QObject *parent)
 
     _wordCompleterModel = new QStringListModel(this);
 
-    _profilingEnabled = true;//TEMPORARY
+    _profilingEnabled = false;//TEMPORARY
 }
 
 Emulator::~Emulator()
@@ -74,6 +74,22 @@ uint16_t Emulator::mapFileLineNumberToInstructionAddress(const QString &filename
             if (exact ? cfln._currentCodeLineNumber == lineNumber : cfln._currentCodeLineNumber >= lineNumber)
                 return cfln._locationCounter;
     return 0;
+}
+
+uint16_t Emulator::lastInstructionAddressAtSameFileLineNumber(uint16_t instructionAddress) const
+{
+    const QList<CodeFileLineNumber> &codeFileLineNumbers(_assembler->instructionsCodeFileLineNumbers());
+    const CodeFileLineNumber cfln(instructionAddress, "", 0);
+    auto it = std::lower_bound(codeFileLineNumbers.begin(), codeFileLineNumbers.end(), cfln,
+                               [](const CodeFileLineNumber &lhs, const CodeFileLineNumber &rhs) -> bool { return lhs._locationCounter < rhs._locationCounter; });
+    if (it == codeFileLineNumbers.end())
+        return instructionAddress;
+    QString filename = it->_codeFilename;
+    int lineNumber = it->_currentCodeLineNumber;
+    auto itNext = it + 1;
+    while (itNext != codeFileLineNumbers.end() && itNext->_codeFilename == filename && itNext->_currentCodeLineNumber == lineNumber)
+        it = itNext++;
+    return it->_locationCounter;
 }
 
 
@@ -348,6 +364,11 @@ void AssemblerBreakpointProvider::addBreakpoint(const QString &filename, int lin
 bool ProcessorBreakpointProvider::breakpointAt(uint16_t instructionAddress) const /*override*/
 {
     return _emulator->breakpointAtInstructionAddress(instructionAddress) != 0;
+}
+
+uint16_t ProcessorBreakpointProvider::lastInstructionAddressAtSameFileLineNumber(uint16_t instructionAddress) const
+{
+    return _emulator->lastInstructionAddressAtSameFileLineNumber(instructionAddress);
 }
 
 

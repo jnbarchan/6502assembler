@@ -129,7 +129,7 @@ public:
     {
         static const QStringList list =
         {
-            ".byte", ".word", ".include", ".break", ".org",
+            ".byte", ".word", ".include", ".break", ".org", ".macro", ".endmacro"
         };
         return list;
     }

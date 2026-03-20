@@ -116,6 +116,7 @@ public:
     bool startNewRun() const;
     void setStartNewRun(bool newStartNewRun);
 
+    const Instruction *nextInstructionToExecute(uint16_t address) const;
     const Instruction *nextInstructionToExecute() const;
 
 public slots:
@@ -280,6 +281,7 @@ class IProcessorBreakpointProvider
 public:
     virtual ~IProcessorBreakpointProvider() = default;
     virtual bool breakpointAt(uint16_t instructionAddress) const = 0;
+    virtual uint16_t lastInstructionAddressAtSameFileLineNumber(uint16_t instructionAddress) const = 0;
 };
 
 #endif // PROCESSORMODEL_H

@@ -45,6 +45,7 @@ public:
     const uint16_t runStartAddress() const;
     void mapInstructionAddressToFileLineNumber(uint16_t instructionAddress, QString &filename, int &lineNumber) const;
     uint16_t mapFileLineNumberToInstructionAddress(const QString &filename, int lineNumber, bool exact = false) const;
+    uint16_t lastInstructionAddressAtSameFileLineNumber(uint16_t instructionAddress) const;
 
     const Breakpoint *findBreakpoint(const QString &filename, int lineNumber) const;
     void addBreakpoint(const QString &filename, int lineNumber);
@@ -126,6 +127,7 @@ private:
     Emulator *_emulator;
     Emulator *emulator() const { return _emulator; }
     bool breakpointAt(uint16_t instructionAddress) const override;
+    uint16_t lastInstructionAddressAtSameFileLineNumber(uint16_t instructionAddress) const override;
 };
 
 

@@ -1,6 +1,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <QRegularExpression>
 
 #include "assembler.h"
 
@@ -19,6 +20,7 @@ Assembler::Assembler(QObject *parent)
     currentFile.stream = nullptr;
     currentFile.lines.clear();
     codeFileStateStack.clear();
+    macroExpansionStateStack.clear();
     _codeIncludeDirectories.clear();
     _includedFilePaths.clear();
     _assembleState = AssembleState::NotStarted;
@@ -206,6 +208,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
 {
     Q_ASSERT(currentFile.stream);
 
+    macroExpansionStateStack.clear();
     while (!codeFileStateStack.isEmpty())
     {
         closeIncludeFile();
@@ -221,6 +224,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     _currentCodeLabelScope.clear();
     currentToken.clear();
     _codeLabels.scopes.clear();
+    _macroDefinitions.clear();
 
     if (assemblePass2)
         return;
@@ -313,6 +317,7 @@ void Assembler::assemblePass()
     assembleNextStatement(operation, mode, intValue, hasOperation, eof);
     while (!eof)
     {
+        bool inMacroExpansion = !macroExpansionStateStack.isEmpty();
         if (hasOperation)
         {
             const InstructionInfo *instructionInfo(Assembly::findInstructionInfo(operation, mode));
@@ -337,7 +342,10 @@ void Assembler::assemblePass()
             setLocationCounter(_locationCounter + bytes);
             _locationCounterRange.update(_locationCounter);
         }
-        setCurrentCodeLineNumber(currentFile.lineNumber + 1);
+        if (inMacroExpansion)
+            macroExpansionStateStack.top().lineNumber++;
+        else
+            setCurrentCodeLineNumber(currentFile.lineNumber + 1);
         assembleNextStatement(operation, mode, intValue, hasOperation, eof);
     }
 
@@ -420,6 +428,12 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         if (tokenIsDirective())
         {
             assembleDirective();
+            return;
+        }
+
+        if (tokenIsMacro())
+        {
+            expandMacro();
             return;
         }
     }
@@ -604,6 +618,8 @@ void Assembler::assembleDirective()
     }
     else if (directive == ".include")
     {
+        if (!macroExpansionStateStack.isEmpty())
+            throw AssemblerError(QString(".include inside macro expansion"));
         getNextToken();
         bool ok;
         QString value = tokenToString(&ok);
@@ -617,8 +633,8 @@ void Assembler::assembleDirective()
     }
     else if (directive == ".break")
     {
-        assemblerBreakpointProvider->addBreakpoint(currentFile.filename, currentFile.lineNumber);
         getNextToken();
+        assemblerBreakpointProvider->addBreakpoint(currentFile.filename, currentFile.lineNumber);
     }
     else if (directive == ".org")
     {
@@ -633,6 +649,37 @@ void Assembler::assembleDirective()
                 assemblerWarningMessage(QString("Value out of range for directive: $%1 %2").arg(intValue, 2, 16, QChar('0')).arg(directive));
             setLocationCounter(intValue);
         }
+    }
+    else if (directive == ".macro")
+    {
+        if (!macroExpansionStateStack.isEmpty())
+            throw AssemblerError(QString(".macro inside macro expansion"));
+        if (!getNextToken(false, true) || currentToken == ',')
+            throw AssemblerError(QString("Bad value: %1").arg(currentToken));
+        MacroDefinition macroDef;
+        macroDef.name = currentToken;
+        if (_macroDefinitions.contains(macroDef.name))
+            throw AssemblerError(QString("Macro redefinition: %1").arg(macroDef.name));
+        while (getNextToken(false, true) && currentToken != ',')
+        {
+            macroDef.params.append(currentToken);
+            if (!getNextToken(false, true) || currentToken != ',')
+                break;
+        }
+        if (!currentToken.isEmpty())
+            return;
+        while (true)
+        {
+            setCurrentCodeLineNumber(currentFile.lineNumber + 1);
+            if (!getNextLine())
+                throw AssemblerError(QString("Missing .endmacro"));
+            getNextToken();
+            if (currentToken == ".endmacro")
+                break;
+            macroDef.body.append(currentLine.line);
+        }
+        getNextToken();
+        _macroDefinitions[macroDef.name] = macroDef;
     }
     else
         throw AssemblerError(QString("Unimplemented directive: %1").arg(directive));
@@ -725,9 +772,56 @@ void Assembler::closeIncludeFile()
 }
 
 
-bool Assembler::getNextLine()
+void Assembler::expandMacro()
 {
-    currentLine.line.clear();
+    QString macroName(currentToken);
+    QString rest = getRestOfLine();
+    currentToken.clear();
+
+    int commentChar = rest.indexOf(';');
+    if (commentChar >= 0)
+        rest.truncate(commentChar);
+
+    QStringList params = rest.split(',');
+
+    const MacroDefinition &macroDef(_macroDefinitions.value(macroName));
+    MacroExpansionState macroExp;
+    macroExp.name = macroName;
+    macroExp.params.clear();
+    for (const QString &str : params)
+        macroExp.params.append(str.trimmed());
+    macroExp.lines = macroDef.body;
+    macroExp.lineNumber = -1;
+
+    for (int i = 0; i < macroDef.params.size(); i++)
+    {
+        const QString &paramName(macroDef.params.at(i));
+        QRegularExpression re(QStringLiteral("\\b%1\\b").arg(QRegularExpression::escape(paramName)));
+        QString replacement = i < macroExp.params.size() ? macroExp.params.at(i) : "";
+        for (QString &line : macroExp.lines)
+            line.replace(re, replacement);
+    }
+
+    macroExpansionStateStack.push(macroExp);
+}
+
+
+bool Assembler::getNextCurrentLine()
+{
+    while (!macroExpansionStateStack.isEmpty() && macroExpansionStateStack.top().lineNumber >= macroExpansionStateStack.top().lines.size())
+    {
+        macroExpansionStateStack.pop();
+        if (!macroExpansionStateStack.isEmpty())
+            macroExpansionStateStack.top().lineNumber++;
+        else
+            setCurrentCodeLineNumber(currentFile.lineNumber + 1);
+    }
+    if (!macroExpansionStateStack.isEmpty())
+    {
+        currentLine.line = macroExpansionStateStack.top().lines.at(macroExpansionStateStack.top().lineNumber);
+        return true;
+    }
+
     while (currentFile.lineNumber >= currentFile.lines.size())
     {
         if (currentFile.stream->atEnd() && !codeFileStateStack.isEmpty())
@@ -743,9 +837,25 @@ bool Assembler::getNextLine()
     if (currentFile.lineNumber >= currentFile.lines.size())
         return false;
     currentLine.line = currentFile.lines.at(currentFile.lineNumber);
+    return true;
+}
+
+bool Assembler::getNextLine()
+{
+    currentLine.line.clear();
+    if (!getNextCurrentLine())
+        return false;
     currentLine.lineStream.setString(&currentLine.line, QIODeviceBase::ReadOnly);
     return true;
 }
+
+QString Assembler::getRestOfLine()
+{
+    QTextStream &currentLineStream(currentLine.lineStream);
+    QString rest(currentLineStream.readAll());
+    return rest;
+}
+
 
 QString Assembler::peekNextToken(bool wantOperator /*= false*/)
 {
@@ -761,7 +871,7 @@ QString Assembler::peekNextToken(bool wantOperator /*= false*/)
     return nextToken;
 }
 
-bool Assembler::getNextToken(bool wantOperator /*= false*/)
+bool Assembler::getNextToken(bool wantOperator /*= false*/, bool macroDefinition /*= false*/)
 {
     currentToken.clear();
     char firstChar, nextChar;
@@ -786,13 +896,33 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
     }
 
     currentToken.append(firstChar);
+
+    if (macroDefinition)
+    {
+        if (firstChar == ',')
+            return true;
+        if (!(std::isalpha(firstChar) || firstChar == '_'))
+            return false;
+        nextChar = readChar();
+        while (std::isalnum(nextChar) || nextChar == '_')
+        {
+            currentToken.append(nextChar);
+            nextChar = readChar();
+        }
+        if (nextChar != '\0')
+            currentLineStream.seek(currentLineStream.pos() - 1);
+        return true;
+    }
+
     if (std::ispunct(firstChar) || firstChar == '_')
         if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.'
               || (!wantOperator && (firstChar == '-' || firstChar == '*' || firstChar == '<' || firstChar == '>'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
             return true;
+
     nextChar = readChar();
+
     if (firstChar == '\'')
     {
         if (nextChar != '\0')
@@ -835,6 +965,7 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/)
             nextChar = readChar();
         }
     }
+
     if (nextChar != '\0')
         currentLineStream.seek(currentLineStream.pos() - 1);
     return true;
@@ -1026,6 +1157,11 @@ bool Assembler::tokenIsDirective() const
     if (!currentToken.startsWith('.'))
         return false;
     return Assembly::directives().contains(currentToken);
+}
+
+bool Assembler::tokenIsMacro() const
+{
+    return _macroDefinitions.contains(currentToken);
 }
 
 bool Assembler::tokenStartsExpression() const

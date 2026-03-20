@@ -2,6 +2,7 @@
 #include <QMessageBox>
 #include <QSplitter>
 #include <QTextBlock>
+#include <QTimer>
 
 #include "findreplacedialog/finddialog.h"
 #include "findreplacedialog/findreplacedialog.h"
@@ -253,7 +254,7 @@ void MainWindow::openFromFile(QString fileName)
     reset();
     assembler()->resetLabelsAndBreakpoints();
     if (_autoAssembleOnFileOpen)
-        assembleOnly();
+        QTimer::singleShot(500, [this]() { assembleOnly(); });
 }
 
 void MainWindow::saveToFile(QString fileName)

@@ -162,6 +162,22 @@ private:
 
     bool _codeLabelRequiresColon = true;
 
+    struct MacroDefinition
+    {
+        QString name;
+        QStringList params;
+        QStringList body;
+    };
+    QMap<QString, MacroDefinition> _macroDefinitions;
+    struct MacroExpansionState
+    {
+        QString name;
+        QStringList params;
+        QStringList lines;
+        int lineNumber;
+    };
+    QStack<MacroExpansionState> macroExpansionStateStack;
+
     AssembleState assembleState() const;
     void setAssembleState(AssembleState newAssembleState);
     void debugMessage(const QString &message) const;
@@ -179,11 +195,15 @@ private:
     void startIncludeFile(const QString &includeFilename);
     void endIncludeFile();
     void closeIncludeFile();
+    void expandMacro();
+    bool getNextCurrentLine();
     bool getNextLine();
+    QString getRestOfLine();
     QString peekNextToken(bool wantOperator = false);
-    bool getNextToken(bool wantOperator = false);
+    bool getNextToken(bool wantOperator = false, bool macroDefinition = false);
     ExpressionValue getTokensExpressionValueAsInt(bool allowForIndirectAddressing = false, bool *indirectAddressingMetCloseParen = nullptr);
     bool tokenIsDirective() const;
+    bool tokenIsMacro() const;
     bool tokenStartsExpression() const;
     bool tokenIsLabel(bool isDefinition = false) const;
     bool tokenIsInt() const;

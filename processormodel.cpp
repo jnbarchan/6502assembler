@@ -386,10 +386,15 @@ void ProcessorModel::setStartNewRun(bool newStartNewRun)
         setCurrentRunMode(NotRunning);
 }
 
+const Instruction *ProcessorModel::nextInstructionToExecute(uint16_t address) const
+{
+    const uint8_t *nextAddress = reinterpret_cast<const uint8_t *>(_instructions) + address;
+    return reinterpret_cast<const Instruction *>(nextAddress);
+}
+
 const Instruction *ProcessorModel::nextInstructionToExecute() const
 {
-    const uint8_t *address = reinterpret_cast<const uint8_t *>(_instructions) + _programCounter;
-    return reinterpret_cast<const Instruction *>(address);
+    return nextInstructionToExecute(_programCounter);
 }
 
 
@@ -526,22 +531,32 @@ void ProcessorModel::runInstructions(RunMode runMode)
 
         while (!stopRun() && keepGoing)
         {
-            const Instruction &instruction(*nextInstructionToExecute());
-            const InstructionInfo &instructionInfo(instruction.getInstructionInfo());
-            const Operation operation(instructionInfo.operation);
+            const Instruction *instruction(nextInstructionToExecute());
             keepGoing = !step || stopAtInstructionAddress >= 0;
             if (step && stopAtInstructionAddress < 0)
             {
-                if (runMode == StepOver && operation == Operation::JSR)
+                if (runMode == StepOver)
                 {
-                    stopAtInstructionAddress = _programCounter + instructionInfo.bytes;
-                    if (instruction.operand == InternalJSRs::__JSR_outstr_inline)
+                    uint16_t lastInstructionAddress = processorBreakpointProvider->lastInstructionAddressAtSameFileLineNumber(_programCounter);
+                    const Instruction *instruction2(nextInstructionToExecute(lastInstructionAddress));
+                    const InstructionInfo &instructionInfo(instruction2->getInstructionInfo());
+                    const Operation operation(instructionInfo.operation);
+                    if (operation == Operation::JSR)
                     {
-                        uint8_t maxLen;
-                        memoryStrPointer(stopAtInstructionAddress, &maxLen);
-                        stopAtInstructionAddress += maxLen + 1;
+                        stopAtInstructionAddress = lastInstructionAddress + instructionInfo.bytes;
+                        if (instruction->operand == InternalJSRs::__JSR_outstr_inline)
+                        {
+                            uint8_t maxLen;
+                            memoryStrPointer(stopAtInstructionAddress, &maxLen);
+                            stopAtInstructionAddress += maxLen + 1;
+                        }
+                        keepGoing = true;
                     }
-                    keepGoing = true;
+                    else if (lastInstructionAddress > _programCounter)
+                    {
+                        stopAtInstructionAddress = lastInstructionAddress + instructionInfo.bytes;
+                        keepGoing = true;
+                    }
                 }
                 else if (runMode == StepOut)
                 {
@@ -551,7 +566,7 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 }
             }
 
-            runNextInstruction(instruction);
+            runNextInstruction(*instruction);
             instructionCount++;
 
             if (runMode == TurboRun)
