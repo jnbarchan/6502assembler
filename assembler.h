@@ -84,6 +84,14 @@ public:
         }
     };
 
+    struct MacroDefinition
+    {
+        QString name;
+        QStringList params;
+        QStringList body;
+    };
+    typedef QMap<QString, MacroDefinition> MacroDefinitions;
+
     const uint16_t defaultLocationCounter() const;
 
     const Instruction *instructions() const;
@@ -117,6 +125,9 @@ public:
 
     uint8_t *memory() const;
     void setMemory(uint8_t *newMemory);
+
+    const MacroDefinitions &macroDefinitions() const;
+    QStringList macroNames() const;
 
 signals:
     void sendMessageToConsole(const QString &message, Qt::GlobalColor colour = Qt::transparent) const;
@@ -162,12 +173,6 @@ private:
 
     bool _codeLabelRequiresColon = true;
 
-    struct MacroDefinition
-    {
-        QString name;
-        QStringList params;
-        QStringList body;
-    };
     QMap<QString, MacroDefinition> _macroDefinitions;
     struct MacroExpansionState
     {

@@ -100,6 +100,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->codeEditor->setCodeEditorInfoProvider(codeEditorInfoProvider);
 
     syntaxHighlighter = new SyntaxHighlighter(ui->codeEditor->document());
+    syntaxHighlighter->getMacroNames = [this]() { return assembler()->macroNames(); };
 
     ui->tvMemory->setModel(processorModel()->memoryModel());
     tvMemoryViewItemDelegate = new MemoryViewItemDelegate(ui->tvMemory);
@@ -254,7 +255,7 @@ void MainWindow::openFromFile(QString fileName)
     reset();
     assembler()->resetLabelsAndBreakpoints();
     if (_autoAssembleOnFileOpen)
-        QTimer::singleShot(500, [this]() { assembleOnly(); });
+        QTimer::singleShot(100, [this]() { assembleOnly(); syntaxHighlighter->rehighlight(); });
 }
 
 void MainWindow::saveToFile(QString fileName)
@@ -828,12 +829,12 @@ uint16_t CodeEditorInfoProvider::findInstructionAddress(int blockNumber) const
     return emulator()->mapFileLineNumberToInstructionAddress("", blockNumber, true);
 }
 
-QString CodeEditorInfoProvider::wordCompletion(const QString &word, int lineNumber) const
-{
-    return emulator()->wordCompletion(word, "", lineNumber);
-}
-
 QStringListModel *CodeEditorInfoProvider::wordCompleterModel(int lineNumber) const
 {
     return emulator()->wordCompleterModel("", lineNumber);
+}
+
+QString CodeEditorInfoProvider::wordCompletion(const QString &word) const
+{
+    return emulator()->wordCompletion(word);
 }

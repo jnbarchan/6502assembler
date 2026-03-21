@@ -179,12 +179,12 @@ bool CodeEditor::handleTabKey()
     if (word.isEmpty())
         return false;
 
-    QString onlyCompletion = codeEditorInfoProvider->wordCompletion(word, block.blockNumber());
+    completer->setModel(codeEditorInfoProvider->wordCompleterModel(block.blockNumber()));
+    QString onlyCompletion = codeEditorInfoProvider->wordCompletion(word);
     if (!onlyCompletion.isEmpty())
         tc.insertText(onlyCompletion);
     else
     {
-        completer->setModel(codeEditorInfoProvider->wordCompleterModel(block.blockNumber()));
         QAbstractItemView *popup = completer->popup();
         if (word != completer->completionPrefix())
             completer->setCompletionPrefix(word);

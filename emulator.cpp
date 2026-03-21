@@ -5,6 +5,7 @@
 using CodeFileLineNumber = Assembler::CodeFileLineNumber;
 using CodeLabels = Assembler::CodeLabels;
 using ScopeLabel = Assembler::ScopeLabel;
+using MacroDefinitions = Assembler::MacroDefinitions;
 using Profiling = ProcessorModel::Profiling;
 
 //
@@ -269,59 +270,6 @@ QList<int> Emulator::foldableBlocks(const QString &filename) const
 }
 
 
-QString Emulator::wordCompletion(const QString &word, const QString &filename, int lineNumber) const
-{
-    const CodeLabels &codeLabels(assembler()->codeLabels());
-
-    QString scopeLabel = scopeLabelAtLine(filename, lineNumber);
-
-    int wordLen = word.length();
-    QString completion;
-    for (auto [label, value] : codeLabels.values.asKeyValueRange())
-    {
-        int startAt = 0;
-        if (!scopeLabel.isEmpty() && label.startsWith(scopeLabel))
-            startAt = scopeLabel.length() - 1;
-        if (label.mid(startAt, wordLen) != word)
-            continue;
-        QString newCompletion = label.mid(startAt + wordLen);
-        if (newCompletion.isEmpty())
-            continue;
-        else if (completion.isEmpty())
-            completion = newCompletion;
-        else
-        {
-            int maxLen = std::min(newCompletion.length(), completion.length());
-            int commonLen = 0;
-            while (commonLen < maxLen && newCompletion.at(commonLen) == completion.at(commonLen))
-                commonLen++;
-            completion = newCompletion.left(commonLen);
-            if (completion.isEmpty())
-                return QString();
-        }
-    }
-    return completion;
-}
-
-QStringListModel *Emulator::wordCompleterModel(const QString &filename, int lineNumber) const
-{
-    const CodeLabels &codeLabels(assembler()->codeLabels());
-
-    QString scopeLabel = scopeLabelAtLine(filename, lineNumber);
-
-    QStringList words;
-    for (auto [label, value] : codeLabels.values.asKeyValueRange())
-    {
-        QString unscopedLabel(label);
-        if (!scopeLabel.isEmpty() && unscopedLabel.startsWith(scopeLabel))
-            unscopedLabel = unscopedLabel.mid(scopeLabel.length() - 1);
-        words.append(unscopedLabel);
-    }
-    _wordCompleterModel->setStringList(words);
-
-    return _wordCompleterModel;
-}
-
 QString Emulator::scopeLabelAtLine(const QString &filename, int lineNumber) const
 {
     const CodeLabels &codeLabels(assembler()->codeLabels());
@@ -341,6 +289,54 @@ QString Emulator::scopeLabelAtLine(const QString &filename, int lineNumber) cons
     if (!scopeLabel.isEmpty())
         scopeLabel.append('.');
     return scopeLabel;
+}
+
+QStringListModel *Emulator::wordCompleterModel(const QString &filename, int lineNumber) const
+{
+    QStringList words;
+
+    QString scopeLabel = scopeLabelAtLine(filename, lineNumber);
+    const CodeLabels &codeLabels(assembler()->codeLabels());
+    for (auto [label, value] : codeLabels.values.asKeyValueRange())
+    {
+        QString unscopedLabel(label);
+        if (!scopeLabel.isEmpty() && unscopedLabel.startsWith(scopeLabel))
+            unscopedLabel = unscopedLabel.mid(scopeLabel.length() - 1);
+        words.append(unscopedLabel);
+    }
+
+    const MacroDefinitions &macroDefinitions(assembler()->macroDefinitions());
+    words.append(macroDefinitions.keys());
+
+    _wordCompleterModel->setStringList(words);
+    return _wordCompleterModel;
+}
+
+QString Emulator::wordCompletion(const QString &word) const
+{
+    int wordLen = word.length();
+    QString completion;
+    for (const QString &label : _wordCompleterModel->stringList())
+    {
+        if (label.left(wordLen) != word)
+            continue;
+        QString newCompletion = label.mid(wordLen);
+        if (newCompletion.isEmpty())
+            continue;
+        else if (completion.isEmpty())
+            completion = newCompletion;
+        else
+        {
+            int maxLen = std::min(newCompletion.length(), completion.length());
+            int commonLen = 0;
+            while (commonLen < maxLen && newCompletion.at(commonLen) == completion.at(commonLen))
+                commonLen++;
+            completion = newCompletion.left(commonLen);
+            if (completion.isEmpty())
+                break;
+        }
+    }
+    return completion;
 }
 
 

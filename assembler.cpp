@@ -772,6 +772,19 @@ void Assembler::closeIncludeFile()
 }
 
 
+const Assembler::MacroDefinitions &Assembler::macroDefinitions() const
+{
+    return _macroDefinitions;
+}
+
+QStringList Assembler::macroNames() const
+{
+    QStringList names;
+    for (const MacroDefinition macroDef : _macroDefinitions)
+        names.append(macroDef.name);
+    return names;
+}
+
 void Assembler::expandMacro()
 {
     QString macroName(currentToken);

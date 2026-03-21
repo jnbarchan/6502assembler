@@ -35,6 +35,7 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
     static const QRegularExpression macroDefinitionRegex("^\\s*\\.macro\\s+([a-z_]\\w*)", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression macroCallRegex("([a-z_]\\w*)");
     static const QRegularExpression operationRegex = []{
         QStringList list;
         QMetaEnum me = Assembly::OperationsMetaEnum();
@@ -69,6 +70,7 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     localLabelBranchJumpFormat.setForeground(localLabelDefinitionFormat.foreground());
 
     QTextCharFormat macroDefinitionFormat(labelDefinitionFormat);
+    QTextCharFormat macroCallFormat(labelBranchJumpFormat);
 
     QTextCharFormat operationFormat;
     operationFormat.setFontWeight(QFont::Bold);
@@ -115,6 +117,14 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
     match = macroDefinitionRegex.match(code);
     if (match.hasMatch())
         setFormat(match.capturedStart(1), match.capturedLength(1), macroDefinitionFormat);
+    else if (getMacroNames != nullptr)
+    {
+        QStringList macroNames(getMacroNames());
+        match = macroCallRegex.match(code);
+        if (match.hasMatch())
+            if (macroNames.contains(match.captured()))
+                setFormat(match.capturedStart(), match.capturedLength(), macroCallFormat);
+    }
 
     match = operationRegex.match(code);
     if (match.hasMatch())

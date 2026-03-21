@@ -164,8 +164,8 @@ public:
     virtual BreakpointInfo findBreakpointInfo(int blockNumber) const = 0;
     virtual uint16_t findInstructionAddress(int blockNumber) const = 0;
 
-    virtual QString wordCompletion(const QString& word, int lineNumber) const = 0;
     virtual QStringListModel *wordCompleterModel(int lineNumber) const = 0;
+    virtual QString wordCompletion(const QString &word) const = 0;
 };
 
 

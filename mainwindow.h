@@ -125,8 +125,8 @@ public:
     ICodeEditorInfoProvider::BreakpointInfo findBreakpointInfo(int blockNumber) const override;
     uint16_t findInstructionAddress(int blockNumber) const override;
 
-    QString wordCompletion(const QString& word, int lineNumber) const override;
     QStringListModel *wordCompleterModel(int lineNumber) const override;
+    QString wordCompletion(const QString &word) const override;
 
 private:
     const Emulator *_emulator;

@@ -78,7 +78,7 @@ private:
     void insertIntoBreakpoints(const Breakpoint &breakpoint);
 
 public:
-    QString wordCompletion(const QString &word, const QString &filename, int lineNumber) const;
+    QString wordCompletion(const QString &word) const;
     QStringListModel *wordCompleterModel(const QString &filename, int lineNumber) const;
 
 private:

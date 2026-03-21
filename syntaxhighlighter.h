@@ -1,6 +1,8 @@
 #ifndef SYNTAXHIGHLIGHTER_H
 #define SYNTAXHIGHLIGHTER_H
 
+#include <functional>
+
 #include <QSyntaxHighlighter>
 
 //
@@ -11,6 +13,8 @@ class SyntaxHighlighter : public QSyntaxHighlighter
     Q_OBJECT
 public:
     SyntaxHighlighter(QTextDocument *parent);
+
+    std::function<QStringList()> getMacroNames = nullptr;
 
     // QSyntaxHighlighter interface
 protected:
