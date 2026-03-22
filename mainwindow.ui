@@ -773,7 +773,13 @@
     <property name="title">
      <string>File</string>
     </property>
+    <widget class="QMenu" name="menuRecentFiles">
+     <property name="title">
+      <string>Recent Files</string>
+     </property>
+    </widget>
     <addaction name="actionOpen"/>
+    <addaction name="menuRecentFiles"/>
     <addaction name="actionSave"/>
     <addaction name="actionSaveAs"/>
     <addaction name="separator"/>
@@ -786,6 +792,8 @@
     <addaction name="actionStepOut"/>
     <addaction name="actionContinue"/>
     <addaction name="actionReset"/>
+    <addaction name="separator"/>
+    <addaction name="actionSettings"/>
     <addaction name="separator"/>
     <addaction name="actionExit"/>
    </widget>
@@ -914,6 +922,16 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+.</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings...</string>
+   </property>
+  </action>
+  <action name="actionFile1">
+   <property name="text">
+    <string>File1</string>
    </property>
   </action>
  </widget>

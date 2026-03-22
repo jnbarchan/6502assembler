@@ -1,5 +1,6 @@
 #include <QMimeData>
 
+#include "appsettings.h"
 #include "emulator.h"
 
 using CodeFileLineNumber = Assembler::CodeFileLineNumber;
@@ -29,8 +30,6 @@ Emulator::Emulator(QObject *parent)
     _assembler->setAssemblerBreakpointProvider(assemblerBreakpointProvider);
 
     _wordCompleterModel = new QStringListModel(this);
-
-    _profilingEnabled = true;//TEMPORARY
 }
 
 Emulator::~Emulator()
@@ -192,15 +191,15 @@ void Emulator::clearBreakpointInstructionAddresses()
 
 bool Emulator::profilingEnabled() const
 {
-    return _profilingEnabled;
+    return settings().profilingEnabled();
 }
 
 void Emulator::startProfiling()
 {
-    if (!_profilingEnabled)
+    if (!profilingEnabled())
         return;
     const Assembler::LocationCounterRange &locationCounterRange(assembler()->locationCounterRange());
-    _processorModel->profiling().setGranularityShift(1);//TEMPORARY
+    _processorModel->profiling().setGranularityShift(settings().profilingGranularityShift());
     _processorModel->setProfilingRange(locationCounterRange.lowest, locationCounterRange.highest);
     _processorModel->startProfiling();
 }
@@ -209,7 +208,7 @@ void Emulator::getProfilingStatistics(QList<ProfilingLabelHitCount> &labelHitCou
 {
     labelHitCounts.clear();
     const Profiling &profiling(_processorModel->profiling());
-    if (!_profilingEnabled || !profiling.on)
+    if (!profilingEnabled() || !profiling.on)
         return;
     const CodeLabels &codeLabels(assembler()->codeLabels());
     QStringList allScopeLabels = assembler()->allScopeLabels();

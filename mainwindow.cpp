@@ -7,9 +7,11 @@
 #include "findreplacedialog/finddialog.h"
 #include "findreplacedialog/findreplacedialog.h"
 
+#include "appsettings.h"
 #include "emulator.h"
 #include "syntaxhighlighter.h"
 #include "profilingstatisticswindow.h"
+#include "settingsdialog.h"
 
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
@@ -48,8 +50,6 @@ MainWindow::MainWindow(QWidget *parent)
     verticalSplitter->addWidget(ui->teConsole);
     horizontalSplitter->setStretchFactor(1, 0);
     ui->mainLayout->addWidget(verticalSplitter);
-
-    _autoAssembleOnFileOpen = true;//TEMPORARY
 
     findDialog = nullptr;
     findReplaceDialog = nullptr;
@@ -134,6 +134,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionStepOut, &QAction::triggered, this, &MainWindow::stepOut);
     connect(ui->actionContinue, &QAction::triggered, this, &MainWindow::continueRun);
     connect(ui->actionReset, &QAction::triggered, this, &MainWindow::reset);
+    connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::showSettingsDialog);
     connect(ui->actionExit, &QAction::triggered, this, &MainWindow::close);
 
     connect(ui->actionFind, &QAction::triggered, this, &MainWindow::showFindDialog);
@@ -158,6 +159,10 @@ MainWindow::MainWindow(QWidget *parent)
     ui->btnContinue->setDefaultAction(ui->actionContinue);
     ui->actionReset->setIcon(ui->btnReset->icon());
     ui->btnReset->setDefaultAction(ui->actionReset);
+
+    recentFiles = settings().recentFiles();
+    setRecentFilesMenuItems();
+    connect(ui->menuRecentFiles, &QMenu::triggered, this, &MainWindow::openRecentFile);
 
     if (QFile::exists(scratchFileName()))
         openFromFile(scratchFileName());
@@ -238,7 +243,33 @@ QString MainWindow::scratchFileName() const
     return QDir::tempPath() + "/6502assembler_scratchpad.asm";
 }
 
-void MainWindow::openFromFile(QString fileName)
+void MainWindow::addToRecentFiles(const QString &fileName)
+{
+    QDir defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? QDir(SAMPLES_RELATIVE_PATH) : QDir::currentPath();
+    QString dirPath = defaultDir.absolutePath();
+    if (!dirPath.endsWith("/"))
+        dirPath.append("/");
+    QString relativeFilename = fileName;
+    if (relativeFilename.startsWith(dirPath))
+        relativeFilename.remove(dirPath);
+
+    recentFiles.removeAll(relativeFilename);
+    recentFiles.insert(0, relativeFilename);
+    if (recentFiles.size() > 4)
+        recentFiles.resize(4);
+
+    settings().setRecentFiles(recentFiles);
+    setRecentFilesMenuItems();
+}
+
+void MainWindow::setRecentFilesMenuItems()
+{
+    ui->menuRecentFiles->clear();
+    for (const QString &recentFile : recentFiles)
+        ui->menuRecentFiles->addAction(recentFile);
+}
+
+void MainWindow::openFromFile(const QString &fileName)
 {
     QFile file(fileName);
     if (!file.open(QFile::ReadOnly | QFile::Text))
@@ -247,6 +278,7 @@ void MainWindow::openFromFile(QString fileName)
         return;
     }
     ui->codeEditor->setPlainText(file.readAll());
+    addToRecentFiles(fileName);
     if (fileName != scratchFileName())
     {
         saveToFile(scratchFileName());
@@ -254,11 +286,11 @@ void MainWindow::openFromFile(QString fileName)
     }
     reset();
     assembler()->resetLabelsAndBreakpoints();
-    if (_autoAssembleOnFileOpen)
+    if (settings().autoAssembleOnFileOpen())
         QTimer::singleShot(100, [this]() { assembleOnly(); syntaxHighlighter->rehighlight(); });
 }
 
-void MainWindow::saveToFile(QString fileName)
+void MainWindow::saveToFile(const QString &fileName)
 {
     QFile file(fileName);
     if (!file.open(QFile::WriteOnly | QFile::Text)
@@ -269,6 +301,7 @@ void MainWindow::saveToFile(QString fileName)
     }
     if (fileName != scratchFileName())
     {
+        addToRecentFiles(fileName);
         ui->codeEditor->document()->setModified(false);
         setCurrentFileNameToSave(fileName);
     }
@@ -542,6 +575,19 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     emulator()->clearBreakpointInstructionAddresses();
 }
 
+/*slot*/ void MainWindow::openRecentFile(QAction *action)
+{
+    QString fileName(action->text());
+    if (fileName.isEmpty())
+        return;
+    if (!checkSaveFile())
+        return;
+    QDir defaultDir = QDir(SAMPLES_RELATIVE_PATH).exists() ? QDir(SAMPLES_RELATIVE_PATH) : QDir::currentPath();
+    if (QDir(fileName).isRelative() && !defaultDir.isEmpty())
+        fileName = defaultDir.absoluteFilePath(fileName);
+    openFromFile(fileName);
+}
+
 /*slot*/ void MainWindow::openFile()
 {
     if (!checkSaveFile())
@@ -608,6 +654,12 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
     if (profilingStatisticsWindow == nullptr)
         profilingStatisticsWindow = new ProfilingStatisticsWindow(this);
     profilingStatisticsWindow->show();
+}
+
+/*slot*/ void MainWindow::showSettingsDialog()
+{
+    SettingsDialog settingsDialog(this);
+    settingsDialog.exec();
 }
 
 

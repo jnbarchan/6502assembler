@@ -581,7 +581,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
 
 void Assembler::assembleDirective()
 {
-    QString directive(currentToken);
+    QString directive(currentToken.toLower());
 
     if (directive == ".byte" || directive == ".word")
     {
@@ -674,7 +674,7 @@ void Assembler::assembleDirective()
             if (!getNextLine())
                 throw AssemblerError(QString("Missing .endmacro"));
             getNextToken();
-            if (currentToken == ".endmacro")
+            if (currentToken.toLower() == ".endmacro")
                 break;
             macroDef.body.append(currentLine.line);
         }

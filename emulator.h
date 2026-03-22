@@ -91,8 +91,6 @@ private:
     Assembler *_assembler;
     AssemblerBreakpointProvider *assemblerBreakpointProvider;
 
-    bool _profilingEnabled;
-
     QStringListModel *_wordCompleterModel;
 
     QString scopeLabelAtLine(const QString &filename, int lineNumber) const;

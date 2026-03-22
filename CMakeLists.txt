@@ -36,6 +36,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         watchview.h watchview.cpp
         findreplacedialog/finddialog.cpp findreplacedialog/finddialog.h findreplacedialog/findreplacedialog.cpp findreplacedialog/findreplacedialog.h
         profilingstatisticswindow.h profilingstatisticswindow.cpp profilingstatisticswindow.ui
+        settingsdialog.h settingsdialog.cpp settingsdialog.ui
+        appsettings.h appsettings.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET 6502assembler APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

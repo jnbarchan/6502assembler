@@ -55,6 +55,7 @@ private slots:
     void debugMessage(const QString &message);
     void rbgNumBaseClicked(QAbstractButton *rb);
     void codeTextChanged();
+    void openRecentFile(QAction *action);
     void openFile();
     void saveFile();
     void saveFileAs();
@@ -62,6 +63,7 @@ private slots:
     void showFindDialog();
     void showFindReplaceDialog();
     void showProfilingStatisticsWindow();
+    void showSettingsDialog();
     void sendMessageToConsole(const QString &message, QBrush colour = Qt::transparent);
     void sendStringToConsole(const QString &str);
     void sendCharToConsole(char ch);
@@ -94,6 +96,7 @@ private:
     bool _haveDoneReset;
     QSpinBox *spnLastChangedColor;
     QString _currentFileNameToSave;
+    QStringList recentFiles;
     MemoryViewItemDelegate *tvMemoryViewItemDelegate;
     QModelIndex _lastMemoryModelDataChangedIndex;
     WatchViewItemDelegate *tvWatchViewItemDelegate;
@@ -101,12 +104,12 @@ private:
     CodeEditorInfoProvider *codeEditorInfoProvider;
     WatchModel *watchModel;
 
-    bool _autoAssembleOnFileOpen;
-
     void updateWindowTitle();
     QString scratchFileName() const;
-    void openFromFile(QString fileName);
-    void saveToFile(QString fileName);
+    void addToRecentFiles(const QString &fileName);
+    void setRecentFilesMenuItems();
+    void openFromFile(const QString &fileName);
+    void saveToFile(const QString &fileName);
     bool checkSaveFile();
     void showStatusFlagsHeader(uint8_t value, uint8_t prevValue);
     void scrollToLastMemoryModelDataChangedIndex() const;

@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QTimer>
 
+#include "appsettings.h"
 #include "processormodel.h"
 
 
@@ -525,9 +526,9 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 keepGoing = false;
 
         int instructionCount = 0;
-        const int processEventsEverySoOften = 0 /*100000*/;
-        const int processEventsForVerticalSync = /*0*/ (10 * 20);
-        QDeadlineTimer verticalSync(processEventsForVerticalSync);
+        const int processEventsEverySoOften = settings().processEventsEverySoOften();
+        const int processEventsForVerticalSyncs = settings().processEventsForVerticalSyncs();
+        QDeadlineTimer verticalSync(processEventsForVerticalSyncs);
 
         while (!stopRun() && keepGoing)
         {
@@ -576,9 +577,9 @@ void ProcessorModel::runInstructions(RunMode runMode)
                 keepGoing = false;
 
             bool processEvents = false;
-            if (processEventsForVerticalSync != 0 && verticalSync.hasExpired())
+            if (processEventsForVerticalSyncs != 0 && verticalSync.hasExpired())
             {
-                verticalSync.setRemainingTime(processEventsForVerticalSync);
+                verticalSync.setRemainingTime(processEventsForVerticalSyncs);
                 processEvents = true;
             }
             if (processEventsEverySoOften != 0 && instructionCount % processEventsEverySoOften == 0)

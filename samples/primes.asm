@@ -726,8 +726,8 @@ found_prime_output:
     sta dividend
     lda last_prime+1
     sta dividend+1
-    ; print newline
     jsr _outnum
+    ; print newline
     lda #10
     jsr __outch
     ;jsr __process_events
