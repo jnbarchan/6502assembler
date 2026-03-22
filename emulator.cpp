@@ -30,7 +30,7 @@ Emulator::Emulator(QObject *parent)
 
     _wordCompleterModel = new QStringListModel(this);
 
-    _profilingEnabled = false;//TEMPORARY
+    _profilingEnabled = true;//TEMPORARY
 }
 
 Emulator::~Emulator()
@@ -227,6 +227,8 @@ void Emulator::getProfilingStatistics(QList<ProfilingLabelHitCount> &labelHitCou
         uint16_t address = expressionValue.intValue;
         labelHitCounts.append(ProfilingLabelHitCount(address, label));
     }
+    if (labelHitCounts.isEmpty() && profiling.programCounterLow < profiling.programCounterHigh)
+        labelHitCounts.append(ProfilingLabelHitCount(profiling.programCounterLow, "<TOP-LEVEL>"));
     std::sort(labelHitCounts.begin(), labelHitCounts.end(), [](const ProfilingLabelHitCount &a, const ProfilingLabelHitCount &b) { return a.address < b.address; });
 
     int labelHitCountIndex = 0;
