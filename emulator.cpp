@@ -303,7 +303,8 @@ QStringListModel *Emulator::wordCompleterModel(const QString &filename, int line
         QString unscopedLabel(label);
         if (!scopeLabel.isEmpty() && unscopedLabel.startsWith(scopeLabel))
             unscopedLabel = unscopedLabel.mid(scopeLabel.length() - 1);
-        words.append(unscopedLabel);
+        if (!unscopedLabel.isEmpty() && unscopedLabel.at(0) != '@')
+            words.append(unscopedLabel);
     }
 
     const MacroDefinitions &macroDefinitions(assembler()->macroDefinitions());

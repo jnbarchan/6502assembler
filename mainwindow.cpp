@@ -401,6 +401,7 @@ void MainWindow::assembleAndRun(ProcessorModel::RunMode runMode)
             currentCodeLineNumberChanged("", -1);
             ui->codeEditor->setTextCursor(savedTextCursor);
             ui->codeEditor->centerCursor();
+            syntaxHighlighter->rehighlight();
         }
 
         if (assembler()->needsAssembling() || runMode == ProcessorModel::NotRunning)

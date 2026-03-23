@@ -24,18 +24,18 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
         QString pattern = QStringLiteral("^\\s*(") + list.join('|') + QStringLiteral(")\\b");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
-    static const QRegularExpression labelDefinitionRegex("^\\s*(\\.?[a-z_]\\w*):", QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression labelDefinitionRegex("^\\s*([.@]?[a-z_]\\w*):", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression labelBranchJumpRegex = []{
         QStringList list;
         QMetaEnum me = Assembly::OperationsMetaEnum();
         for (Assembly::Operation operation : Assembly::branchJumpOperations())
             list.append(QRegularExpression::escape(me.valueToKey(operation)));
         QString pattern = QStringLiteral("\\b(?:") + list.join('|') + QStringLiteral(")\\b");
-        pattern += QStringLiteral("\\s+(\\.?[a-z_]\\w*)(\\.[a-z_]\\w*)?");
+        pattern += QStringLiteral("\\s+([.@]?[a-z_]\\w*)(\\.[a-z_]\\w*)?");
         return QRegularExpression(pattern, QRegularExpression::CaseInsensitiveOption);
     }();
     static const QRegularExpression macroDefinitionRegex("^\\s*\\.macro\\s+([a-z_]\\w*)", QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression macroCallRegex("([a-z_]\\w*)");
+    static const QRegularExpression macroCallRegex("([a-z_]\\w*)", QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression operationRegex = []{
         QStringList list;
         QMetaEnum me = Assembly::OperationsMetaEnum();
@@ -103,11 +103,14 @@ void SyntaxHighlighter::highlightBlock(const QString &text) /*override*/
 
     match = labelDefinitionRegex.match(code);
     if (match.hasMatch())
-        setFormat(match.capturedStart(1), match.capturedLength(1), match.captured(1).at(0) == '.' ? localLabelDefinitionFormat : labelDefinitionFormat);
+    {
+        bool local = match.captured(1).at(0) == '.' || match.captured(1).at(0) == '@';
+        setFormat(match.capturedStart(1), match.capturedLength(1), local ? localLabelDefinitionFormat : labelDefinitionFormat);
+    }
     match = labelBranchJumpRegex.match(code);
     if (match.hasMatch())
     {
-        bool local = match.captured(1).at(0) == '.';
+        bool local = match.captured(1).at(0) == '.' || match.captured(1).at(0) == '@';
         bool internal = match.captured(1).startsWith("__");
         setFormat(match.capturedStart(1), match.capturedLength(1), local ? localLabelBranchJumpFormat : internal ? internalLabelBranchJumpFormat : labelBranchJumpFormat);
         if (match.hasCaptured(2))

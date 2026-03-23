@@ -55,3 +55,21 @@
     sta dest+1
 .endmacro  ; _SubImm16
 
+.macro _Cmp16 addr1, addr2
+    lda addr1+1
+    cmp addr2+1
+    bne @return
+    lda addr1
+    cmp addr2
+@return:
+.endmacro  ; _Cmp16
+
+.macro _CmpImm16 addr, val
+    lda addr+1
+    cmp #>val
+    bne @return
+    lda addr
+    cmp #<val
+@return:
+.endmacro  ; _CmpImm16
+

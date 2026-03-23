@@ -21,6 +21,7 @@ Assembler::Assembler(QObject *parent)
     currentFile.lines.clear();
     codeFileStateStack.clear();
     macroExpansionStateStack.clear();
+    macroExpansionCounter = 0;
     _codeIncludeDirectories.clear();
     _includedFilePaths.clear();
     _assembleState = AssembleState::NotStarted;
@@ -173,7 +174,7 @@ void Assembler::assignLabelValue(const QString &scopedLabel, bool isLabel, Expre
             assemblerWarningMessage(QString("Label redefinition: %1").arg(scopedLabel));
     }
     setCodeLabelValue(scopedLabel, value);
-    if (isLabel && !scopedLabel.contains('.'))
+    if (isLabel && !(scopedLabel.contains('.') || scopedLabel.contains('@')))
     {
         _currentCodeLabelScope = scopedLabel;
         _codeLabels.scopes[currentFile.filename].append(ScopeLabel(scopedLabel, currentFile.lineNumber));
@@ -209,6 +210,7 @@ void Assembler::cleanup(bool assemblePass2 /*= false*/)
     Q_ASSERT(currentFile.stream);
 
     macroExpansionStateStack.clear();
+    macroExpansionCounter = 0;
     while (!codeFileStateStack.isEmpty())
     {
         closeIncludeFile();
@@ -391,6 +393,7 @@ void Assembler::assembleNextStatement(Operation &operation, AddressingMode &mode
         if (tokenIsLabel(true))
         {
             QString label(currentToken);
+            label = macroExpandLabelName(label);
 
             bool isCodeLabel = true;
             QString nextToken = peekNextToken();
@@ -668,6 +671,7 @@ void Assembler::assembleDirective()
         }
         if (!currentToken.isEmpty())
             return;
+        assignLabelValue(macroDef.name, true, -1);
         while (true)
         {
             setCurrentCodeLineNumber(currentFile.lineNumber + 1);
@@ -785,6 +789,13 @@ QStringList Assembler::macroNames() const
     return names;
 }
 
+QString Assembler::macroExpandLabelName(const QString &label) const
+{
+    if (!label.startsWith('@'))
+        return label;
+    return QString("%1__M%2").arg(label).arg(macroExpansionCounter);
+}
+
 void Assembler::expandMacro()
 {
     QString macroName(currentToken);
@@ -816,6 +827,8 @@ void Assembler::expandMacro()
     }
 
     macroExpansionStateStack.push(macroExp);
+
+    macroExpansionCounter++;
 }
 
 
@@ -928,7 +941,7 @@ bool Assembler::getNextToken(bool wantOperator /*= false*/, bool macroDefinition
     }
 
     if (std::ispunct(firstChar) || firstChar == '_')
-        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.'
+        if (!(firstChar == '%' || firstChar == '$' || firstChar == '\'' || firstChar == '\"' || firstChar == '_' || firstChar == '.' || firstChar == '@'
               || (!wantOperator && (firstChar == '-' || firstChar == '*' || firstChar == '<' || firstChar == '>'))
               || (wantOperator && (firstChar == '<' || firstChar == '>'))
               ))
@@ -1187,7 +1200,7 @@ bool Assembler::tokenIsLabel(bool isDefinition /*= false*/) const
     if (currentToken.isEmpty())
         return false;
     char ch = currentToken.at(0).toLatin1();
-    if (!(ch == '.' || ch == '_' || std::isalpha(ch)))
+    if (!(ch == '.' || ch == '@' || ch == '_' || std::isalpha(ch)))
         return false;
     if (tokenIsDirective())
         return false;
@@ -1246,6 +1259,7 @@ Assembler::ExpressionValue Assembler::tokenValueAsInt() const
     if (tokenIsLabel())
     {
         QString label = scopedLabelName(currentToken);
+        label = macroExpandLabelName(label);
         if (_codeLabels.values.contains(label))
             return _codeLabels.values.value(label);
         else if (_assembleState == Pass1)

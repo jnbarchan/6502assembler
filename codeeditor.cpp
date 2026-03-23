@@ -173,7 +173,7 @@ bool CodeEditor::handleTabKey()
     int startPos = endPos;
     char ch;
     while (startPos > 0
-           && (std::isalnum(ch = block.text().at(startPos - 1).toLatin1()) || ch == '_' || ch == '.'))
+           && (std::isalnum(ch = block.text().at(startPos - 1).toLatin1()) || ch == '_' || ch == '.' || ch == '@'))
         startPos--;
     QString word = block.text().mid(startPos, endPos - startPos);
     if (word.isEmpty())

@@ -182,6 +182,7 @@ private:
         int lineNumber;
     };
     QStack<MacroExpansionState> macroExpansionStateStack;
+    int macroExpansionCounter;
 
     AssembleState assembleState() const;
     void setAssembleState(AssembleState newAssembleState);
@@ -200,6 +201,7 @@ private:
     void startIncludeFile(const QString &includeFilename);
     void endIncludeFile();
     void closeIncludeFile();
+    QString macroExpandLabelName(const QString &label) const;
     void expandMacro();
     bool getNextCurrentLine();
     bool getNextLine();
